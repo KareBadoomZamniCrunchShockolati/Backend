@@ -1,40 +1,38 @@
 package middleware
 
 import (
-	"challenge-app/pkg/security"
 	"net/http"
 	"strings"
 
+	"challenge-app/pkg/security"
 	"github.com/gin-gonic/gin"
 )
 
 func JWTAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 1. Get the Authorization header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
-			c.Abort()
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
 			return
 		}
 
-		// 2. Validate the token
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		claims, err := security.ValidateToken(token)
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization header format"})
+			return
+		}
+
+		tokenString := parts[1]
+		
+		userID, err := security.ValidateToken(tokenString) 
+		
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-			c.Abort()
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token", "details": err.Error()})
 			return
 		}
 
-		// 3. Set the user ID in the context
-		if userID, ok := (*claims)["userID"]; ok {
-			c.Set("userID", userID)
-		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "UserID not found in token"})
-			c.Abort()
-			return
-		}
+		c.Set("userID", userID)
+
 		c.Next()
 	}
 }

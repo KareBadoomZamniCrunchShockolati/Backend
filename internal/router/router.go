@@ -5,26 +5,30 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SetupRouter initializes the Gin router and defines all API endpoints.
-func SetupRouter(authHandler *handlers.AuthHandler) *gin.Engine {
+// SetupRouter now accepts the UserHandler and the JWT Middleware function.
+func SetupRouter(
+    userHandler *handlers.UserHandler, 
+    authHandler *handlers.AuthHandler,
+    jwtMiddleware gin.HandlerFunc, 
+) *gin.Engine {
 	r := gin.Default()
 
 	v1 := r.Group("/api/v1")
+	// Public routes (Login, Signup)
 	{
-		// --- Public Auth Routes (No Auth Required) ---
 		v1.POST("/auth/signup", authHandler.Signup)
 		v1.POST("/auth/login", authHandler.Login)
-		// --- User CRUD Routes (TEMPORARY: Passing ID in URL) ---
-		
-        // Read: Get a user profile by ID
-		v1.GET("/users/:id", authHandler.GetProfile) 
-        
-		v1.GET("/users", authHandler.GetAllUsers) 
-        // Update: Update a user profile by ID
-		v1.PUT("/users/:id", authHandler.UpdateProfile) 
-        
-        // Delete: Delete a user by ID
-		v1.DELETE("/users/:id", authHandler.DeleteUser) 
+	}
+
+	// Protected Group: All routes here require a valid JWT token.
+	protected := r.Group("/api/v1")
+	protected.Use(jwtMiddleware) 
+
+	{
+		protected.GET("/users", userHandler.GetAllUsers) 
+		protected.GET("/users/profile", userHandler.GetProfile) 
+		protected.PUT("/users/profile", userHandler.UpdateProfile) 
+		protected.DELETE("/users/profile", userHandler.DeleteUser)
 	}
 
 	return r

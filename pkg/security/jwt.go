@@ -1,39 +1,60 @@
 package security
 
 import (
-	"github.com/google/uuid"
+	"fmt"
+	"os"
 	"time"
+
+	"github.com/google/uuid"
 	"github.com/golang-jwt/jwt/v5"
-	"errors"
 )
 
-var jwtKey = []byte("your_secret_key")
-
-var ErrInvalidToken = errors.New("invalid token")
-
-func GenerateToken(userID uuid.UUID) (string, error) {
-	// Define token claims
-	claims := &jwt.MapClaims{
-		"user_id": userID.String(),
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtKey)
+type Claims struct {
+	UserID uuid.UUID `json:"user_id"`
+	jwt.RegisteredClaims
 }
 
-func ValidateToken(tokenString string) (*jwt.MapClaims, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, ErrInvalidToken
+func GenerateToken(userID uuid.UUID) (string, error) {
+	// Secret key From environment variable
+	jwtSecret := []byte(os.Getenv("JWT_SECRET_KEY"))
+	if len(jwtSecret) == 0 {
+		return "", fmt.Errorf("JWT_SECRET_KEY is not set")
+	}
+
+	// Set expiration time
+	expirationTime := time.Now().Add(time.Hour * 24) 
+
+	claims := &Claims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "challenge-app",
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
+}
+
+
+func ValidateToken(tokenString string) (uuid.UUID, error) {
+	jwtSecret := []byte(os.Getenv("JWT_SECRET_KEY"))
+	if len(jwtSecret) == 0 {
+		return uuid.Nil, fmt.Errorf("JWT_SECRET_KEY is not set")
+	}
+
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
-		return jwtKey, nil
+		return jwtSecret, nil
 	})
-	if err != nil {
-		return nil, err
+
+	if err != nil || !token.Valid {
+		return uuid.Nil, fmt.Errorf("token validation failed: %w", err)
 	}
-	claims, ok := token.Claims.(*jwt.MapClaims)
-	if !ok || !token.Valid {
-		return nil, ErrInvalidToken
-	}
-	return claims, nil
+
+	return claims.UserID, nil
 }

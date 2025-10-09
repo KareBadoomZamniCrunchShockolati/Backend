@@ -8,9 +8,13 @@ import (
 // AuthServicer defines the interface for all authentication and user management 
 // business logic functions.
 type AuthServicer interface {
-    // Auth & CRUD Operations
+    // Auth Operations
     RegisterUser(username, email, password, bio string) (*domain.User, error)
     LoginUser(email, password string) (*domain.User, error)
+}
+
+type UserServicer interface {
+    // CRUD Operations
     UpdateUser(id uuid.UUID, username, bio, newEmail string) (*domain.User, error)
     DeleteUser(id uuid.UUID) error
     
