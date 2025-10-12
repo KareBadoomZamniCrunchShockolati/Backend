@@ -1,11 +1,10 @@
-package handlers
+package handler
 
 import (
 	"net/http"
-	"challenge-app/internal/dto"	
-	"challenge-app/internal/service"
+	"challenge-app/internal/application/dto"
+	"challenge-app/internal/application/service"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"strings"
 	"errors"
 	"gorm.io/gorm"
@@ -30,7 +29,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
         return
     }
 
-    userID, ok := userIDValue.(uuid.UUID)
+    userID, ok := userIDValue.(uint)
     if !ok {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error: User ID format mismatch"})
         return
@@ -72,7 +71,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	userID, ok := userID.(uuid.UUID)
+	userID, ok := userID.(uint)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error: User ID format mismatch"})
 		return
@@ -87,7 +86,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 	// 3. Call the business logic
 	user, err := h.UserService.UpdateUser(
-		userID.(uuid.UUID), 
+		userID.(uint), 
 		req.Username, 
 		req.Bio, 
 		req.NewEmail, // Field from the DTO
@@ -137,7 +136,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	userIDUUID, ok := userID.(uuid.UUID)
+	userIDUUID, ok := userID.(uint)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error: User ID format mismatch"})
 		return

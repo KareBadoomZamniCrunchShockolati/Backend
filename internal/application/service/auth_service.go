@@ -1,24 +1,23 @@
 package service
 
 import (
-	"challenge-app/internal/domain"
+	"challenge-app/internal/domain/model"
+	"challenge-app/internal/domain/repository/postgres"
 	"challenge-app/pkg/security"
 	"fmt"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type AuthService struct {
-	UserRepo domain.UserRepository
+	UserRepo postgres.UserRepository
 }
 
-func NewAuthService(repo domain.UserRepository) *AuthService {
+func NewAuthService(repo postgres.UserRepository) *AuthService {
 	return &AuthService{UserRepo: repo}
 }
 
 // RegisterUser (CRUD - Create Logic)
-func (s *AuthService) RegisterUser(username, email, password, bio string) (*domain.User, string, error) {
+func (s *AuthService) RegisterUser(username, email, password, bio string) (*model.UserModel, string, error) {
 	// 1. Check if user already exists
 	_, err := s.UserRepo.GetUserByEmail(email)
 	if err == nil {
@@ -32,29 +31,28 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*doma
 	}
 
 	// 3. Create the Domain Entity
-	user := &domain.User{
-		ID:           uuid.New(),
+	user := &model.UserModel{
 		Username:     username,
 		Email:        email,
 		PasswordHash: hash,
 		CreatedAt:    time.Now(),
 		Bio:          bio,
 	}
-	token, err := security.GenerateToken(user.ID)
-	if err != nil {
-		return nil, "", fmt.Errorf("could not generate token: %w", err)
-	}
+
 	// 4. Persist the Domain Entity
 	err = s.UserRepo.CreateUser(user)
 	if err != nil {
 		return nil, "", fmt.Errorf("user creation failed: %w", err)
 	}
+
+	token, err := security.GenerateToken(user.ID)
+	if err != nil {
+		return nil, "", fmt.Errorf("could not generate token: %w", err)
+	}
 	return user, token, nil
 }
 
-
-
-func (s *AuthService) LoginUser(email, password string) (*domain.User, string, error) {
+func (s *AuthService) LoginUser(email, password string) (*model.UserModel, string, error) {
 	// 1. Retrieve the user by email
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {

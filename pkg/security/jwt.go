@@ -4,17 +4,15 @@ import (
 	"fmt"
 	"os"
 	"time"
-
-	"github.com/google/uuid"
 	"github.com/golang-jwt/jwt/v5"
 )
 
 type Claims struct {
-	UserID uuid.UUID `json:"user_id"`
+	UserID uint `json:"user_id"`
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(userID uuid.UUID) (string, error) {
+func GenerateToken(userID uint) (string, error) {
 	// Secret key From environment variable
 	jwtSecret := []byte(os.Getenv("JWT_SECRET_KEY"))
 	if len(jwtSecret) == 0 {
@@ -38,10 +36,10 @@ func GenerateToken(userID uuid.UUID) (string, error) {
 }
 
 
-func ValidateToken(tokenString string) (uuid.UUID, error) {
+func ValidateToken(tokenString string) (uint, error) {
 	jwtSecret := []byte(os.Getenv("JWT_SECRET_KEY"))
 	if len(jwtSecret) == 0 {
-		return uuid.Nil, fmt.Errorf("JWT_SECRET_KEY is not set")
+		return 0, fmt.Errorf("JWT_SECRET_KEY is not set")
 	}
 
 	claims := &Claims{}
@@ -53,7 +51,7 @@ func ValidateToken(tokenString string) (uuid.UUID, error) {
 	})
 
 	if err != nil || !token.Valid {
-		return uuid.Nil, fmt.Errorf("token validation failed: %w", err)
+		return 0, fmt.Errorf("token validation failed: %w", err)
 	}
 
 	return claims.UserID, nil

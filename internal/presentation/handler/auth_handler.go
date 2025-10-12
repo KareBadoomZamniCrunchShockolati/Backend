@@ -1,9 +1,9 @@
-package handlers
+package handler
 
 import (
 	"net/http"
-	"challenge-app/internal/dto"
-	"challenge-app/internal/service"
+	"challenge-app/internal/application/dto"
+	"challenge-app/internal/application/service"
 	"github.com/gin-gonic/gin"
 )
 

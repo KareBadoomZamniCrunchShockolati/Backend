@@ -1,32 +1,32 @@
 package service
 
 import (
-	"challenge-app/internal/domain"
-	"github.com/google/uuid"
+	"challenge-app/internal/domain/model"
+	"challenge-app/internal/domain/repository/postgres"
 	"fmt"
 )
 
 type UserService struct {
-	UserRepo domain.UserRepository
+	UserRepo postgres.UserRepository
 }
 
-func NewUserService(repo domain.UserRepository) *UserService {
+func NewUserService(repo postgres.UserRepository) *UserService {
 	return &UserService{UserRepo: repo}
 }
 
 
 // GetUserByID (CRUD - Read Logic)
-func (s *UserService) GetUserByID(id uuid.UUID) (*domain.User, error) {
+func (s *UserService) GetUserByID(id uint) (*model.UserModel, error) {
     return s.UserRepo.GetUserByID(id)
 }
 
 
-func (s *UserService) GetAllUsers() ([]domain.User, error) {
+func (s *UserService) GetAllUsers() ([]model.UserModel, error) {
     return s.UserRepo.GetAllUsers()
 }
 
 // UpdateUser (CRUD - Update Logic)
-func (s *UserService) UpdateUser(id uuid.UUID, username, bio, newEmail string) (*domain.User, error) {
+func (s *UserService) UpdateUser(id uint, username, bio, newEmail string) (*model.UserModel, error) {
 	// 1. Retrieve the existing user
 	user, err := s.UserRepo.GetUserByID(id)
 	if err != nil {
@@ -61,14 +61,15 @@ func (s *UserService) UpdateUser(id uuid.UUID, username, bio, newEmail string) (
 
 
 	// 4. Persist changes to the repository
-	if err := s.UserRepo.UpdateUser(user); err != nil {
+	updatedUser, err := s.UserRepo.UpdateUser(user)
+	if err != nil {
 		return nil, fmt.Errorf("failed to update user in repository: %w", err)
 	}
-    
-	return user, nil
+	
+	return updatedUser, nil
 }
 
 // DeleteUser (CRUD - Delete Logic)
-func (s *UserService) DeleteUser(id uuid.UUID) error {
+func (s *UserService) DeleteUser(id uint) error {
     return s.UserRepo.DeleteUser(id)
 }
