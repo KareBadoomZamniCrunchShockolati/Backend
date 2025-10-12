@@ -1,8 +1,5 @@
 package model
 
-import (
-	"time"
-)
 
 // User is the core entity.
 type UserModel struct {
@@ -12,5 +9,4 @@ type UserModel struct {
 	PasswordHash   string
 	Bio            string
 	ProfilePicture string
-	CreatedAt      time.Time
 }

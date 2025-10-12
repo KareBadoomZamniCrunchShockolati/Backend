@@ -5,7 +5,6 @@ import (
 	"challenge-app/internal/domain/repository/postgres"
 	"challenge-app/pkg/security"
 	"fmt"
-	"time"
 )
 
 type AuthService struct {
@@ -35,7 +34,6 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 		Username:     username,
 		Email:        email,
 		PasswordHash: hash,
-		CreatedAt:    time.Now(),
 		Bio:          bio,
 	}
 

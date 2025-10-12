@@ -5,12 +5,12 @@ import (
 	"log"
 	"os"
 
-	"challenge-app/internal/presentation/handler"
-	"challenge-app/internal/presentation/middleware"
-	"challenge-app/internal/domain/model"
-	"challenge-app/internal/presentation/router"
 	"challenge-app/internal/application/service"
 	"challenge-app/internal/infrastructure/repository/postgres"
+	"challenge-app/internal/infrastructure/repository/postgres/entity"
+	"challenge-app/internal/presentation/handler"
+	"challenge-app/internal/presentation/middleware"
+	"challenge-app/internal/presentation/router"
 
 	"github.com/joho/godotenv"
 	gormPostgres "gorm.io/driver/postgres"
@@ -37,7 +37,7 @@ func main() {
 	log.Println("Database connection successful.")
 
 	// Run Migrations
-	err = db.AutoMigrate(&model.UserModel{})
+	err = db.AutoMigrate(&entity.UserEntity{})
 	if err != nil {
 		log.Fatalf("Failed to auto-migrate database: %v", err)
 	}
