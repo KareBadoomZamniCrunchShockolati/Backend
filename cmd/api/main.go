@@ -1,16 +1,18 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"os"
-
 	"challenge-app/internal/application/service"
 	"challenge-app/internal/infrastructure/repository/postgres"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
 	"challenge-app/internal/presentation/handler"
 	"challenge-app/internal/presentation/middleware"
 	"challenge-app/internal/presentation/router"
+	"challenge-app/pkg/security"
+	"fmt"
+	"log"
+	"os"
+
+	"time"
 
 	"github.com/joho/godotenv"
 	gormPostgres "gorm.io/driver/postgres"
@@ -19,7 +21,7 @@ import (
 
 func main() {
 	// --- 1. CONFIGURATION & DATABASE SETUP ---
-	
+
 	// Load environment variables from .env file
 	if err := godotenv.Load("../../.env"); err != nil {
 		log.Fatal("Error loading .env file. Ensure it exists in the project root.")
@@ -44,23 +46,28 @@ func main() {
 	log.Println("User table migration complete.")
 
 	// --- 2. DEPENDENCY INJECTION (WIRING THE LAYERS) ---
-	
+	jwtSecretKey := os.Getenv("JWT_SECRET_KEY")
+	if jwtSecretKey == "" {
+		log.Fatal("FATAL: JWT_SECRET_KEY is not set in environment. Please set it.")
+	}
+	const tokenExpiry = time.Hour * 24
+	jwtService := security.NewJWTService(jwtSecretKey, tokenExpiry)
+
 	// Repository Layer
+
 	userRepo := postgres.NewUserRepository(db)
-	
+
 	// Service Layer
-	authService := service.NewAuthService(userRepo)
+
+	authService := service.NewAuthService(userRepo, jwtService)
 	userService := service.NewUserService(userRepo)
-	
+
+	jwtMiddleware := middleware.JWTAuthMiddleware(jwtService)
+
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
-	userHandler = handler.NewUserHandler(userService)
 
 	// --- 3. RUN APPLICATION ---
-	
-	// Instantiate the JWT Middleware
-	jwtMiddleware := middleware.JWTAuthMiddleware()
-
 	// Set up the Gin router and inject all necessary handlers and the middleware
 	r := router.SetupRouter(userHandler, authHandler, jwtMiddleware)
 
@@ -69,7 +76,7 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	
+
 	// Start Server
 	log.Printf("Starting server on port %s...", port)
 	if err := r.Run(":" + port); err != nil {
