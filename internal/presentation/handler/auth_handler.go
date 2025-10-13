@@ -5,6 +5,8 @@ import (
 	"challenge-app/internal/application/dto"
 	"challenge-app/internal/application/service"
 	"github.com/gin-gonic/gin"
+	"strings"
+	"fmt"
 )
 
 type AuthHandler struct {
@@ -15,11 +17,53 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 	return &AuthHandler{AuthService: authService}
 }
 
+func validatePassword(password string) error {
+    if len(password) < 8 {
+        return fmt.Errorf("password must be at least 8 characters")
+    }
+
+    var hasUpper, hasLower, hasDigit, hasSpecial bool
+    specialChars := "!@#$%^&*()-_=+[]{}|;:,.<>?/"
+
+    for _, ch := range password {
+        switch {
+        case 'a' <= ch && ch <= 'z':
+            hasLower = true
+        case 'A' <= ch && ch <= 'Z':
+            hasUpper = true
+        case '0' <= ch && ch <= '9':
+            hasDigit = true
+        case strings.ContainsRune(specialChars, ch):
+            hasSpecial = true
+        }
+    }
+
+    if !hasUpper {
+        return fmt.Errorf("password must contain at least one uppercase letter")
+    }
+    if !hasLower {
+        return fmt.Errorf("password must contain at least one lowercase letter")
+    }
+    if !hasDigit {
+        return fmt.Errorf("password must contain at least one digit")
+    }
+    if !hasSpecial {
+        return fmt.Errorf("password must contain at least one special character")
+    }
+
+    return nil
+}
+
 // Signup (CRUD - Create Handler)
 func (h *AuthHandler) Signup(c *gin.Context) {
 	var req dto.SignupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+	// Validate password strength
+	if err := validatePassword(req.Password); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -29,7 +73,12 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"user": user, "token": token})
+	c.JSON(http.StatusCreated, gin.H{
+		"user": dto.UserResponse{
+			ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio,
+		}, 
+		"token": token,
+	})
 }
 
 

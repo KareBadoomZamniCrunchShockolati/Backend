@@ -2,15 +2,15 @@ package service
 
 import (
 	"challenge-app/internal/domain/model"
-	"challenge-app/internal/domain/repository/postgres"
+	"challenge-app/internal/domain/repository"
 	"fmt"
 )
 
 type UserService struct {
-	UserRepo postgres.UserRepository
+	UserRepo repository.UserRepository
 }
 
-func NewUserService(repo postgres.UserRepository) *UserService {
+func NewUserService(repo repository.UserRepository) *UserService {
 	return &UserService{UserRepo: repo}
 }
 
@@ -49,12 +49,10 @@ func (s *UserService) UpdateUser(id uint, username, bio, newEmail string) (*mode
 	}
 
 	// --- 3. Handle Username/Bio Updates ---
-	if username != "" {
-		user.Username = username
-	}
 	if username == "" {
-		return user, fmt.Errorf("username cannot be empty")
+    	return user, fmt.Errorf("username cannot be empty")
 	}
+	user.Username = username
 	if bio != "" {
 		user.Bio = bio
 	}

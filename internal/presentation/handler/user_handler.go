@@ -1,14 +1,15 @@
 package handler
 
 import (
-	"net/http"
 	"challenge-app/internal/application/dto"
 	"challenge-app/internal/application/service"
-	"github.com/gin-gonic/gin"
-	"strings"
 	"errors"
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-)	
+)
 
 type UserHandler struct {
 	UserService *service.UserService
@@ -16,36 +17,37 @@ type UserHandler struct {
 
 func NewUserHandler(userService *service.UserService) *UserHandler {
 	return &UserHandler{UserService: userService}
-}	
-
+}
 
 // GetProfile (CRUD - Read Handler)
 func (h *UserHandler) GetProfile(c *gin.Context) {
-    
-    userIDValue, exists := c.Get("userID") 
-    
-    if !exists {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed: User ID not found in context"})
-        return
-    }
 
-    userID, ok := userIDValue.(uint)
-    if !ok {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error: User ID format mismatch"})
-        return
-    }
+	userIDValue, exists := c.Get("userID")
 
-    user, err := h.UserService.GetUserByID(userID) 
-    if err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found"})
-        return
-    }
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed: User ID not found in context"})
+		return
+	}
 
-    c.JSON(http.StatusOK, dto.UserResponse{
-        ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio,
-    })
+	userID, ok := userIDValue.(uint)
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Server processing failed",
+			"details": "User ID format mismatch",
+		})
+		return
+	}
+
+	user, err := h.UserService.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.UserResponse{
+		ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio,
+	})
 }
-
 
 func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	users, err := h.UserService.GetAllUsers()
@@ -86,12 +88,12 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 	// 3. Call the business logic
 	user, err := h.UserService.UpdateUser(
-		userID.(uint), 
-		req.Username, 
-		req.Bio, 
+		userID.(uint),
+		req.Username,
+		req.Bio,
 		req.NewEmail, // Field from the DTO
-	) 
-	
+	)
+
 	// 4. Error Handling and Status Mapping
 	if err != nil {
 		// Map errors returned from the Service layer to HTTP status codes
@@ -111,7 +113,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	// 5. Success Response (Returning resource + message)
 	var successMessage string
 	if req.NewEmail != "" && req.NewEmail != user.Email {
-		successMessage = "Profile and email updated successfully. You may need to log in again." 
+		successMessage = "Profile and email updated successfully. You may need to log in again."
 	} else {
 		successMessage = "Profile updated successfully."
 	}
@@ -119,10 +121,10 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": successMessage,
 		"user": dto.UserResponse{ // Return the updated resource DTO
-			ID: user.ID, 
-			Username: user.Username, 
-			Email: user.Email, 
-			Bio: user.Bio,
+			ID:       user.ID,
+			Username: user.Username,
+			Email:    user.Email,
+			Bio:      user.Bio,
 		},
 	})
 }

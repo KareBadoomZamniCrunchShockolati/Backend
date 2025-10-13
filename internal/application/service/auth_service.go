@@ -2,17 +2,23 @@ package service
 
 import (
 	"challenge-app/internal/domain/model"
-	"challenge-app/internal/domain/repository/postgres"
+	"challenge-app/internal/domain/repository"
 	"challenge-app/pkg/security"
 	"fmt"
 )
 
+
+
 type AuthService struct {
-	UserRepo postgres.UserRepository
+	UserRepo    repository.UserRepository
+	JwtService  security.JWTService
 }
 
-func NewAuthService(repo postgres.UserRepository) *AuthService {
-	return &AuthService{UserRepo: repo}
+func NewAuthService(repo repository.UserRepository, jwtService security.JWTService) *AuthService {
+	return &AuthService{
+		UserRepo:   repo,
+		JwtService: jwtService,
+	}
 }
 
 // RegisterUser (CRUD - Create Logic)
@@ -43,7 +49,7 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 		return nil, "", fmt.Errorf("user creation failed: %w", err)
 	}
 
-	token, err := security.GenerateToken(user.ID)
+	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not generate token: %w", err)
 	}
@@ -65,7 +71,7 @@ func (s *AuthService) LoginUser(email, password string) (*model.UserModel, strin
 	}
 
 	// 3. Generate a JWT token
-	token, err := security.GenerateToken(user.ID)
+	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not generate token: %w", err)
 	}

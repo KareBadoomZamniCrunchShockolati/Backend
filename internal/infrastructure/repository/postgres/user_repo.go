@@ -2,7 +2,7 @@ package postgres
 
 import (
 	"challenge-app/internal/domain/model"
-	"challenge-app/internal/domain/repository/postgres"
+	"challenge-app/internal/domain/repository"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
 	"errors"
 
@@ -14,7 +14,7 @@ type UserRepository struct {
 	DB *gorm.DB
 }
 
-func NewUserRepository(db *gorm.DB) postgres.UserRepository {
+func NewUserRepository(db *gorm.DB) repository.UserRepository {
 	return &UserRepository{DB: db}
 }
 

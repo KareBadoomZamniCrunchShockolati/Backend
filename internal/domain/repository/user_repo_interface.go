@@ -1,4 +1,4 @@
-package postgres
+package repository
 
 import (
 	"challenge-app/internal/domain/model"
