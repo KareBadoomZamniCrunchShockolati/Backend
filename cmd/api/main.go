@@ -8,23 +8,44 @@ import (
 	"challenge-app/internal/presentation/middleware"
 	"challenge-app/internal/presentation/router"
 	"challenge-app/pkg/security"
+	"context"
 	"fmt"
 	"log"
 	"os"
-
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/joho/godotenv"
 	gormPostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
+func validateEnvVars() error {
+	required := []string{
+		"DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME",
+		"JWT_SECRET_KEY", "SMTP_HOST", "SMTP_USER", "SMTP_PASS",
+		"EMAIL_FROM",
+	}
+
+	for _, env := range required {
+		if os.Getenv(env) == "" {
+			return fmt.Errorf("required environment variable %s is not set", env)
+		}
+	}
+	return nil
+}
+
 func main() {
 	// --- 1. CONFIGURATION & DATABASE SETUP ---
 
 	// Load environment variables from .env file
-	if err := godotenv.Load("../../.env"); err != nil {
+	if err := godotenv.Load(); err != nil {
 		log.Fatal("Error loading .env file. Ensure it exists in the project root.")
+	}
+
+	// Validate required environment variables
+	if err := validateEnvVars(); err != nil {
+		log.Fatalf("Environment configuration error: %v", err)
 	}
 
 	// Construct the Database Connection String (DSN)
@@ -45,6 +66,18 @@ func main() {
 	}
 	log.Println("User table migration complete.")
 
+	// Initialize Redis client
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     os.Getenv("REDIS_ADDR"),
+		Password: os.Getenv("REDIS_PASSWORD"),
+		DB:       0,
+	})
+	_, err = rdb.Ping(context.Background()).Result()
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+	log.Println("Redis connection successful.")
+
 	// --- 2. DEPENDENCY INJECTION (WIRING THE LAYERS) ---
 	jwtSecretKey := os.Getenv("JWT_SECRET_KEY")
 	if jwtSecretKey == "" {
@@ -54,12 +87,10 @@ func main() {
 	jwtService := security.NewJWTService(jwtSecretKey, tokenExpiry)
 
 	// Repository Layer
-
 	userRepo := postgres.NewUserRepository(db)
 
 	// Service Layer
-
-	authService := service.NewAuthService(userRepo, jwtService)
+	authService := service.NewAuthService(userRepo, jwtService, rdb)
 	userService := service.NewUserService(userRepo)
 
 	jwtMiddleware := middleware.JWTAuthMiddleware(jwtService)

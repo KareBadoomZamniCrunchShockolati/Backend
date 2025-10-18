@@ -31,6 +31,7 @@ func toModel(e *entity.UserEntity) *model.UserModel {
 		PasswordHash:   e.PasswordHash,
 		Bio:            e.Bio,
 		ProfilePicture: e.ProfilePicture,
+		Verified:       e.Verified,
 	}
 }
 
@@ -44,18 +45,19 @@ func toEntity(m *model.UserModel) *entity.UserEntity {
 		PasswordHash:   m.PasswordHash,
 		Bio:            m.Bio,
 		ProfilePicture: m.ProfilePicture,
+		Verified:       m.Verified,
 	}
 }
 
 // --- CRUD Implementation ---
 
 func (r *UserRepository) CreateUser(user *model.UserModel) error {
-    userEntity := toEntity(user)
-    if err := r.DB.Create(userEntity).Error; err != nil {
-        return err
-    }
-    user.ID = userEntity.ID 
-    return nil
+	userEntity := toEntity(user)
+	if err := r.DB.Create(userEntity).Error; err != nil {
+		return err
+	}
+	user.ID = userEntity.ID
+	return nil
 }
 
 func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) {

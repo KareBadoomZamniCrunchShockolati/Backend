@@ -5,7 +5,7 @@ import (
 )
 
 type AuthServicer interface {
-    // Auth Operations
-    RegisterUser(username, email, password, bio string) (*model.UserModel, error)
-    LoginUser(email, password string) (*model.UserModel, error)
+	// Auth Operations
+	RegisterUser(username, email, password, bio string) (*model.UserModel, string, error)
+	LoginUser(email, password string) (*model.UserModel, error)
 }

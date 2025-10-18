@@ -15,10 +15,12 @@ func SetupRouter(
 	r := gin.Default()
 
 	v1 := r.Group("/api/v1")
-	// Public routes (Login, Signup)
+	// Public routes (Login, Signup, Verification)
 	{
 		v1.POST("/auth/signup", authHandler.Signup)
 		v1.POST("/auth/login", authHandler.Login)
+		v1.POST("/verify", authHandler.Verify)
+		v1.POST("/resend-verification", authHandler.ResendVerification)
 	}
 
 	// Protected Group: All routes here require a valid JWT token.
