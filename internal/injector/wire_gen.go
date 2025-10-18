@@ -42,7 +42,6 @@ func provideJWTSecret(secret string) []byte {
 	return []byte(secret)
 }
 
-// این مجموعه علاوه بر سرویس‌های امنیتی، آداپتور Secret Key را نیز برای JWT فراهم می‌کند.
 var SecurityProvideSet = wire.NewSet(security.NewPasswordService, security.NewJWTService, provideJWTSecret)
 
 var RepoProvideSet = wire.NewSet(postgres.NewUserRepository)

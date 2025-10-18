@@ -1,8 +1,6 @@
 module challenge-app
 
 go 1.23.0
-<<<<<<< Updated upstream
-=======
 
 require (
 	github.com/gin-gonic/gin v1.11.0
@@ -52,4 +50,3 @@ require (
 	golang.org/x/tools v0.34.0 // indirect
 	google.golang.org/protobuf v1.36.9 // indirect
 )
->>>>>>> Stashed changes
