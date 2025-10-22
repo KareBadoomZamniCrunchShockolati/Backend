@@ -2,9 +2,10 @@ package postgres
 
 import (
 	"challenge-app/internal/domain/model"
-	"challenge-app/internal/domain/repository"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
 	"errors"
+	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -14,7 +15,7 @@ type UserRepository struct {
 	DB *gorm.DB
 }
 
-func NewUserRepository(db *gorm.DB) repository.UserRepository {
+func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{DB: db}
 }
 
@@ -52,8 +53,11 @@ func toEntity(m *model.UserModel) *entity.UserEntity {
 func (r *UserRepository) CreateUser(user *model.UserModel) error {
     userEntity := toEntity(user)
     if err := r.DB.Create(userEntity).Error; err != nil {
-        return err
-    }
+		if strings.Contains(err.Error(), "duplicate key") {
+			return fmt.Errorf("user with email or username already exists")
+		}
+		panic(fmt.Sprintf("database error while creating user: %v", err))
+	}
     user.ID = userEntity.ID 
     return nil
 }
@@ -63,9 +67,9 @@ func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) 
 	result := r.DB.Where("email = ?", email).First(&userEntity)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, result.Error
+			return nil, result.Error 
 		}
-		return nil, result.Error
+		panic(fmt.Sprintf("database error while fetching user by email: %v", result.Error))
 	}
 	return toModel(&userEntity), nil
 }
@@ -74,7 +78,7 @@ func (r *UserRepository) GetAllUsers() ([]model.UserModel, error) {
 	var userEntities []entity.UserEntity
 	result := r.DB.Find(&userEntities)
 	if result.Error != nil {
-		return nil, result.Error
+		panic(fmt.Sprintf("database error while fetching all users: %v", result.Error))
 	}
 	var userModels []model.UserModel
 	for _, e := range userEntities {
@@ -99,7 +103,10 @@ func (r *UserRepository) UpdateUser(user *model.UserModel) (*model.UserModel, er
 	userEntity := toEntity(user)
 	result := r.DB.Model(&entity.UserEntity{}).Where("id = ?", user.ID).Updates(userEntity)
 	if result.Error != nil {
-		return nil, result.Error
+		if strings.Contains(result.Error.Error(), "duplicate key") {
+			return nil, fmt.Errorf("email or username already in use")
+		}
+		panic(fmt.Sprintf("database error while updating user: %v", result.Error))
 	}
 	return toModel(userEntity), nil
 }
@@ -107,7 +114,7 @@ func (r *UserRepository) UpdateUser(user *model.UserModel) (*model.UserModel, er
 func (r *UserRepository) DeleteUser(id uint) error {
 	result := r.DB.Delete(&entity.UserEntity{}, id)
 	if result.Error != nil {
-		return result.Error
+		panic(fmt.Sprintf("database error while deleting user: %v", result.Error))
 	}
 	if result.RowsAffected == 0 {
 		return errors.New("user not found or already deleted")

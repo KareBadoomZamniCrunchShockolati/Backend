@@ -4,10 +4,11 @@ import (
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
 	"challenge-app/pkg/security"
+	"errors"
 	"fmt"
+
+	"gorm.io/gorm"
 )
-
-
 
 type AuthService struct {
 	UserRepo    repository.UserRepository
@@ -17,9 +18,9 @@ type AuthService struct {
 
 func NewAuthService(repo repository.UserRepository, passwordSvc security.PasswordService, jwtService security.JWTService) *AuthService {
 	return &AuthService{
-		UserRepo:   repo,
+		UserRepo:    repo,
 		PasswordSvc: passwordSvc,
-		JwtService: jwtService,
+		JwtService:  jwtService,
 	}
 }
 
@@ -62,8 +63,10 @@ func (s *AuthService) LoginUser(email, password string) (*model.UserModel, strin
 	// 1. Retrieve the user by email
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		// If user is not found or DB error, treat it as invalid credentials
-		return nil, "", fmt.Errorf("invalid credentials")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", errors.New("invalid credentials")
+		}
+		panic(fmt.Sprintf("database error while fetching user: %v", err))
 	}
 
 	// 2. Check the password hash

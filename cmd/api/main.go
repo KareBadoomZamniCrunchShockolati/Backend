@@ -1,67 +1,62 @@
 package main
 
 import (
+	_ "challenge-app/docs" // Swagger docs
+	"challenge-app/internal/bootstrap"
+	"challenge-app/internal/infrastructure/repository/postgres/driver"
 	"challenge-app/internal/injector"
-	"challenge-app/internal/infrastructure/repository/postgres/entity"
-
 	"fmt"
 	"log"
-	"os"
-
 	"time"
-
-	"github.com/joho/godotenv"
-	gormPostgres "gorm.io/driver/postgres"
-	"gorm.io/gorm"
 )
 
+// @title Challenge App API
+// @version 1.0
+// @description Backend API for the Challenge App project built with Go and Gin.
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.url https://github.com/mobina-hoshiaripour/challenge-app
+// @contact.email mobina@example.com
+
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+
+// @host localhost:8080
+// @BasePath /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+
 func main() {
-	// --- 1. CONFIGURATION & DATABASE SETUP ---
+	// --- 1. LOAD CONFIG ---
+	env := bootstrap.LoadEnv()
 
-	// Load environment variables from .env file
-	if err := godotenv.Load("../../.env"); err != nil {
-		log.Fatal("Error loading .env file. Ensure it exists in the project root.")
-	}
+	// --- 2. SETUP DATABASE (later will be moved to a constructor) ---
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		env.DBHost, env.DBUser, env.DBPassword,
+		env.DBName, env.DBPort, env.SSLMode,
+	)
 
-	// Construct the Database Connection String (DSN)
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		os.Getenv("DB_HOST"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_NAME"), os.Getenv("DB_PORT"), os.Getenv("SSL_MODE"))
+	db := driver.InitPostgresDB(dsn) // (next step we’ll create this function)
+	log.Println("Database connected and migrated successfully.")
 
-	db, err := gorm.Open(gormPostgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	log.Println("Database connection successful.")
-
-	// Run Migrations
-	err = db.AutoMigrate(&entity.UserEntity{})
-	if err != nil {
-		log.Fatalf("Failed to auto-migrate database: %v", err)
-	}
-	log.Println("User table migration complete.")
-
-	// --- 2. DEPENDENCY INJECTION (WIRING THE LAYERS) ---
-	jwtSecretKey := os.Getenv("JWT_SECRET_KEY")
-	if jwtSecretKey == "" {
-		log.Fatal("FATAL: JWT_SECRET_KEY is not set in environment. Please set it.")
-	}
+	// --- 3. DEPENDENCY INJECTION ---
 	const tokenExpiry = time.Hour * 24
-	r, err := injector.InitializeRouter(db, jwtSecretKey, tokenExpiry)
+	r, err := injector.InitializeRouter(db, env.JWTSecretKey, tokenExpiry)
 	if err != nil {
 		log.Fatalf("Error initializing application dependencies: %v", err)
 	}
-	// --- 3. RUN APPLICATION ---
 
-	// Determine the port
-	port := os.Getenv("APP_PORT")
-	if port == "" {
-		port = "8080"
+	// Register custom validators (password etc.)
+	if err := bootstrap.SetupValidator(); err != nil {
+		log.Fatalf("failed to setup validators: %v", err)
 	}
-
-	// Start Server
-	log.Printf("Starting server on port %s...", port)
-	if err := r.Run(":" + port); err != nil {
+	// --- 4. START SERVER ---
+	log.Printf("Starting server on port %s...", env.AppPort)
+	if err := r.Run(":" + env.AppPort); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

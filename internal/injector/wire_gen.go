@@ -8,9 +8,13 @@ package injector
 
 import (
 	"challenge-app/internal/application/service"
+	"challenge-app/internal/application/service/interface"
+	"challenge-app/internal/domain/repository"
 	"challenge-app/internal/infrastructure/repository/postgres"
 	"challenge-app/internal/presentation/handler"
+	handler2 "challenge-app/internal/presentation/handler/interface"
 	"challenge-app/internal/presentation/middleware"
+	middleware2 "challenge-app/internal/presentation/middleware/interface"
 	"challenge-app/internal/presentation/router"
 	"challenge-app/pkg/security"
 	"github.com/gin-gonic/gin"
@@ -26,29 +30,28 @@ func InitializeRouter(db *gorm.DB, jwtSecret string, tokenExpiry time.Duration) 
 	userRepository := postgres.NewUserRepository(db)
 	userService := service.NewUserService(userRepository)
 	userHandler := handler.NewUserHandler(userService)
-	passwordService := security.NewPasswordService()
-	jwtService := security.NewJWTService(jwtSecret, tokenExpiry)
-	authService := service.NewAuthService(userRepository, passwordService, jwtService)
+	passwordServiceImpl := security.NewPasswordService()
+	jwtServiceImpl := security.NewJWTService(jwtSecret, tokenExpiry)
+	authService := service.NewAuthService(userRepository, passwordServiceImpl, jwtServiceImpl)
 	authHandler := handler.NewAuthHandler(authService)
-	handlerFunc := middleware.JWTAuthMiddleware(jwtService)
-	engine := router.SetupRouter(userHandler, authHandler, handlerFunc)
+	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
+	engine := router.SetupRouter(userHandler, authHandler, jwtMiddleware)
 	return engine, nil
 }
 
 // wire.go:
 
-// Adapts the JWT secret string from main.go into the []byte required by NewJWTService.
-func provideJWTSecret(secret string) []byte {
-	return []byte(secret)
-}
+// Security & JWT
+var SecurityProvideSet = wire.NewSet(security.NewPasswordService, security.NewJWTService, wire.Bind(new(security.PasswordService), new(*security.PasswordServiceImpl)), wire.Bind(new(security.JWTService), new(*security.JwtServiceImpl)))
 
-var SecurityProvideSet = wire.NewSet(security.NewPasswordService, security.NewJWTService, provideJWTSecret)
+// Repositories
+var RepoProvideSet = wire.NewSet(postgres.NewUserRepository, wire.Bind(new(repository.UserRepository), new(*postgres.UserRepository)))
 
-var RepoProvideSet = wire.NewSet(postgres.NewUserRepository)
+// Services
+var ServiceProvideSet = wire.NewSet(service.NewUserService, service.NewAuthService, wire.Bind(new(serviceinterface.AuthServicer), new(*service.AuthService)), wire.Bind(new(serviceinterface.UserServicer), new(*service.UserService)))
 
-var ServiceProvideSet = wire.NewSet(service.NewUserService, service.NewAuthService)
+// Handlers
+var HandlerProvideSet = wire.NewSet(handler.NewUserHandler, handler.NewAuthHandler, wire.Bind(new(handler2.UserHandler), new(*handler.UserHandler)), wire.Bind(new(handler2.AuthHandler), new(*handler.AuthHandler)))
 
-var HandlerProvideSet = wire.NewSet(handler.NewUserHandler, handler.NewAuthHandler)
-
-// The middleware is a provider itself, taking JWTService and returning gin.HandlerFunc.
-var MiddlewareProvideSet = wire.NewSet(middleware.JWTAuthMiddleware)
+// Middleware
+var MiddlewareProvideSet = wire.NewSet(middleware.NewJWTMiddleware, wire.Bind(new(middleware2.JWTMiddleware), new(*middleware.JWTMiddleware)))

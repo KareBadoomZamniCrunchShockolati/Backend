@@ -2,7 +2,7 @@ package handler
 
 import (
 	"challenge-app/internal/application/dto"
-	"challenge-app/internal/application/service"
+	serviceinterface "challenge-app/internal/application/service/interface"
 	"errors"
 	"net/http"
 	"strings"
@@ -12,13 +12,23 @@ import (
 )
 
 type UserHandler struct {
-	UserService *service.UserService
+	UserService serviceinterface.UserServicer
 }
 
-func NewUserHandler(userService *service.UserService) *UserHandler {
+func NewUserHandler(userService serviceinterface.UserServicer) *UserHandler {
 	return &UserHandler{UserService: userService}
 }
 
+// GetProfile godoc
+// @Summary Get current user's profile
+// @Description Returns the profile of the authenticated user
+// @Tags Users
+// @Produce json
+// @Success 200 {object} dto.UserResponse
+// @Failure 401 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /users/profile [get]
+// @Security BearerAuth
 // GetProfile (CRUD - Read Handler)
 func (h *UserHandler) GetProfile(c *gin.Context) {
 
@@ -49,6 +59,15 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	})
 }
 
+// GetAllUsers godoc
+// @Summary Get all users
+// @Description Retrieves a list of all registered users
+// @Tags Users
+// @Produce json
+// @Success 200 {array} dto.UserResponse
+// @Failure 500 {object} map[string]string
+// @Router /users [get]
+// @Security BearerAuth
 func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	users, err := h.UserService.GetAllUsers()
 	if err != nil {
@@ -66,14 +85,30 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 }
 
 // UpdateProfile (CRUD - Update Handler)
+
+// UpdateProfile godoc
+// @Summary Update user profile
+// @Description Updates username, bio, and/or email of the authenticated user
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param request body dto.UpdateProfileRequest true "Updated user info"
+// @Success 200 {object} dto.UserResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /users/profile [put]
+// @Security BearerAuth
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userIDVal, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed: User ID not found in context"})
 		return
 	}
 
-	userID, ok := userID.(uint)
+	userID, ok := userIDVal.(uint)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error: User ID format mismatch"})
 		return
@@ -88,7 +123,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 	// 3. Call the business logic
 	user, err := h.UserService.UpdateUser(
-		userID.(uint),
+		userID,
 		req.Username,
 		req.Bio,
 		req.NewEmail, // Field from the DTO
@@ -130,8 +165,18 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 }
 
 // DeleteUser (CRUD - Delete Handler)
+
+// DeleteUser godoc
+// @Summary Delete current user
+// @Description Deletes the account of the authenticated user
+// @Tags Users
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /users/profile [delete]
+// @Security BearerAuth
 func (h *UserHandler) DeleteUser(c *gin.Context) {
-	// TEMPORARY: Read ID from URL
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed: User ID not found in context"})
