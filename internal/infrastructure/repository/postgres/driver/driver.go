@@ -8,10 +8,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func InitPostgresDB(dsn string) *gorm.DB {
+func InitPostgresDB(dsn string) (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
+		return nil, err
 	}
 
 	sqlDB, err := db.DB()
@@ -24,5 +25,5 @@ func InitPostgresDB(dsn string) *gorm.DB {
 	sqlDB.SetMaxIdleConns(5)
 
 	fmt.Println("PostgreSQL connected successfully.")
-	return db
+	return db, nil
 }

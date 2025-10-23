@@ -7,12 +7,14 @@ import (
 	"challenge-app/internal/application/service"
 	service_interface "challenge-app/internal/application/service/interface"
 	repository_interface "challenge-app/internal/domain/repository"
+	"challenge-app/internal/infrastructure/repository/postgres/driver"
 	"challenge-app/internal/infrastructure/repository/postgres"
 	"challenge-app/internal/presentation/handler"
 	handler_interface "challenge-app/internal/presentation/handler/interface"
 	"challenge-app/internal/presentation/middleware"
 	middleware_interface "challenge-app/internal/presentation/middleware/interface"
 	"challenge-app/internal/presentation/router"
+	"challenge-app/internal/bootstrap"
 	"challenge-app/pkg/security"
 	"time"
 
@@ -21,58 +23,117 @@ import (
 	"gorm.io/gorm"
 )
 
-// --- Provider Sets ---
+type PostgresDSN string
+type JWTSecret string
+type TokenExpiry time.Duration
 
-// Security & JWT
-var SecurityProvideSet = wire.NewSet(
+// --- Providers ---
+func ProvideDSN() PostgresDSN {
+	cfg := bootstrap.LoadEnv()
+	dsn := "host=" + cfg.DBHost +
+		" user=" + cfg.DBUser +
+		" password=" + cfg.DBPassword +
+		" dbname=" + cfg.DBName +
+		" port=" + cfg.DBPort +
+		" sslmode=" + cfg.SSLMode
+	return PostgresDSN(dsn)
+}
+
+func ProvideJWTSecret() JWTSecret {
+	cfg := bootstrap.LoadEnv()
+	return JWTSecret(cfg.JWTSecretKey)
+}
+
+func ProvideTokenExpiry() TokenExpiry {
+	return TokenExpiry(bootstrap.JWTTokenExpiry)
+}
+
+func ProvideJWTService(secret JWTSecret, expiry TokenExpiry) *security.JwtServiceImpl {
+	return security.NewJWTService(string(secret), time.Duration(expiry))
+}
+
+func ProvidePostgresDB(dsn PostgresDSN) (*gorm.DB, error) {
+	return driver.InitPostgresDB(string(dsn))
+}
+
+// --- Provider Sets ---
+var SecurityProviderSet = wire.NewSet(
 	security.NewPasswordService,
-	security.NewJWTService,
+	ProvideJWTService,
 	wire.Bind(new(security.PasswordService), new(*security.PasswordServiceImpl)),
 	wire.Bind(new(security.JWTService), new(*security.JwtServiceImpl)),
 )
 
-// Repositories
-var RepoProvideSet = wire.NewSet(
+var DatabaseProviderSet = wire.NewSet(
+	ProvideDSN,
+	ProvidePostgresDB,
+)
+
+var RepositoryProviderSet = wire.NewSet(
 	postgres.NewUserRepository,
 	wire.Bind(new(repository_interface.UserRepository), new(*postgres.UserRepository)),
 )
 
-// Services
-var ServiceProvideSet = wire.NewSet(
+var ServiceProviderSet = wire.NewSet(
 	service.NewUserService,
 	service.NewAuthService,
-	wire.Bind(new(service_interface.AuthServicer), new(*service.AuthService)),
 	wire.Bind(new(service_interface.UserServicer), new(*service.UserService)),
+	wire.Bind(new(service_interface.AuthServicer), new(*service.AuthService)),
 )
 
-// Handlers
-var HandlerProvideSet = wire.NewSet(
+var HandlerProviderSet = wire.NewSet(
 	handler.NewUserHandler,
 	handler.NewAuthHandler,
 	wire.Bind(new(handler_interface.UserHandler), new(*handler.UserHandler)),
 	wire.Bind(new(handler_interface.AuthHandler), new(*handler.AuthHandler)),
 )
 
-// Middleware
-var MiddlewareProvideSet = wire.NewSet(
+var MiddlewareProviderSet = wire.NewSet(
 	middleware.NewJWTMiddleware,
 	wire.Bind(new(middleware_interface.JWTMiddleware), new(*middleware.JWTMiddleware)),
 )
 
-// Environment & Constants
-// var ConfigProvideSet = wire.NewSet(
-// 	bootstrap.LoadEnv,
-// )
+// --- Application ---
+type Application struct {
+	DB     *gorm.DB
+	Router *gin.Engine
+}
 
-// InitializeRouter wires up all dependencies and returns the Gin engine.
-func InitializeRouter(db *gorm.DB, jwtSecret string, tokenExpiry time.Duration) (*gin.Engine, error) {
+func NewApplication(db *gorm.DB, router *gin.Engine) *Application {
+	return &Application{
+		DB:     db,
+		Router: router,
+	}
+}
+
+// --- Initialize Router ---
+func InitializeRouter(db *gorm.DB) (*gin.Engine, error) {
 	wire.Build(
-		SecurityProvideSet,   // JWT / Password
-		RepoProvideSet,       // Repos
-		ServiceProvideSet,    // Services
-		HandlerProvideSet,    // Handlers
-		MiddlewareProvideSet, // Middleware
-		router.SetupRouter,   // Final router
+		SecurityProviderSet,
+		RepositoryProviderSet,
+		ServiceProviderSet,
+		HandlerProviderSet,
+		MiddlewareProviderSet,
+		router.SetupRouter,
+		ProvideJWTSecret,
+		ProvideTokenExpiry,
 	)
 	return &gin.Engine{}, nil
+}
+
+// --- Initialize Full Application ---
+func InitializeApplication() (*Application, error) {
+	wire.Build(
+		DatabaseProviderSet,
+		SecurityProviderSet,
+		RepositoryProviderSet,
+		ServiceProviderSet,
+		HandlerProviderSet,
+		MiddlewareProviderSet,
+		router.SetupRouter,
+		NewApplication,
+		ProvideJWTSecret,
+		ProvideTokenExpiry,
+	)
+	return &Application{}, nil
 }

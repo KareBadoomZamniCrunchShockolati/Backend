@@ -12,7 +12,7 @@ import (
 	_ "challenge-app/docs"
 )
 
-// SetupRouter now accepts the UserHandler and the JWT Middleware function.
+// NewRouter now accepts the UserHandler and the JWT Middleware function.
 func SetupRouter(
 	userHandler *handlers.UserHandler,
 	authHandler *handlers.AuthHandler,
