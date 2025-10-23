@@ -5,19 +5,18 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 )
 
+func NewValidator() (*validator.Validate, error) {
+	v := validator.New()
 
-func SetupValidator() error {
-	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		if err := v.RegisterValidation("password_policy", passwordValidationFunc); err != nil {
-			return fmt.Errorf("register password validation: %w", err)
-		}
-		return nil
+	// Register the custom password validation tag
+	if err := v.RegisterValidation("password_policy", passwordValidationFunc); err != nil {
+		return nil, fmt.Errorf("register password validation: %w", err)
 	}
-	return fmt.Errorf("validator engine not available")
+
+	return v, nil
 }
 
 // passwordValidationFunc implements the go-playground validator signature.
