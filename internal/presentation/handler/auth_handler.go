@@ -62,20 +62,22 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
 		return
 	}
+
 	// Validate password strength
 	if err := validatePassword(req.Password); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	user, _, err := h.AuthService.RegisterUser(req.Username, req.Email, req.Password, req.Bio)
+	// FIXED: RegisterUser now returns only user and error, no empty string
+	user, err := h.AuthService.RegisterUser(req.Username, req.Email, req.Password, req.Bio)
 	if err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "User registrated successfully. check your email for verification code.",
+		"message": "User registered successfully. Check your email for verification code.",
 		"email":   user.Email,
 		"user": dto.UserResponse{
 			ID:       user.ID,
@@ -85,6 +87,7 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 		},
 	})
 }
+
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 
@@ -112,7 +115,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 3. Success: Respond with user details (JWT will be added here later)
+	// 3. Success: Respond with user details and token
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Login successful",
 		"token":   token,
@@ -131,6 +134,7 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
 		return
 	}
+
 	token, err := h.AuthService.VerifyEmail(req.Email, req.Code)
 	if err != nil {
 		if err.Error() == "invalid code" || err.Error() == "code expired or not found" {
@@ -141,7 +145,10 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Email verified successfully", "token": token})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Email verified successfully",
+		"token":   token,
+	})
 }
 
 func (h *AuthHandler) ResendVerification(c *gin.Context) {
