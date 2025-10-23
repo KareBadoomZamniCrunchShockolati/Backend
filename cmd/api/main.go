@@ -4,6 +4,7 @@ import (
 	_ "challenge-app/docs" // Swagger docs
 	"challenge-app/internal/bootstrap"
 	"challenge-app/internal/injector"
+	"challenge-app/pkg/validation"
 	"log"
 )
 
@@ -28,6 +29,10 @@ import (
 
 func main() {
 	env := bootstrap.LoadEnv()
+
+	if err := validation.RegisterGinValidator(); err != nil {
+	log.Fatalf("Failed to register custom validator: %v", err)
+	}
 
 	app, err := injector.InitializeApplication()
 	if err != nil {

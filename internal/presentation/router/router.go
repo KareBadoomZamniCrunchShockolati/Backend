@@ -1,8 +1,8 @@
 package router
 
 import (
-	handlers "challenge-app/internal/presentation/handler"
-	"challenge-app/internal/presentation/middleware"
+	handler "challenge-app/internal/presentation/handler/interface"
+	middleware "challenge-app/internal/presentation/middleware/interface"
 
 	"github.com/gin-gonic/gin"
 
@@ -14,9 +14,9 @@ import (
 
 // NewRouter now accepts the UserHandler and the JWT Middleware function.
 func SetupRouter(
-	userHandler *handlers.UserHandler,
-	authHandler *handlers.AuthHandler,
-	jwtMiddleware *middleware.JWTMiddleware,
+	userHandler handler.UserHandler,
+	authHandler handler.AuthHandler,
+	jwtMiddleware middleware.JWTMiddleware,
 ) *gin.Engine {
 	r := gin.Default()
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

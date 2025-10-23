@@ -1,29 +1,29 @@
-package bootstrap
+package validation
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/gin-gonic/gin/binding"
 )
 
-func NewValidator() (*validator.Validate, error) {
-	v := validator.New()
 
-	// Register the custom password validation tag
-	if err := v.RegisterValidation("password_policy", passwordValidationFunc); err != nil {
-		return nil, fmt.Errorf("register password validation: %w", err)
+func RegisterGinValidator() error {
+	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+		return v.RegisterValidation("password_policy", PasswordValidationFunc)
 	}
-
-	return v, nil
+	return nil
 }
 
-// passwordValidationFunc implements the go-playground validator signature.
-func passwordValidationFunc(fl validator.FieldLevel) bool {
+// PasswordValidationFunc implements the go-playground validator signature.
+func PasswordValidationFunc(fl validator.FieldLevel) bool {
 	pwd, ok := fl.Field().Interface().(string)
 	if !ok {
 		return false
+	}
+	if pwd == "" {
+		return false 
 	}
 	ok2, _ := passwordChecks(pwd)
 	return ok2
@@ -77,7 +77,11 @@ func FormatValidationError(err error) map[string][]string {
 		for _, fe := range ve {
 			field := fe.Field()
 			tag := fe.Tag()
-			if tag == "password" {
+			
+			switch tag {
+			case "required":
+				out[field] = []string{field + " is required"}
+			case "password_policy":
 				if val, ok := fe.Value().(string); ok {
 					_, reasons := passwordChecks(val)
 					if len(reasons) == 0 {
@@ -85,13 +89,12 @@ func FormatValidationError(err error) map[string][]string {
 					} else {
 						out[field] = reasons
 					}
-					continue
+				} else {
+					out[field] = []string{"invalid password"}
 				}
-				out[field] = []string{"invalid password"}
-				continue
+			default:
+				out[field] = append(out[field], fe.Error())
 			}
-
-			out[field] = append(out[field], fe.Error())
 		}
 		return out
 	}

@@ -5,6 +5,7 @@ package injector
 
 import (
 	"challenge-app/internal/application/service"
+	"github.com/go-playground/validator/v10"
 	service_interface "challenge-app/internal/application/service/interface"
 	repository_interface "challenge-app/internal/domain/repository"
 	"challenge-app/internal/infrastructure/repository/postgres/driver"
@@ -17,6 +18,7 @@ import (
 	"challenge-app/internal/bootstrap"
 	"challenge-app/pkg/security"
 	"time"
+	"challenge-app/pkg/validation"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
@@ -48,18 +50,42 @@ func ProvideTokenExpiry() TokenExpiry {
 	return TokenExpiry(bootstrap.JWTTokenExpiry)
 }
 
-func ProvideJWTService(secret JWTSecret, expiry TokenExpiry) *security.JwtServiceImpl {
-	return security.NewJWTService(string(secret), time.Duration(expiry))
-}
 
 func ProvidePostgresDB(dsn PostgresDSN) (*gorm.DB, error) {
 	return driver.InitPostgresDB(string(dsn))
 }
 
+type JWTConfig struct {
+    Secret  string
+    Expiry  time.Duration
+    Issuer  string
+}
+
+func ProvideJWTConfig() JWTConfig {
+    // cfg := bootstrap.LoadEnv()
+    return JWTConfig{
+        Secret: string(ProvideJWTSecret()),
+        Expiry: time.Duration(ProvideTokenExpiry()),
+        Issuer: bootstrap.JWTIssuer,
+    }
+}
+
+func ProvideJWTService(cfg JWTConfig) *security.JwtServiceImpl {
+    return security.NewJWTService(cfg.Secret, cfg.Expiry, cfg.Issuer)
+}
+
+func ProvideValidator() *validator.Validate {
+	v := validator.New()
+	v.RegisterValidation("password_policy", validation.PasswordValidationFunc)
+	return v
+}
+
+
 // --- Provider Sets ---
 var SecurityProviderSet = wire.NewSet(
 	security.NewPasswordService,
 	ProvideJWTService,
+	ProvideJWTConfig,
 	wire.Bind(new(security.PasswordService), new(*security.PasswordServiceImpl)),
 	wire.Bind(new(security.JWTService), new(*security.JwtServiceImpl)),
 )
@@ -107,7 +133,7 @@ func NewApplication(db *gorm.DB, router *gin.Engine) *Application {
 }
 
 // --- Initialize Router ---
-func InitializeRouter(db *gorm.DB) (*gin.Engine, error) {
+func InitializeRouter(db *gorm.DB, validator *validator.Validate) (*gin.Engine, error) {
 	wire.Build(
 		SecurityProviderSet,
 		RepositoryProviderSet,
@@ -115,8 +141,6 @@ func InitializeRouter(db *gorm.DB) (*gin.Engine, error) {
 		HandlerProviderSet,
 		MiddlewareProviderSet,
 		router.SetupRouter,
-		ProvideJWTSecret,
-		ProvideTokenExpiry,
 	)
 	return &gin.Engine{}, nil
 }
@@ -132,8 +156,6 @@ func InitializeApplication() (*Application, error) {
 		MiddlewareProviderSet,
 		router.SetupRouter,
 		NewApplication,
-		ProvideJWTSecret,
-		ProvideTokenExpiry,
 	)
 	return &Application{}, nil
 }

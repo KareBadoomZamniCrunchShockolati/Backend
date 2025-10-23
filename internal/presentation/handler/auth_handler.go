@@ -3,9 +3,11 @@ package handler
 import (
 	"challenge-app/internal/application/dto"
 	serviceinterface "challenge-app/internal/application/service/interface"
+	"challenge-app/pkg/validation"
 	"net/http"
 	"strings"
-
+	"errors"
+	validator "github.com/go-playground/validator/v10"
 	"github.com/gin-gonic/gin"
 )
 type AuthHandler struct {
@@ -32,10 +34,29 @@ func NewAuthHandler(authService serviceinterface.AuthServicer) *AuthHandler {
 // Signup (CRUD - Create Handler)
 func (h *AuthHandler) Signup(c *gin.Context) {
 	var req dto.SignupRequest
+	
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		// Check if it's a validation error
+		var verrs validator.ValidationErrors
+		if errors.As(err, &verrs) {
+			formatted := validation.FormatValidationError(verrs)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Validation failed",
+				"details": formatted,
+			})
+			return
+		}
+
+		// For any other JSON binding issues (syntax, type mismatch, etc.)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request format",
+			"details": gin.H{
+				"message": err.Error(),
+			},
+		})
 		return
 	}
+
 	
 	bio := strings.TrimSpace(req.Bio)
 	if bio == "" {

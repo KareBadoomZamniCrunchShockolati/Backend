@@ -19,7 +19,9 @@ import (
 	middleware2 "challenge-app/internal/presentation/middleware/interface"
 	"challenge-app/internal/presentation/router"
 	"challenge-app/pkg/security"
+	"challenge-app/pkg/validation"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/wire"
 	"gorm.io/gorm"
 	"time"
@@ -28,14 +30,13 @@ import (
 // Injectors from wire.go:
 
 // --- Initialize Router ---
-func InitializeRouter(db *gorm.DB) (*gin.Engine, error) {
+func InitializeRouter(db *gorm.DB, validator2 *validator.Validate) (*gin.Engine, error) {
 	userRepository := postgres.NewUserRepository(db)
 	userService := service.NewUserService(userRepository)
 	userHandler := handler.NewUserHandler(userService)
 	passwordServiceImpl := security.NewPasswordService()
-	jwtSecret := ProvideJWTSecret()
-	tokenExpiry := ProvideTokenExpiry()
-	jwtServiceImpl := ProvideJWTService(jwtSecret, tokenExpiry)
+	jwtConfig := ProvideJWTConfig()
+	jwtServiceImpl := ProvideJWTService(jwtConfig)
 	authService := service.NewAuthService(userRepository, passwordServiceImpl, jwtServiceImpl)
 	authHandler := handler.NewAuthHandler(authService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
@@ -54,9 +55,8 @@ func InitializeApplication() (*Application, error) {
 	userService := service.NewUserService(userRepository)
 	userHandler := handler.NewUserHandler(userService)
 	passwordServiceImpl := security.NewPasswordService()
-	jwtSecret := ProvideJWTSecret()
-	tokenExpiry := ProvideTokenExpiry()
-	jwtServiceImpl := ProvideJWTService(jwtSecret, tokenExpiry)
+	jwtConfig := ProvideJWTConfig()
+	jwtServiceImpl := ProvideJWTService(jwtConfig)
 	authService := service.NewAuthService(userRepository, passwordServiceImpl, jwtServiceImpl)
 	authHandler := handler.NewAuthHandler(authService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
@@ -94,16 +94,39 @@ func ProvideTokenExpiry() TokenExpiry {
 	return TokenExpiry(bootstrap.JWTTokenExpiry)
 }
 
-func ProvideJWTService(secret JWTSecret, expiry TokenExpiry) *security.JwtServiceImpl {
-	return security.NewJWTService(string(secret), time.Duration(expiry))
-}
-
 func ProvidePostgresDB(dsn PostgresDSN) (*gorm.DB, error) {
 	return driver.InitPostgresDB(string(dsn))
 }
 
+type JWTConfig struct {
+	Secret string
+	Expiry time.Duration
+	Issuer string
+}
+
+func ProvideJWTConfig() JWTConfig {
+
+	return JWTConfig{
+		Secret: string(ProvideJWTSecret()),
+		Expiry: time.Duration(ProvideTokenExpiry()),
+		Issuer: bootstrap.JWTIssuer,
+	}
+}
+
+func ProvideJWTService(cfg JWTConfig) *security.JwtServiceImpl {
+	return security.NewJWTService(cfg.Secret, cfg.Expiry, cfg.Issuer)
+}
+
+func ProvideValidator() *validator.Validate {
+	v := validator.New()
+	v.RegisterValidation("password_policy", validation.PasswordValidationFunc)
+	return v
+}
+
 // --- Provider Sets ---
-var SecurityProviderSet = wire.NewSet(security.NewPasswordService, ProvideJWTService, wire.Bind(new(security.PasswordService), new(*security.PasswordServiceImpl)), wire.Bind(new(security.JWTService), new(*security.JwtServiceImpl)))
+var SecurityProviderSet = wire.NewSet(security.NewPasswordService, ProvideJWTService,
+	ProvideJWTConfig, wire.Bind(new(security.PasswordService), new(*security.PasswordServiceImpl)), wire.Bind(new(security.JWTService), new(*security.JwtServiceImpl)),
+)
 
 var DatabaseProviderSet = wire.NewSet(
 	ProvideDSN,
