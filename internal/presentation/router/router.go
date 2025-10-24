@@ -1,18 +1,24 @@
 package router
 
 import (
-	handlers "challenge-app/internal/presentation/handler"
+	handler "challenge-app/internal/presentation/handler/interface"
+	middleware "challenge-app/internal/presentation/middleware/interface"
 
 	"github.com/gin-gonic/gin"
+
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
+	_ "challenge-app/docs"
 )
 
 func SetupRouter(
-	userHandler *handlers.UserHandler,
-	authHandler *handlers.AuthHandler,
-	jwtMiddleware gin.HandlerFunc,
+	userHandler handlers.UserHandler,
+	authHandler handlers.AuthHandler,
+	jwtMiddleware middleware.JWTMiddleware,
 ) *gin.Engine {
 	r := gin.Default()
-
+  r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	v1 := r.Group("/api/v1")
 	// Public routes (Login, Signup, Verification)
 	{
@@ -25,7 +31,7 @@ func SetupRouter(
 
 	// Protected Group: All routes here require a valid JWT token.
 	protected := r.Group("/api/v1")
-	protected.Use(jwtMiddleware)
+	protected.Use(jwtMiddleware.Handler())
 
 	{
 		protected.GET("/users", userHandler.GetAllUsers)

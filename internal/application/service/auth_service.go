@@ -8,44 +8,47 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+  "errors"
+  "gorm.io/gorm"
 	"math/big"
 )
 
 type AuthService struct {
 	UserRepo         repository.UserRepository
+  PasswordSvc security.PasswordService
+	JwtService  security.JWTService
 	VerificationRepo repository.VerificationRepository
 	EmailService     service.EmailService
 	JwtService       security.JWTService
 }
 
-func NewAuthService(
-	userRepo repository.UserRepository,
-	verificationRepo repository.VerificationRepository,
-	emailService service.EmailService,
-	jwtService security.JWTService,
-) *AuthService {
+func NewAuthService(repo repository.UserRepository,verificationRepo repository.VerificationRepository,
+	emailService service.EmailService, passwordSvc security.PasswordService, jwtService security.JWTService) *AuthService {
 	return &AuthService{
-		UserRepo:         userRepo,
-		VerificationRepo: verificationRepo,
+		UserRepo:    repo,
+    VerificationRepo: verificationRepo,
 		EmailService:     emailService,
-		JwtService:       jwtService,
+		PasswordSvc: passwordSvc,
+		JwtService:  jwtService,
 	}
 }
 
-func (s *AuthService) RegisterUser(username, email, password, bio string) (*model.UserModel, error) {
+
+// RegisterUser (CRUD - Create Logic)
+func (s *AuthService) RegisterUser(username, email, password, bio string) (*model.UserModel, string, error) {
 	// 1. Check if user already exists
 	_, err := s.UserRepo.GetUserByEmail(email)
 	if err == nil {
-		return nil, fmt.Errorf("user with email %s already exists", email)
+		return nil, "", fmt.Errorf("user with email %s already exists", email)
 	}
 
-	// 2. Hash the password
-	hash, err := security.HashPassword(password)
+	// 2. Hash the password (Security Rule)
+	hash, err := s.PasswordSvc.HashPassword(password)
 	if err != nil {
-		return nil, fmt.Errorf("could not hash password: %w", err)
+		return nil, "", fmt.Errorf("could not hash password: %w", err)
 	}
 
-	// 3. Create user
+	// 3. Create the Domain Entity
 	user := &model.UserModel{
 		Username:     username,
 		Email:        email,
@@ -83,14 +86,18 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 func (s *AuthService) LoginUser(email, password string) (*model.UserModel, string, error) {
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		return nil, "", fmt.Errorf("invalid credentials")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", errors.New("invalid credentials")
+		}
+		panic(fmt.Sprintf("database error while fetching user: %v", err))
 	}
 
 	if !user.Verified {
 		return nil, "", fmt.Errorf("email not verified")
 	}
 
-	if !security.CheckPasswordHash(password, user.PasswordHash) {
+	match := s.PasswordSvc.CheckPasswordHash(password, user.PasswordHash)
+	if !match {
 		return nil, "", fmt.Errorf("invalid credentials")
 	}
 
