@@ -1,0 +1,18 @@
+# Go build
+/bin/
+/pkg/mod/
+/*.exe
+/*.test
+
+# Wire generated files
+**/wire_gen.go
+
+# Environment variables
+.env
+
+# Editor
+.vscode/
+*.swp
+.DS_Store
+".env" 
+".env" 
