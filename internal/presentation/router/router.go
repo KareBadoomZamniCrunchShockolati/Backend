@@ -13,8 +13,8 @@ import (
 )
 
 func SetupRouter(
-	userHandler handlers.UserHandler,
-	authHandler handlers.AuthHandler,
+	userHandler handler.UserHandler,
+	authHandler handler.AuthHandler,
 	jwtMiddleware middleware.JWTMiddleware,
 ) *gin.Engine {
 	r := gin.Default()

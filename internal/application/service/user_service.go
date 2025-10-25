@@ -1,17 +1,29 @@
 package service
 
 import (
+	"context"
+	"crypto/rand"
+	"math/big"
+	"strings"
+
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
+	"challenge-app/pkg/email"
 	"fmt"
 )
 
 type UserService struct {
-	UserRepo repository.UserRepository
+	UserRepo         repository.UserRepository
+	VerificationRepo repository.VerificationRepository
+	EmailService     email.EmailService
 }
 
-func NewUserService(repo repository.UserRepository) *UserService {
-	return &UserService{UserRepo: repo}
+func NewUserService(repo repository.UserRepository, vRepo repository.VerificationRepository, emailSvc email.EmailService) *UserService {
+	return &UserService{
+		UserRepo:         repo,
+		VerificationRepo: vRepo,
+		EmailService:     emailSvc,
+	}
 }
 
 

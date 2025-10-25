@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"challenge-app/internal/domain/model"
-	"challenge-app/internal/domain/repository"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
 	"errors"
 	"fmt"

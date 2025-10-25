@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 	"github.com/golang-jwt/jwt/v5"
+	"challenge-app/internal/bootstrap"
 )
 
 type Claims struct {
@@ -23,11 +24,11 @@ type JwtServiceImpl struct {
 }
 
 // NewJWTService creates a new JWTService implementation.
-func NewJWTService(secretKey string, tokenExpiration time.Duration, issuer string) *JwtServiceImpl {
+func NewJWTService(cfg *bootstrap.Env) *JwtServiceImpl {
 	return &JwtServiceImpl{
-		secretKey:       []byte(secretKey),
-		tokenExpiration: tokenExpiration,
-		issuer:          issuer,
+		secretKey:       []byte(cfg.Security.JWTSecret),
+		tokenExpiration: cfg.Security.TokenTTL,
+		issuer:          cfg.Security.JWTIssuer,
 	}
 }
 

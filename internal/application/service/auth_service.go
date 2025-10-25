@@ -3,36 +3,36 @@ package service
 import (
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
-	"challenge-app/internal/domain/service"
+	"challenge-app/pkg/email"
 	"challenge-app/pkg/security"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
-  "errors"
-  "gorm.io/gorm"
 	"math/big"
+
+	"gorm.io/gorm"
 )
 
 type AuthService struct {
 	UserRepo         repository.UserRepository
-  PasswordSvc security.PasswordService
-	JwtService  security.JWTService
 	VerificationRepo repository.VerificationRepository
-	EmailService     service.EmailService
+	PasswordSvc      security.PasswordService
 	JwtService       security.JWTService
+	EmailService     email.EmailService
 }
 
-func NewAuthService(repo repository.UserRepository,verificationRepo repository.VerificationRepository,
-	emailService service.EmailService, passwordSvc security.PasswordService, jwtService security.JWTService) *AuthService {
+func NewAuthService(repo repository.UserRepository, verificationRepo repository.VerificationRepository,
+	jwtService security.JWTService, emailService email.EmailService,
+	passwordSvc security.PasswordService) *AuthService {
 	return &AuthService{
-		UserRepo:    repo,
-    VerificationRepo: verificationRepo,
+		UserRepo:         repo,
+		VerificationRepo: verificationRepo,
 		EmailService:     emailService,
-		PasswordSvc: passwordSvc,
-		JwtService:  jwtService,
+		PasswordSvc:      passwordSvc,
+		JwtService:       jwtService,
 	}
 }
-
 
 // RegisterUser (CRUD - Create Logic)
 func (s *AuthService) RegisterUser(username, email, password, bio string) (*model.UserModel, string, error) {
@@ -60,30 +60,35 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 	// 4. Persist user
 	err = s.UserRepo.CreateUser(user)
 	if err != nil {
-		return nil, fmt.Errorf("user creation failed: %w", err)
+		return nil, "", fmt.Errorf("user creation failed: %w", err)
 	}
 
 	// 5. Generate verification code
 	code, err := generateVerificationCode1()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate verification code: %w", err)
+		return nil, "", fmt.Errorf("failed to generate verification code: %w", err)
 	}
 
 	ctx := context.Background()
 	err = s.VerificationRepo.StoreVerificationCode(ctx, email, code, 5)
 	if err != nil {
-		return nil, fmt.Errorf("failed to store verification code: %w", err)
+		return nil, "", fmt.Errorf("failed to store verification code: %w", err)
 	}
 
 	err = s.EmailService.SendVerificationEmail(email, code)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send verification email: %w", err)
+		return nil, "", fmt.Errorf("failed to send verification email: %w", err)
 	}
 
-	return user, nil
+	token, err := s.JwtService.GenerateToken(user.ID)
+	if err != nil {
+		return nil, "", fmt.Errorf("could not generate token: %w", err)
+	}
+
+	return user, token, nil
 }
 
-func (s *AuthService) LoginUser(email, password string) (*model.UserModel, string, error) {
+func (s *AuthService) LoginUser(email string, password string) (*model.UserModel, string, error) {
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

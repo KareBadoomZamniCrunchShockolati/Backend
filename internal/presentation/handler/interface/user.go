@@ -9,4 +9,7 @@ type UserHandler interface {
 	GetAllUsers(c *gin.Context)
 	UpdateProfile(c *gin.Context)
 	DeleteUser(c *gin.Context)
+	InitiateEmailChange(c *gin.Context)
+	VerifyEmailChange(c *gin.Context)
+	
 }

@@ -6,7 +6,8 @@ import (
 
 const (
 	EnvFilePath    = "../../.env"
-	DefaultAppPort = "8080"
+	AppPort = "8080"
+	RedisPort = "6379"
 )
 
 var (

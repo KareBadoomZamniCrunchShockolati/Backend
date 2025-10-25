@@ -2,31 +2,37 @@ package email
 
 import (
 	"fmt"
-	"os"
-	"strconv"
+	"challenge-app/internal/bootstrap"
 
 	"gopkg.in/gomail.v2"
 )
 
-type EmailService struct {
+type EmailService interface {
+	SendVerificationEmail(to, code string) error
+	SendEmailChangeVerification(newEmail, code, oldEmail string) error
+	SendEmailChangeConfirmation(newEmail, oldEmail string) error
+}
+
+type EmailServiceImpl struct {
 	dialer *gomail.Dialer
 	from   string
 }
 
-func NewEmailService() *EmailService {
-	port, _ := strconv.Atoi(os.Getenv("SMTP_PORT"))
-	return &EmailService{
-		dialer: gomail.NewDialer(
-			os.Getenv("SMTP_HOST"),
-			port,
-			os.Getenv("SMTP_USER"),
-			os.Getenv("SMTP_PASS"),
-		),
-		from: os.Getenv("EMAIL_FROM"),
+func NewEmailService(cfg *bootstrap.Env) *EmailServiceImpl {
+	dialer := gomail.NewDialer(
+		cfg.Email.SMTPHost,
+		cfg.Email.SMTPPort,
+		cfg.Email.SMTPUser,
+		cfg.Email.SMTPPass,
+	)
+
+	return &EmailServiceImpl{
+		dialer: dialer,
+		from:   cfg.Email.From,
 	}
 }
 
-func (s *EmailService) SendVerificationEmail(to, code string) error {
+func (s *EmailServiceImpl) SendVerificationEmail(to, code string) error {
 	m := gomail.NewMessage()
 	m.SetHeader("From", s.from)
 	m.SetHeader("To", to)
@@ -36,7 +42,7 @@ func (s *EmailService) SendVerificationEmail(to, code string) error {
 	return s.dialer.DialAndSend(m)
 }
 
-func (s *EmailService) SendEmailChangeVerification(newEmail, code, oldEmail string) error {
+func (s *EmailServiceImpl) SendEmailChangeVerification(newEmail, code, oldEmail string) error {
 	m := gomail.NewMessage()
 	m.SetHeader("From", s.from)
 	m.SetHeader("To", newEmail)
@@ -48,7 +54,7 @@ func (s *EmailService) SendEmailChangeVerification(newEmail, code, oldEmail stri
 	return s.dialer.DialAndSend(m)
 }
 
-func (s *EmailService) SendEmailChangeConfirmation(newEmail, oldEmail string) error {
+func (s *EmailServiceImpl) SendEmailChangeConfirmation(newEmail, oldEmail string) error {
 	m := gomail.NewMessage()
 	m.SetHeader("From", s.from)
 	m.SetHeader("To", newEmail)

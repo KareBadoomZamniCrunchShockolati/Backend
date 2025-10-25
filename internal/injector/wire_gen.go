@@ -13,15 +13,19 @@ import (
 	"challenge-app/internal/domain/repository"
 	"challenge-app/internal/infrastructure/repository/postgres"
 	"challenge-app/internal/infrastructure/repository/postgres/driver"
+	"challenge-app/internal/infrastructure/repository/redis"
 	"challenge-app/internal/presentation/handler"
 	handler2 "challenge-app/internal/presentation/handler/interface"
 	"challenge-app/internal/presentation/middleware"
 	middleware2 "challenge-app/internal/presentation/middleware/interface"
 	"challenge-app/internal/presentation/router"
+	"challenge-app/pkg/email"
 	"challenge-app/pkg/security"
 	"challenge-app/pkg/validation"
+	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	redis2 "github.com/go-redis/redis/v8"
 	"github.com/google/wire"
 	"gorm.io/gorm"
 	"time"
@@ -32,12 +36,18 @@ import (
 // --- Initialize Router ---
 func InitializeRouter(db *gorm.DB, validator2 *validator.Validate) (*gin.Engine, error) {
 	userRepository := postgres.NewUserRepository(db)
-	userService := service.NewUserService(userRepository)
+	client, err := ProvideRedisClient()
+	if err != nil {
+		return nil, err
+	}
+	verificationRepository := redis.NewVerificationRepository(client)
+	env := bootstrap.LoadEnv()
+	emailServiceImpl := ProvideEmailService(env)
+	userService := service.NewUserService(userRepository, verificationRepository, emailServiceImpl)
 	userHandler := handler.NewUserHandler(userService)
+	jwtServiceImpl := ProvideJWTService(env)
 	passwordServiceImpl := security.NewPasswordService()
-	jwtConfig := ProvideJWTConfig()
-	jwtServiceImpl := ProvideJWTService(jwtConfig)
-	authService := service.NewAuthService(userRepository, passwordServiceImpl, jwtServiceImpl)
+	authService := service.NewAuthService(userRepository, verificationRepository, jwtServiceImpl, emailServiceImpl, passwordServiceImpl)
 	authHandler := handler.NewAuthHandler(authService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	engine := router.SetupRouter(userHandler, authHandler, jwtMiddleware)
@@ -52,12 +62,18 @@ func InitializeApplication() (*Application, error) {
 		return nil, err
 	}
 	userRepository := postgres.NewUserRepository(db)
-	userService := service.NewUserService(userRepository)
+	client, err := ProvideRedisClient()
+	if err != nil {
+		return nil, err
+	}
+	verificationRepository := redis.NewVerificationRepository(client)
+	env := bootstrap.LoadEnv()
+	emailServiceImpl := ProvideEmailService(env)
+	userService := service.NewUserService(userRepository, verificationRepository, emailServiceImpl)
 	userHandler := handler.NewUserHandler(userService)
+	jwtServiceImpl := ProvideJWTService(env)
 	passwordServiceImpl := security.NewPasswordService()
-	jwtConfig := ProvideJWTConfig()
-	jwtServiceImpl := ProvideJWTService(jwtConfig)
-	authService := service.NewAuthService(userRepository, passwordServiceImpl, jwtServiceImpl)
+	authService := service.NewAuthService(userRepository, verificationRepository, jwtServiceImpl, emailServiceImpl, passwordServiceImpl)
 	authHandler := handler.NewAuthHandler(authService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	engine := router.SetupRouter(userHandler, authHandler, jwtMiddleware)
@@ -73,48 +89,48 @@ type JWTSecret string
 
 type TokenExpiry time.Duration
 
+type RedisClient *redis2.Client
+
 // --- Providers ---
 func ProvideDSN() PostgresDSN {
 	cfg := bootstrap.LoadEnv()
-	dsn := "host=" + cfg.DBHost +
-		" user=" + cfg.DBUser +
-		" password=" + cfg.DBPassword +
-		" dbname=" + cfg.DBName +
-		" port=" + cfg.DBPort +
-		" sslmode=" + cfg.SSLMode
+	dsn := "host=" + cfg.Database.Host +
+		" user=" + cfg.Database.User +
+		" password=" + cfg.Database.Password +
+		" dbname=" + cfg.Database.Name +
+		" port=" + cfg.Database.Port +
+		" sslmode=" + cfg.Database.SSLMode
 	return PostgresDSN(dsn)
-}
-
-func ProvideJWTSecret() JWTSecret {
-	cfg := bootstrap.LoadEnv()
-	return JWTSecret(cfg.JWTSecretKey)
-}
-
-func ProvideTokenExpiry() TokenExpiry {
-	return TokenExpiry(bootstrap.JWTTokenExpiry)
 }
 
 func ProvidePostgresDB(dsn PostgresDSN) (*gorm.DB, error) {
 	return driver.InitPostgresDB(string(dsn))
 }
 
-type JWTConfig struct {
-	Secret string
-	Expiry time.Duration
-	Issuer string
-}
+func ProvideRedisClient() (*redis2.Client, error) {
+	cfg := bootstrap.LoadEnv()
 
-func ProvideJWTConfig() JWTConfig {
+	client := redis2.NewClient(&redis2.Options{
+		Addr:     cfg.Redis.Address + ":" + cfg.Redis.Port,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
 
-	return JWTConfig{
-		Secret: string(ProvideJWTSecret()),
-		Expiry: time.Duration(ProvideTokenExpiry()),
-		Issuer: bootstrap.JWTIssuer,
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if _, err := client.Ping(ctx).Result(); err != nil {
+		return nil, err
 	}
+	return client, nil
 }
 
-func ProvideJWTService(cfg JWTConfig) *security.JwtServiceImpl {
-	return security.NewJWTService(cfg.Secret, cfg.Expiry, cfg.Issuer)
+func ProvideEmailService(cfg *bootstrap.Env) *email.EmailServiceImpl {
+	return email.NewEmailService(cfg)
+}
+
+func ProvideJWTService(cfg *bootstrap.Env) *security.JwtServiceImpl {
+	return security.NewJWTService(cfg)
 }
 
 func ProvideValidator() *validator.Validate {
@@ -124,14 +140,18 @@ func ProvideValidator() *validator.Validate {
 }
 
 // --- Provider Sets ---
-var SecurityProviderSet = wire.NewSet(security.NewPasswordService, ProvideJWTService,
-	ProvideJWTConfig, wire.Bind(new(security.PasswordService), new(*security.PasswordServiceImpl)), wire.Bind(new(security.JWTService), new(*security.JwtServiceImpl)),
-)
+var SecurityProviderSet = wire.NewSet(security.NewPasswordService, ProvideJWTService, wire.Bind(new(security.PasswordService), new(*security.PasswordServiceImpl)), wire.Bind(new(security.JWTService), new(*security.JwtServiceImpl)))
 
 var DatabaseProviderSet = wire.NewSet(
 	ProvideDSN,
 	ProvidePostgresDB,
 )
+
+var RedisProviderSet = wire.NewSet(
+	ProvideRedisClient, redis.NewVerificationRepository, wire.Bind(new(repository.VerificationRepository), new(*redis.VerificationRepository)),
+)
+
+var EmailProviderSet = wire.NewSet(bootstrap.LoadEnv, ProvideEmailService, wire.Bind(new(email.EmailService), new(*email.EmailServiceImpl)))
 
 var RepositoryProviderSet = wire.NewSet(postgres.NewUserRepository, wire.Bind(new(repository.UserRepository), new(*postgres.UserRepository)))
 

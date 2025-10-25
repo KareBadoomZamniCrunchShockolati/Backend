@@ -1,9 +1,6 @@
 package middleware
 
 import (
-	"net/http"
-	"strings"
-
 	"strings"
 	"challenge-app/pkg/security"
 	"github.com/gin-gonic/gin"

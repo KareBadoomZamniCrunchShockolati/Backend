@@ -16,7 +16,7 @@ type AuthResponse struct {
 
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email"`
-	Password uint `json:"password" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 type VerifyRequest struct {
