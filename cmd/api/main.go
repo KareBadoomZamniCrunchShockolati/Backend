@@ -6,7 +6,10 @@ import (
 	"challenge-app/internal/injector"
 	"challenge-app/pkg/validation"
 	"log"
+	
 )
+
+
 
 // @title Challenge App API
 // @version 1.0
@@ -28,7 +31,6 @@ import (
 // @name Authorization
 
 func main() {
-	env := bootstrap.LoadEnv()
 
 	if err := validation.RegisterGinValidator(); err != nil {
 	log.Fatalf("Failed to register custom validator: %v", err)
@@ -39,8 +41,8 @@ func main() {
 		log.Fatalf("Error initializing dependencies: %v", err)
 	}
 
-	log.Printf("Starting server on port %s...", env.AppPort)
-	if err := app.Router.Run(":" + env.AppPort); err != nil {
+	log.Printf("Starting server on port %s...", bootstrap.AppPort)
+	if err := app.Router.Run(":" + bootstrap.AppPort); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

@@ -3,40 +3,97 @@ package bootstrap
 import (
 	"log"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
 
+
 type Env struct {
-	AppPort      string
-	JWTSecretKey string
-	DBHost       string
-	DBUser       string
-	DBPassword   string
-	DBName       string
-	DBPort       string
-	SSLMode      string
+	App      AppConfig
+	Database DatabaseConfig
+	Redis    RedisConfig
+	Security SecurityConfig
+	Email    EmailConfig
 }
 
-// LoadEnv loads variables from .env file and environment
+type AppConfig struct {
+	Port string
+	Mode string
+}
+
+type DatabaseConfig struct {
+	Host     string
+	Port     string
+	User     string
+	Password string
+	Name     string
+	SSLMode  string
+}
+
+type RedisConfig struct {
+	Address  string
+	Port     string
+	Password string
+	DB       int
+}
+
+type SecurityConfig struct {
+	JWTSecret string
+	JWTIssuer string
+	TokenTTL  time.Duration
+}
+
+type EmailConfig struct {
+	From     string
+	SMTPHost string
+	SMTPPort int
+	SMTPUser string
+	SMTPPass string
+}
+
+// Load environment variables and constants into a unified struct
 func LoadEnv() *Env {
-	if err := godotenv.Load("../../.env"); err != nil {
-		log.Println("⚠️  No .env file found, using system environment variables.")
+	if err := godotenv.Load(EnvFilePath); err != nil {
+		log.Println("No .env file found, using system environment variables.")
 	}
 
-	env := &Env{
-		AppPort:      getEnv("APP_PORT", "8080"),
-		JWTSecretKey: mustGetEnv("JWT_SECRET_KEY"),
-		DBHost:       mustGetEnv("DB_HOST"),
-		DBUser:       mustGetEnv("DB_USER"),
-		DBPassword:   mustGetEnv("DB_PASSWORD"),
-		DBName:       mustGetEnv("DB_NAME"),
-		DBPort:       mustGetEnv("DB_PORT"),
-		SSLMode:      getEnv("SSL_MODE", "disable"),
+	return &Env{
+		App: AppConfig{
+			Port: AppPort,
+			Mode: getEnv("APP_MODE", "debug"),
+		},
+		Database: DatabaseConfig{
+			Host:     mustGetEnv("DB_HOST"),
+			Port:     mustGetEnv("DB_PORT"),
+			User:     mustGetEnv("DB_USER"),
+			Password: mustGetEnv("DB_PASSWORD"),
+			Name:     mustGetEnv("DB_NAME"),
+			SSLMode:  getEnv("DB_SSL_MODE", "disable"),
+		},
+		Redis: RedisConfig{
+			Address:  getEnv("REDIS_ADDR", "localhost"),
+			Port:     RedisPort,
+			Password: getEnv("REDIS_PASS", ""),
+			DB:       getEnvInt("REDIS_DB", 0),
+		},
+		Security: SecurityConfig{
+			JWTSecret: mustGetEnv("JWT_SECRET_KEY"),
+			JWTIssuer: JWTIssuer,          
+			TokenTTL:  JWTTokenExpiry,
+		},
+		Email: EmailConfig{
+			From:     mustGetEnv("EMAIL_FROM"),
+			SMTPHost: mustGetEnv("SMTP_HOST"),
+			SMTPPort: getEnvInt("SMTP_PORT", 587),
+			SMTPUser: mustGetEnv("SMTP_USER"),
+			SMTPPass: mustGetEnv("SMTP_PASS"),
+		},
 	}
-
-	return env
 }
+
+// --- Helper functions ---
 
 func getEnv(key, defaultValue string) string {
 	if value, exists := os.LookupEnv(key); exists {
@@ -51,4 +108,13 @@ func mustGetEnv(key string) string {
 		log.Fatalf("Missing required environment variable: %s", key)
 	}
 	return value
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			return i
+		}
+	}
+	return defaultValue
 }

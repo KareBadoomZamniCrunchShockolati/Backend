@@ -14,64 +14,67 @@ import (
 	handler_interface "challenge-app/internal/presentation/handler/interface"
 	"challenge-app/internal/presentation/middleware"
 	middleware_interface "challenge-app/internal/presentation/middleware/interface"
+	redisRepo "challenge-app/internal/infrastructure/repository/redis"
 	"challenge-app/internal/presentation/router"
 	"challenge-app/internal/bootstrap"
 	"challenge-app/pkg/security"
+	"challenge-app/pkg/email"
+	"context"
+
 	"time"
 	"challenge-app/pkg/validation"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
+	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
 )
 
 type PostgresDSN string
 type JWTSecret string
 type TokenExpiry time.Duration
+type RedisClient *redis.Client
+
 
 // --- Providers ---
 func ProvideDSN() PostgresDSN {
 	cfg := bootstrap.LoadEnv()
-	dsn := "host=" + cfg.DBHost +
-		" user=" + cfg.DBUser +
-		" password=" + cfg.DBPassword +
-		" dbname=" + cfg.DBName +
-		" port=" + cfg.DBPort +
-		" sslmode=" + cfg.SSLMode
+	dsn := "host=" + cfg.Database.Host +
+		" user=" + cfg.Database.User +
+		" password=" + cfg.Database.Password +
+		" dbname=" + cfg.Database.Name +
+		" port=" + cfg.Database.Port +
+		" sslmode=" + cfg.Database.SSLMode
 	return PostgresDSN(dsn)
 }
-
-func ProvideJWTSecret() JWTSecret {
-	cfg := bootstrap.LoadEnv()
-	return JWTSecret(cfg.JWTSecretKey)
-}
-
-func ProvideTokenExpiry() TokenExpiry {
-	return TokenExpiry(bootstrap.JWTTokenExpiry)
-}
-
 
 func ProvidePostgresDB(dsn PostgresDSN) (*gorm.DB, error) {
 	return driver.InitPostgresDB(string(dsn))
 }
 
-type JWTConfig struct {
-    Secret  string
-    Expiry  time.Duration
-    Issuer  string
+func ProvideRedisClient() (*redis.Client, error) {
+	cfg := bootstrap.LoadEnv()
+
+	client := redis.NewClient(&redis.Options{
+		Addr:     cfg.Redis.Address + ":" + cfg.Redis.Port,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if _, err := client.Ping(ctx).Result(); err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 
-func ProvideJWTConfig() JWTConfig {
-    // cfg := bootstrap.LoadEnv()
-    return JWTConfig{
-        Secret: string(ProvideJWTSecret()),
-        Expiry: time.Duration(ProvideTokenExpiry()),
-        Issuer: bootstrap.JWTIssuer,
-    }
+func ProvideEmailService(cfg *bootstrap.Env) *email.EmailServiceImpl {
+	return email.NewEmailService(cfg)
 }
 
-func ProvideJWTService(cfg JWTConfig) *security.JwtServiceImpl {
-    return security.NewJWTService(cfg.Secret, cfg.Expiry, cfg.Issuer)
+func ProvideJWTService(cfg *bootstrap.Env) *security.JwtServiceImpl {
+    return security.NewJWTService(cfg)
 }
 
 func ProvideValidator() *validator.Validate {
@@ -85,7 +88,6 @@ func ProvideValidator() *validator.Validate {
 var SecurityProviderSet = wire.NewSet(
 	security.NewPasswordService,
 	ProvideJWTService,
-	ProvideJWTConfig,
 	wire.Bind(new(security.PasswordService), new(*security.PasswordServiceImpl)),
 	wire.Bind(new(security.JWTService), new(*security.JwtServiceImpl)),
 )
@@ -93,6 +95,18 @@ var SecurityProviderSet = wire.NewSet(
 var DatabaseProviderSet = wire.NewSet(
 	ProvideDSN,
 	ProvidePostgresDB,
+)
+
+var RedisProviderSet = wire.NewSet(
+	ProvideRedisClient,
+	redisRepo.NewVerificationRepository,
+	wire.Bind(new(repository_interface.VerificationRepository), new(*redisRepo.VerificationRepository)),
+)
+
+var EmailProviderSet = wire.NewSet(
+	bootstrap.LoadEnv, 
+	ProvideEmailService,
+	wire.Bind(new(email.EmailService),new(*email.EmailServiceImpl),),
 )
 
 var RepositoryProviderSet = wire.NewSet(
@@ -137,6 +151,8 @@ func InitializeRouter(db *gorm.DB, validator *validator.Validate) (*gin.Engine, 
 	wire.Build(
 		SecurityProviderSet,
 		RepositoryProviderSet,
+		RedisProviderSet,
+		EmailProviderSet,
 		ServiceProviderSet,
 		HandlerProviderSet,
 		MiddlewareProviderSet,
@@ -151,6 +167,8 @@ func InitializeApplication() (*Application, error) {
 		DatabaseProviderSet,
 		SecurityProviderSet,
 		RepositoryProviderSet,
+		RedisProviderSet,
+		EmailProviderSet,
 		ServiceProviderSet,
 		HandlerProviderSet,
 		MiddlewareProviderSet,

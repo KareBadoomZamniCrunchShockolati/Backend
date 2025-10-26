@@ -9,4 +9,5 @@ type UserModel struct {
 	PasswordHash   string
 	Bio            string
 	ProfilePicture string
+	Verified       bool
 }

@@ -126,7 +126,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		userID,
 		req.Username,
 		req.Bio,
-		req.NewEmail, // Field from the DTO
+		req.NewEmail, 
 	)
 
 	// 4. Error Handling and Status Mapping
@@ -156,6 +156,79 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": successMessage,
 		"user": dto.UserResponse{ // Return the updated resource DTO
+			ID:       user.ID,
+			Username: user.Username,
+			Email:    user.Email,
+			Bio:      user.Bio,
+		},
+	})
+}
+
+// InitiateEmailChange starts the email change process
+func (h *UserHandler) InitiateEmailChange(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed: User ID not found in context"})
+		return
+	}
+
+	userIDUint, ok := userID.(uint)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error: User ID format mismatch"})
+		return
+	}
+
+	var req dto.InitiateEmailChangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	err := h.UserService.InitiateEmailChange(userIDUint, req.NewEmail)
+	if err != nil {
+		if strings.Contains(err.Error(), "already in use") {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		if strings.Contains(err.Error(), "same as current") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initiate email change", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Verification email sent to your new email address",
+		"email":   req.NewEmail,
+	})
+}
+
+// VerifyEmailChange completes the email change process
+func (h *UserHandler) VerifyEmailChange(c *gin.Context) {
+	var req dto.VerifyEmailChangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	user, err := h.UserService.CompleteEmailChange(req.OldEmail, req.NewEmail, req.Code)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found or expired") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Email change request not found or expired"})
+			return
+		}
+		if strings.Contains(err.Error(), "invalid verification code") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid verification code"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to complete email change", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Email changed successfully",
+		"user": dto.UserResponse{
 			ID:       user.ID,
 			Username: user.Username,
 			Email:    user.Email,

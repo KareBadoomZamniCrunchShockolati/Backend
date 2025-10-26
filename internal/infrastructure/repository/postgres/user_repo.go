@@ -32,6 +32,7 @@ func toModel(e *entity.UserEntity) *model.UserModel {
 		PasswordHash:   e.PasswordHash,
 		Bio:            e.Bio,
 		ProfilePicture: e.ProfilePicture,
+		Verified:       e.Verified,
 	}
 }
 
@@ -45,6 +46,7 @@ func toEntity(m *model.UserModel) *entity.UserEntity {
 		PasswordHash:   m.PasswordHash,
 		Bio:            m.Bio,
 		ProfilePicture: m.ProfilePicture,
+		Verified:       m.Verified,
 	}
 }
 

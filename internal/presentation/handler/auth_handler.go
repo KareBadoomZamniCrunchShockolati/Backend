@@ -70,11 +70,13 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
+		"message": "User registered successfully. Check your email for verification code.",
 		"user": dto.LoginResponse{
 			ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio, Token: token,
 		}, 
 	})
 }
+
 
 
 // Login godoc
@@ -106,6 +108,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 			return
 		}
+		if err.Error() == "email not verified" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Email not verified. Please verify your email first."})
+			return
+		}
 		// Catch any other server-side errors
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Login failed due to server error"})
 		return
@@ -117,5 +123,55 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		"user_response": dto.LoginResponse{
 			ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio, Token: token,
 		},
+	})
+}
+
+func (h *AuthHandler) Verify(c *gin.Context) {
+	var req dto.VerifyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	token, err := h.AuthService.VerifyEmail(req.Email, req.Code)
+	if err != nil {
+		if err.Error() == "invalid code" || err.Error() == "code expired or not found" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Verification failed", "details": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Email verified successfully",
+		"token":   token,
+	})
+}
+
+func (h *AuthHandler) ResendVerification(c *gin.Context) {
+	var req dto.ResendVerificationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	err := h.AuthService.ResendVerificationEmail(req.Email)
+	if err != nil {
+		if err.Error() == "user not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		if err.Error() == "user is already verified" {
+			c.JSON(http.StatusConflict, gin.H{"error": "User is already verified"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resend verification email", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Verification email sent successfully",
+		"email":   req.Email,
 	})
 }
