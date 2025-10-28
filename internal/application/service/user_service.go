@@ -2,14 +2,16 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
-	"math/big"
 	"strings"
 
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
+	"challenge-app/pkg/errs"
+	"errors"
 	"challenge-app/pkg/email"
 	"fmt"
+
+	"gorm.io/gorm"
 )
 
 type UserService struct {
@@ -26,53 +28,84 @@ func NewUserService(repo repository.UserRepository, vRepo repository.Verificatio
 	}
 }
 
-
 // GetUserByID (CRUD - Read Logic)
 func (s *UserService) GetUserByID(id uint) (*model.UserModel, error) {
-    return s.UserRepo.GetUserByID(id)
+	user, err := s.UserRepo.GetUserByID(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &errs.NotFoundError{
+				Resource: fmt.Sprintf("User with ID %d", id),
+			}
+		}
+		return nil, &errs.InternalServerError{
+			Err: fmt.Errorf("database read failure for user ID %d: %w", id, err),
+		}
+	}
+	if user == nil {
+		panic(fmt.Sprintf("UserRepo.GetUserByID returned nil user for ID %d", id))
+	}
+	return user, nil
 }
 
-
 func (s *UserService) GetAllUsers() ([]model.UserModel, error) {
-    return s.UserRepo.GetAllUsers()
+	users, err := s.UserRepo.GetAllUsers()
+	if err != nil {
+		return nil, &errs.InternalServerError{
+			Err: fmt.Errorf("database read failure for all users: %w", err),
+		}
+	}
+	if users == nil {
+		panic("UserRepo.GetAllUsers returned nil slice unexpectedly")
+	}
+	return users, nil
 }
 
 // UpdateUser (CRUD - Update Logic)
 func (s *UserService) UpdateUser(id uint, username, bio, newEmail string) (*model.UserModel, error) {
-	// 1. Retrieve the existing user
 	user, err := s.UserRepo.GetUserByID(id)
 	if err != nil {
-		// Return the error from the repository (e.g., gorm.ErrRecordNotFound)
-		return nil, fmt.Errorf("user not found: %w", err)
-	}
-	
-	// --- 2. Handle Email Change ---
-	if newEmail != "" {
-		// Check if the new email is already taken
-		existingUser, _ := s.UserRepo.GetUserByEmail(newEmail)
-		if existingUser != nil {
-			return nil, fmt.Errorf("email address %s is already in use", newEmail)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &errs.NotFoundError{
+				Resource: fmt.Sprintf("User with ID %d", id),
+			}
 		}
-
-		// Apply the new email address
-		user.Email = newEmail
-		// NOTE: In a production app, you would set a `pending_email` and
-		// send a verification link here instead of updating directly.
+		return nil, &errs.InternalServerError{
+			Err: fmt.Errorf("database lookup failure for update: %w", err),
+		}
 	}
 
-	// --- 3. Handle Username/Bio Updates ---
+	if user == nil {
+		panic(fmt.Sprintf("Unexpected nil user returned during update for ID %d", id))
+	}
+
+	// --- 2. Handle Email Change ---
 	if username == "" {
-    	return user, fmt.Errorf("username cannot be empty")
+		return user, &errs.BadRequestError{
+			MessageValue: "Username cannot be empty.",
+		}
 	}
 	user.Username = username
 	if bio != "" {
 		user.Bio = bio
 	}
 
-	// 3. Persist changes to the repository
+
+	// 4. Persist changes to the repository
 	updatedUser, err := s.UserRepo.UpdateUser(user)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update user in repository: %w", err)
+		// Check for possible duplicate key violation from repository (e.g., username change)
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			return nil, &errs.ConflictError{
+				MessageValue: "The requested username or email is already in use.",
+			}
+		}
+		// Recoverable DB write failure -> 500
+		return nil, &errs.InternalServerError{
+			Err: fmt.Errorf("failed to persist user update: %w", err),
+		}
+	}
+	if updatedUser == nil {
+		panic(fmt.Sprintf("UserRepo.UpdateUser returned nil for ID %d", id))
 	}
 
 	return updatedUser, nil
@@ -84,32 +117,43 @@ func (s *UserService) InitiateEmailChange(userID uint, newEmail string) error {
 	// 1. getting the user with his ID
 	user, err := s.UserRepo.GetUserByID(userID)
 	if err != nil {
-		//fmt.Printf("DEBUG: User not found with ID: %d, error: %v\n", userID, err)
-		return fmt.Errorf("user not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &errs.NotFoundError{Resource: fmt.Sprintf("User with ID %d", userID)}
+		}
+		return &errs.InternalServerError{
+			Err: fmt.Errorf("failed to retrieve user for email change: %w", err),
+		}
 	}
-	fmt.Printf("DEBUG: Found user - ID: %d, Current Email: %s, New Email: %s\n", user.ID, user.Email, newEmail)
+	if user == nil {
+		panic(fmt.Sprintf("UserRepo.GetUserByID returned nil user for ID %d", userID))
+	}
 
-	// 2. Check if new email is the same as current email
 	if user.Email == newEmail {
-		//fmt.Printf("DEBUG: New email is same as current email: %s\n", newEmail)
-		return fmt.Errorf("new email cannot be the same as current email")
+		return &errs.BadRequestError{MessageValue: "New email cannot be the same as the current email."}
 	}
+	
 
 	// 3. Check if new email is already taken by another user
 	existingUser, _ := s.UserRepo.GetUserByEmail(newEmail)
-	if existingUser != nil && existingUser.ID != user.ID {
-		//fmt.Printf("DEBUG: Email already taken by user ID: %d\n", existingUser.ID)
-		return fmt.Errorf("email address %s is already in use", newEmail)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return &errs.InternalServerError{
+			Err: fmt.Errorf("failed to check existing email %s: %w", newEmail, err),
+		}
 	}
-	fmt.Printf("DEBUG: New email is available: %s\n", newEmail)
+
+	if existingUser != nil && existingUser.ID != user.ID {
+		return &errs.ConflictError{
+			MessageValue: fmt.Sprintf("Email address %s is already in use.", newEmail),
+		}
+	}
+
 
 	// 4. Generate verification code
-	code, err := generateVerificationCode2()
+	code, err := generateVerificationCode1()
 	if err != nil {
 		//fmt.Printf("DEBUG: Failed to generate verification code: %v\n", err)
-		return fmt.Errorf("failed to generate verification code: %w", err)
+		panic(fmt.Errorf("failed to generate verification code: %w", err))
 	}
-	fmt.Printf("DEBUG: Generated verification code: %s\n", code)
 
 	// 5. Store email change request in Redis with User ID
 	ctx := context.Background()
@@ -124,7 +168,9 @@ func (s *UserService) InitiateEmailChange(userID uint, newEmail string) error {
 	err = s.VerificationRepo.StoreVerificationCode(ctx, emailChangeKey, verificationData, 10) // 10 minutes expiration time
 	if err != nil {
 		//fmt.Printf("DEBUG: Failed to store in Redis: %v\n", err)
-		return fmt.Errorf("failed to store email change verification: %w", err)
+		return &errs.InternalServerError{
+			Err: fmt.Errorf("failed to store email change verification: %w", err),
+		}
 	}
 	//fmt.Printf("DEBUG: Successfully stored in Redis\n")
 
@@ -134,8 +180,10 @@ func (s *UserService) InitiateEmailChange(userID uint, newEmail string) error {
 	if err != nil {
 		// Clean up the stored verification if email fails
 		//fmt.Printf("DEBUG: Email sending failed, cleaning up Redis: %v\n", err)
-		s.VerificationRepo.DeleteVerificationCode(ctx, emailChangeKey)
-		return fmt.Errorf("failed to send verification email: %w", err)
+		_ = s.VerificationRepo.DeleteVerificationCode(ctx, emailChangeKey)
+		return &errs.InternalServerError{
+			Err: fmt.Errorf("failed to send verification email: %w", err),
+		}
 	}
 	fmt.Printf("DEBUG: Verification email sent successfully\n")
 
@@ -156,7 +204,7 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 	storedData, err := s.VerificationRepo.GetVerificationCode(ctx, emailChangeKey)
 	if err != nil {
 		//fmt.Printf("DEBUG CompleteEmailChange: Redis key not found or error: %v\n", err)
-		return nil, fmt.Errorf("email change request not found or expired")
+		return nil, &errs.BadRequestError{MessageValue: "Email change request not found or expired."}
 	}
 	fmt.Printf("DEBUG CompleteEmailChange: Found stored data: %s\n", storedData)
 
@@ -166,31 +214,37 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 	n, err := fmt.Sscanf(storedData, "%d:%s", &userID, &storedCode)
 	if err != nil || n != 2 {
 		//fmt.Printf("DEBUG CompleteEmailChange: Failed to parse stored data. Parsed %d items, error: %v\n", n, err)
-		return nil, fmt.Errorf("invalid verification data format")
+		panic(fmt.Errorf("corrupted verification data format for key %s: %v", emailChangeKey, err))
 	}
 	fmt.Printf("DEBUG CompleteEmailChange: Parsed - userID: %d, storedCode: '%s'\n", userID, storedCode)
 
-	storedCode = strings.TrimSpace(storedCode)
-
-	// invalid code handling
-	if storedCode != code {
-		//fmt.Printf("DEBUG CompleteEmailChange: Code mismatch - expected: '%s', got: '%s'\n", code, storedCode)
-		return nil, fmt.Errorf("invalid verification code")
+	if strings.TrimSpace(storedCode) != code {
+		return nil, &errs.BadRequestError{MessageValue: "Invalid verification code."}
 	}
+
 
 	// 3. Get the user by ID ( because  it is more reliable than email)
 	fmt.Printf("DEBUG CompleteEmailChange: Looking for user with ID: %d\n", userID)
 	user, err := s.UserRepo.GetUserByID(userID)
 	if err != nil {
-		fmt.Printf("DEBUG CompleteEmailChange: User not found with ID: %d, error: %v\n", userID, err)
-		return nil, fmt.Errorf("user not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &errs.NotFoundError{Resource: fmt.Sprintf("User with ID %d", userID)}
+		}
+		return nil, &errs.InternalServerError{
+			Err: fmt.Errorf("failed to retrieve user during email change: %w", err),
+		}
 	}
 	fmt.Printf("DEBUG CompleteEmailChange: Found user - ID: %d, Current Email: %s\n", user.ID, user.Email)
+	if user == nil {
+		panic(fmt.Sprintf("UserRepo.GetUserByID returned nil for ID %d", userID))
+	}
 
 	// Verify the old email matches ( for security purposes only)
 	if user.Email != oldEmail {
 		//fmt.Printf("DEBUG CompleteEmailChange: Security check failed - user email %s doesn't match provided old email %s\n", user.Email, oldEmail)
-		return nil, fmt.Errorf("email change request mismatch")
+		return nil, &errs.BadRequestError{
+			MessageValue: "Email change request mismatch with existing user.",
+		}
 	}
 
 	// 4. Update user's email
@@ -203,7 +257,9 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 	updatedUser, err := s.UserRepo.UpdateUser(user)
 	if err != nil {
 		//fmt.Printf("DEBUG CompleteEmailChange: Failed to update user in database: %v\n", err)
-		return nil, fmt.Errorf("failed to update user email: %w", err)
+		return nil, &errs.InternalServerError{
+			Err: fmt.Errorf("failed to update user email: %w", err),
+		}
 	}
 	fmt.Printf("DEBUG CompleteEmailChange: User updated successfully - New Email: %s\n", updatedUser.Email)
 
@@ -228,13 +284,16 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 
 // DeleteUser (CRUD - Delete Logic)
 func (s *UserService) DeleteUser(id uint) error {
-	return s.UserRepo.DeleteUser(id)
-}
-
-func generateVerificationCode2() (string, error) {
-	n, err := rand.Int(rand.Reader, big.NewInt(900000))
+    err := s.UserRepo.DeleteUser(id)
 	if err != nil {
-		return "", err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &errs.NotFoundError{
+				Resource: fmt.Sprintf("User with ID %d", id),
+			}
+		}
+		return &errs.InternalServerError{
+			Err: fmt.Errorf("database delete failure for user ID %d: %w", id, err),
+		}
 	}
-	return fmt.Sprintf("%06d", n.Int64()+100000), nil
+	return nil
 }

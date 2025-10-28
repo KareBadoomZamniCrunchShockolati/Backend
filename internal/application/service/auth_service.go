@@ -4,6 +4,7 @@ import (
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
 	"challenge-app/pkg/email"
+	"challenge-app/pkg/errs"
 	"challenge-app/pkg/security"
 	"context"
 	"crypto/rand"
@@ -39,13 +40,17 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 	// 1. Check if user already exists
 	_, err := s.UserRepo.GetUserByEmail(email)
 	if err == nil {
-		return nil, "", fmt.Errorf("user with email %s already exists", email)
+		return nil, "", &errs.ConflictError{
+			MessageValue: fmt.Sprintf("User with email %s already exists.", email),
+		}
 	}
-
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		panic(fmt.Errorf("database failure while checking existing user: %w", err))
+	}
 	// 2. Hash the password (Security Rule)
 	hash, err := s.PasswordSvc.HashPassword(password)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not hash password: %w", err)
+		panic(fmt.Errorf("UNRECOVERABLE ERROR: Password hashing failed, system state compromised: %w", err))
 	}
 
 	// 3. Create the Domain Entity
@@ -60,29 +65,35 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 	// 4. Persist user
 	err = s.UserRepo.CreateUser(user)
 	if err != nil {
-		return nil, "", fmt.Errorf("user creation failed: %w", err)
+		panic(fmt.Errorf("failed to persist new user %s: %w", email, err))
 	}
 
 	// 5. Generate verification code
 	code, err := generateVerificationCode1()
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to generate verification code: %w", err)
+		return nil, "", &errs.InternalServerError{
+			Err: errors.New("failed to generate verification code: %v"),
+		}
 	}
 
 	ctx := context.Background()
 	err = s.VerificationRepo.StoreVerificationCode(ctx, email, code, 5)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to store verification code: %w", err)
+		return nil, "", &errs.InternalServerError{
+			Err: errors.New("failed to store verification code: %v"),
+		}
 	}
 
 	err = s.EmailService.SendVerificationEmail(email, code)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to send verification email: %w", err)
+		return nil, "", &errs.InternalServerError{
+			Err: errors.New("failed to send verification email: %v"),
+		}
 	}
 
 	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not generate token: %w", err)
+		panic(fmt.Errorf("JWT token generation failed, system state compromised: %w", err))
 	}
 
 	return user, token, nil
@@ -92,23 +103,26 @@ func (s *AuthService) LoginUser(email string, password string) (*model.UserModel
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, "", errors.New("invalid credentials")
+			return nil, "", &errs.UnAuthorizedError{
+				MessageValue: "Invalid credentials.",
+			}
 		}
-		panic(fmt.Sprintf("database error while fetching user: %v", err))
-	}
 
-	if !user.Verified {
-		return nil, "", fmt.Errorf("email not verified")
+		panic(fmt.Errorf("database failure during login for email %s: %w", email, err))
 	}
-
+	// 2. Check the password hash
+	// Use the PasswordService to compare the plaintext password with the stored hash
 	match := s.PasswordSvc.CheckPasswordHash(password, user.PasswordHash)
 	if !match {
-		return nil, "", fmt.Errorf("invalid credentials")
+		return nil, "", &errs.UnAuthorizedError{
+			MessageValue: "Invalid credentials.",
+		}
 	}
 
 	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not generate token: %w", err)
+		panic(fmt.Errorf("JWT token generation failed during login, system state compromised: %w", err))
+
 	}
 
 	return user, token, nil
@@ -119,29 +133,37 @@ func (s *AuthService) VerifyEmail(email, code string) (string, error) {
 
 	storedCode, err := s.VerificationRepo.GetVerificationCode(ctx, email)
 	if err != nil {
-		return "", fmt.Errorf("code expired or not found")
+		return "", &errs.BadRequestError{
+			MessageValue: "Verification code expired or not found.",
+		}
 	}
 
 	if storedCode != code {
-		return "", fmt.Errorf("invalid code")
+		return "", &errs.BadRequestError{
+			MessageValue: "Invalid verification code.",
+		}
 	}
 
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		return "", fmt.Errorf("user not found: %w", err)
+		return "", &errs.NotFoundError{
+			Resource: fmt.Sprintf("User with email %s", email),
+		}
 	}
 
 	user.Verified = true
 	_, err = s.UserRepo.UpdateUser(user)
 	if err != nil {
-		return "", fmt.Errorf("failed to update user: %w", err)
+		return "", &errs.InternalServerError{
+			Err: errors.New("Failed to update user verification: %v"),
+		}
 	}
 
 	s.VerificationRepo.DeleteVerificationCode(ctx, email)
 
 	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
-		return "", fmt.Errorf("could not generate token: %w", err)
+		panic(fmt.Errorf("JWT generation failed after verification: %w", err))
 	}
 
 	return token, nil
@@ -150,27 +172,37 @@ func (s *AuthService) VerifyEmail(email, code string) (string, error) {
 func (s *AuthService) ResendVerificationEmail(email string) error {
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		return fmt.Errorf("user not found")
+		return &errs.NotFoundError{
+			Resource: fmt.Sprintf("User with email %s", email),
+		}
 	}
 
 	if user.Verified {
-		return fmt.Errorf("user is already verified")
+		return &errs.ConflictError{
+			MessageValue: "User is already verified.",
+		}
 	}
 
 	code, err := generateVerificationCode1()
 	if err != nil {
-		return fmt.Errorf("failed to generate verification code: %w", err)
+		return &errs.InternalServerError{
+			Err: errors.New("failed to generate verification code: %v"),
+		}
 	}
 
 	ctx := context.Background()
 	err = s.VerificationRepo.StoreVerificationCode(ctx, email, code, 5)
 	if err != nil {
-		return fmt.Errorf("failed to store verification code: %w", err)
+		return &errs.InternalServerError{
+			Err: errors.New("failed to store verification code: %v"),
+		}
 	}
 
 	err = s.EmailService.SendVerificationEmail(email, code)
 	if err != nil {
-		return fmt.Errorf("failed to send verification email: %w", err)
+		return &errs.InternalServerError{
+			Err: errors.New("failed to send verification email: %v"),
+		}
 	}
 
 	return nil

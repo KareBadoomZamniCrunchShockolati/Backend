@@ -3,10 +3,11 @@ package handler
 import (
 	"challenge-app/internal/application/dto"
 	serviceinterface "challenge-app/internal/application/service/interface"
+	"challenge-app/pkg/errs"
 	"errors"
 	"net/http"
 	"strings"
-
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -35,23 +36,26 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	userIDValue, exists := c.Get("userID")
 
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed: User ID not found in context"})
+		c.Error(&errs.UnAuthorizedError{
+			MessageValue: "Authentication failed: User ID not found in context.",
+		})
 		return
 	}
 
 	userID, ok := userIDValue.(uint)
 	if !ok {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-			"error":   "Server processing failed",
-			"details": "User ID format mismatch",
+		panic(&errs.InternalServerError{
+			Err: errors.New("Server processing failed: User ID format mismatch in context."),
 		})
-		return
 	}
 
 	user, err := h.UserService.GetUserByID(userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found"})
-		return
+		if clientErr, ok := err.(errs.ClientError); ok {
+			c.Error(clientErr)
+			return
+		}
+		panic(err)
 	}
 
 	c.JSON(http.StatusOK, dto.UserResponse{
@@ -71,8 +75,11 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	users, err := h.UserService.GetAllUsers()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve users", "details": err.Error()})
-		return
+		if clientErr, ok := err.(errs.ClientError); ok {
+			c.Error(clientErr)
+			return
+		}
+		panic(err)
 	}
 	var userResponses []dto.UserResponse
 	for _, user := range users {
@@ -104,20 +111,24 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	userIDVal, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed: User ID not found in context"})
-		return
+		panic(&errs.UnAuthorizedError{
+			MessageValue: "Authentication failed: User ID not found in context.",
+		})
 	}
 
 	userID, ok := userIDVal.(uint)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error: User ID format mismatch"})
-		return
+		panic(&errs.InternalServerError{
+			Err: errors.New("Server processing failed: User ID format mismatch in context."),
+		})
 	}
 
 	// 2. Bind the request body to the DTO
 	var req dto.UpdateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		c.Error(&errs.BadRequestError{
+			MessageValue: fmt.Sprintf("Invalid request format: %s", err.Error()),
+		})
 		return
 	}
 
@@ -131,18 +142,15 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 	// 4. Error Handling and Status Mapping
 	if err != nil {
-		// Map errors returned from the Service layer to HTTP status codes
 		if errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(err.Error(), "user not found") {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User not found."})
+			c.Error(&errs.NotFoundError{Resource: "user"})
 			return
 		}
 		if strings.Contains(err.Error(), "already in use") {
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()}) // 409 Conflict for resource collision
+			c.Error(&errs.ConflictError{MessageValue: err.Error()})
 			return
 		}
-		// Generic server error
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user", "details": err.Error()})
-		return
+		panic(err)
 	}
 
 	// 5. Success Response (Returning resource + message)
@@ -155,7 +163,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": successMessage,
-		"user": dto.UserResponse{ // Return the updated resource DTO
+		"user": dto.UserResponse{ 
 			ID:       user.ID,
 			Username: user.Username,
 			Email:    user.Email,
@@ -168,34 +176,39 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 func (h *UserHandler) InitiateEmailChange(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed: User ID not found in context"})
+		c.Error(&errs.UnAuthorizedError{
+			MessageValue: "Authentication failed: User ID not found in context.",
+		})
 		return
 	}
 
 	userIDUint, ok := userID.(uint)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error: User ID format mismatch"})
-		return
+		panic(&errs.InternalServerError{
+			Err: errors.New("server processing failed: user ID format mismatch in context"),
+		})
 	}
 
 	var req dto.InitiateEmailChangeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		c.Error(&errs.BadRequestError{
+			MessageValue: fmt.Sprintf("Invalid request body: %s", err.Error()),
+		})
 		return
 	}
 
 	err := h.UserService.InitiateEmailChange(userIDUint, req.NewEmail)
 	if err != nil {
-		if strings.Contains(err.Error(), "already in use") {
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		switch {
+		case strings.Contains(err.Error(), "already in use"):
+			c.Error(&errs.ConflictError{MessageValue: err.Error()})
 			return
-		}
-		if strings.Contains(err.Error(), "same as current") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		case strings.Contains(err.Error(), "same as current"):
+			c.Error(&errs.BadRequestError{MessageValue: err.Error()})
 			return
+		default:
+			panic(err)
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initiate email change", "details": err.Error()})
-		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -208,22 +221,24 @@ func (h *UserHandler) InitiateEmailChange(c *gin.Context) {
 func (h *UserHandler) VerifyEmailChange(c *gin.Context) {
 	var req dto.VerifyEmailChangeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		c.Error(&errs.BadRequestError{
+			MessageValue: fmt.Sprintf("Invalid request body: %s", err.Error()),
+		})
 		return
 	}
 
 	user, err := h.UserService.CompleteEmailChange(req.OldEmail, req.NewEmail, req.Code)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found or expired") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Email change request not found or expired"})
+		switch {
+		case strings.Contains(err.Error(), "not found or expired"):
+			c.Error(&errs.BadRequestError{MessageValue: "Email change request not found or expired"})
 			return
-		}
-		if strings.Contains(err.Error(), "invalid verification code") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid verification code"})
+		case strings.Contains(err.Error(), "invalid verification code"):
+			c.Error(&errs.BadRequestError{MessageValue: "Invalid verification code"})
 			return
+		default:
+			panic(err)
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to complete email change", "details": err.Error()})
-		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -252,19 +267,25 @@ func (h *UserHandler) VerifyEmailChange(c *gin.Context) {
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed: User ID not found in context"})
+		c.Error(&errs.UnAuthorizedError{
+			MessageValue: "Authentication failed: User ID not found in context.",
+		})
 		return
 	}
 
 	userIDUUID, ok := userID.(uint)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error: User ID format mismatch"})
-		return
+		panic(&errs.InternalServerError{
+			Err: errors.New("server processing failed: user ID format mismatch in context"),
+		})
 	}
 
 	if err := h.UserService.DeleteUser(userIDUUID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user", "details": err.Error()})
-		return
+		if clientErr, ok := err.(errs.ClientError); ok {
+			c.Error(clientErr)
+			return
+		}
+		panic(err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
