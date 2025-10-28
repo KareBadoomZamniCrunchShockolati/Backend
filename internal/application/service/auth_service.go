@@ -3,6 +3,7 @@ package service
 import (
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
+	"challenge-app/pkg/errs"
 	"challenge-app/pkg/security"
 	"errors"
 	"fmt"
@@ -29,13 +30,17 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 	// 1. Check if user already exists
 	_, err := s.UserRepo.GetUserByEmail(email)
 	if err == nil {
-		return nil, "", fmt.Errorf("user with email %s already exists", email)
+		return nil, "", &errs.ConflictError{
+			MessageValue: fmt.Sprintf("User with email %s already exists.", email),
+		}
 	}
-
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		panic(fmt.Errorf("database failure while checking existing user: %w", err))
+	}
 	// 2. Hash the password (Security Rule)
 	hash, err := s.PasswordSvc.HashPassword(password)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not hash password: %w", err)
+		panic(fmt.Errorf("UNRECOVERABLE ERROR: Password hashing failed, system state compromised: %w", err))
 	}
 
 	// 3. Create the Domain Entity
@@ -49,12 +54,12 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 	// 4. Persist the Domain Entity
 	err = s.UserRepo.CreateUser(user)
 	if err != nil {
-		return nil, "", fmt.Errorf("user creation failed: %w", err)
+		panic(fmt.Errorf("failed to persist new user %s: %w", email, err))
 	}
 
 	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not generate token: %w", err)
+		panic(fmt.Errorf("JWT token generation failed, system state compromised: %w", err))
 	}
 	return user, token, nil
 }
@@ -64,22 +69,27 @@ func (s *AuthService) LoginUser(email, password string) (*model.UserModel, strin
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, "", errors.New("invalid credentials")
+			return nil, "", &errs.UnAuthorizedError{
+				MessageValue: "Invalid credentials.",
+			}
 		}
-		panic(fmt.Sprintf("database error while fetching user: %v", err))
-	}
 
+		panic(fmt.Errorf("database failure during login for email %s: %w", email, err))
+	}
 	// 2. Check the password hash
 	// Use the PasswordService to compare the plaintext password with the stored hash
 	match := s.PasswordSvc.CheckPasswordHash(password, user.PasswordHash)
 	if !match {
-		return nil, "", fmt.Errorf("invalid credentials")
+		return nil, "", &errs.UnAuthorizedError{
+			MessageValue: "Invalid credentials.",
+		}
 	}
 
 	// 3. Generate a JWT token
 	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not generate token: %w", err)
+		panic(fmt.Errorf("JWT token generation failed during login, system state compromised: %w", err))
+
 	}
 	// 4. Success: Return the user entity and token
 	return user, token, nil

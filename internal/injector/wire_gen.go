@@ -139,7 +139,7 @@ var ServiceProviderSet = wire.NewSet(service.NewUserService, service.NewAuthServ
 
 var HandlerProviderSet = wire.NewSet(handler.NewUserHandler, handler.NewAuthHandler, wire.Bind(new(handler2.UserHandler), new(*handler.UserHandler)), wire.Bind(new(handler2.AuthHandler), new(*handler.AuthHandler)))
 
-var MiddlewareProviderSet = wire.NewSet(middleware.NewJWTMiddleware, wire.Bind(new(middleware2.JWTMiddleware), new(*middleware.JWTMiddleware)))
+var MiddlewareProviderSet = wire.NewSet(middleware.NewJWTMiddleware, middleware.NewErrorProvider, wire.Bind(new(middleware2.ErrorMiddleware), new(*middleware.ErrorMiddleware)), wire.Bind(new(middleware2.JWTMiddleware), new(*middleware.JWTMiddleware)))
 
 // --- Application ---
 type Application struct {

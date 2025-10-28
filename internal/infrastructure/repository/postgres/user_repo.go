@@ -51,15 +51,15 @@ func toEntity(m *model.UserModel) *entity.UserEntity {
 // --- CRUD Implementation ---
 
 func (r *UserRepository) CreateUser(user *model.UserModel) error {
-    userEntity := toEntity(user)
-    if err := r.DB.Create(userEntity).Error; err != nil {
+	userEntity := toEntity(user)
+	if err := r.DB.Create(userEntity).Error; err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {
 			return fmt.Errorf("user with email or username already exists")
 		}
-		panic(fmt.Sprintf("database error while creating user: %v", err))
+		return fmt.Errorf("database error creating user: %w", err)
 	}
-    user.ID = userEntity.ID 
-    return nil
+	user.ID = userEntity.ID
+	return nil
 }
 
 func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) {
@@ -67,9 +67,9 @@ func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) 
 	result := r.DB.Where("email = ?", email).First(&userEntity)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, result.Error 
+			return nil, result.Error
 		}
-		panic(fmt.Sprintf("database error while fetching user by email: %v", result.Error))
+		return nil, fmt.Errorf("database error fetching user by email: %w", result.Error)
 	}
 	return toModel(&userEntity), nil
 }
@@ -78,7 +78,7 @@ func (r *UserRepository) GetAllUsers() ([]model.UserModel, error) {
 	var userEntities []entity.UserEntity
 	result := r.DB.Find(&userEntities)
 	if result.Error != nil {
-		panic(fmt.Sprintf("database error while fetching all users: %v", result.Error))
+		return nil, fmt.Errorf("database error fetching all users: %w", result.Error)
 	}
 	var userModels []model.UserModel
 	for _, e := range userEntities {
@@ -94,7 +94,7 @@ func (r *UserRepository) GetUserByID(id uint) (*model.UserModel, error) {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, result.Error
 		}
-		return nil, result.Error
+		return nil, fmt.Errorf("database error fetching user by ID: %w", result.Error)
 	}
 	return toModel(&userEntity), nil
 }
@@ -106,7 +106,7 @@ func (r *UserRepository) UpdateUser(user *model.UserModel) (*model.UserModel, er
 		if strings.Contains(result.Error.Error(), "duplicate key") {
 			return nil, fmt.Errorf("email or username already in use")
 		}
-		panic(fmt.Sprintf("database error while updating user: %v", result.Error))
+		return nil, fmt.Errorf("database error updating user: %w", result.Error)
 	}
 	return toModel(userEntity), nil
 }
@@ -114,10 +114,10 @@ func (r *UserRepository) UpdateUser(user *model.UserModel) (*model.UserModel, er
 func (r *UserRepository) DeleteUser(id uint) error {
 	result := r.DB.Delete(&entity.UserEntity{}, id)
 	if result.Error != nil {
-		panic(fmt.Sprintf("database error while deleting user: %v", result.Error))
+		return fmt.Errorf("database error deleting user: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return errors.New("user not found or already deleted")
+		return gorm.ErrRecordNotFound
 	}
 	return nil
 }
