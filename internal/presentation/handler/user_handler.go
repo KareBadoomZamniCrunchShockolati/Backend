@@ -126,7 +126,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		userID,
 		req.Username,
 		req.Bio,
-		req.NewEmail, 
+		req.NewEmail,
 	)
 
 	// 4. Error Handling and Status Mapping
