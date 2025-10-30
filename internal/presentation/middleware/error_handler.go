@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"github.com/gin-gonic/gin"
-	"challenge-app/pkg/errs" 
+	"challenge-app/internal/domain/exception" 
 )
 
 type ErrorMiddleware struct {

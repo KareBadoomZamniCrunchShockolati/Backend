@@ -6,7 +6,7 @@ import (
 
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
-	"challenge-app/pkg/errs"
+	"challenge-app/internal/domain/exception"
 	"errors"
 	"challenge-app/pkg/email"
 	"fmt"
