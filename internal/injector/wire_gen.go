@@ -49,8 +49,11 @@ func InitializeRouter(db *gorm.DB, validator2 *validator.Validate) (*gin.Engine,
 	passwordServiceImpl := security.NewPasswordService()
 	authService := service.NewAuthService(userRepository, verificationRepository, jwtServiceImpl, emailServiceImpl, passwordServiceImpl)
 	authHandler := handler.NewAuthHandler(authService)
+	followRepository := postgres.NewFollowRepository(db)
+	followService := service.NewFollowService(followRepository, userRepository)
+	followHandlerImpl := handler.NewFollowHandler(followService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
-	engine := router.SetupRouter(userHandler, authHandler, jwtMiddleware)
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, jwtMiddleware)
 	return engine, nil
 }
 
@@ -75,8 +78,11 @@ func InitializeApplication() (*Application, error) {
 	passwordServiceImpl := security.NewPasswordService()
 	authService := service.NewAuthService(userRepository, verificationRepository, jwtServiceImpl, emailServiceImpl, passwordServiceImpl)
 	authHandler := handler.NewAuthHandler(authService)
+	followRepository := postgres.NewFollowRepository(db)
+	followService := service.NewFollowService(followRepository, userRepository)
+	followHandlerImpl := handler.NewFollowHandler(followService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
-	engine := router.SetupRouter(userHandler, authHandler, jwtMiddleware)
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, jwtMiddleware)
 	application := NewApplication(db, engine)
 	return application, nil
 }
@@ -160,6 +166,8 @@ var ServiceProviderSet = wire.NewSet(service.NewUserService, service.NewAuthServ
 var HandlerProviderSet = wire.NewSet(handler.NewUserHandler, handler.NewAuthHandler, wire.Bind(new(handler2.UserHandler), new(*handler.UserHandler)), wire.Bind(new(handler2.AuthHandler), new(*handler.AuthHandler)))
 
 var MiddlewareProviderSet = wire.NewSet(middleware.NewJWTMiddleware, wire.Bind(new(middleware2.JWTMiddleware), new(*middleware.JWTMiddleware)))
+
+var FollowProviderSet = wire.NewSet(postgres.NewFollowRepository, service.NewFollowService, handler.NewFollowHandler, wire.Bind(new(repository.FollowRepository), new(*postgres.FollowRepository)), wire.Bind(new(serviceinterface.FollowServicer), new(*service.FollowService)), wire.Bind(new(handler2.FollowHandler), new(*handler.FollowHandlerImpl)))
 
 // --- Application ---
 type Application struct {

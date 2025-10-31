@@ -9,7 +9,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-
 type Env struct {
 	App      AppConfig
 	Database DatabaseConfig
@@ -55,7 +54,7 @@ type EmailConfig struct {
 
 // Load environment variables and constants into a unified struct
 func LoadEnv() *Env {
-	if err := godotenv.Load(EnvFilePath); err != nil {
+	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables.")
 	}
 
@@ -80,7 +79,7 @@ func LoadEnv() *Env {
 		},
 		Security: SecurityConfig{
 			JWTSecret: mustGetEnv("JWT_SECRET_KEY"),
-			JWTIssuer: JWTIssuer,          
+			JWTIssuer: JWTIssuer,
 			TokenTTL:  JWTTokenExpiry,
 		},
 		Email: EmailConfig{

@@ -5,27 +5,29 @@ package injector
 
 import (
 	"challenge-app/internal/application/service"
-	"github.com/go-playground/validator/v10"
 	service_interface "challenge-app/internal/application/service/interface"
+	"challenge-app/internal/bootstrap"
 	repository_interface "challenge-app/internal/domain/repository"
-	"challenge-app/internal/infrastructure/repository/postgres/driver"
 	"challenge-app/internal/infrastructure/repository/postgres"
+	"challenge-app/internal/infrastructure/repository/postgres/driver"
+	redisRepo "challenge-app/internal/infrastructure/repository/redis"
 	"challenge-app/internal/presentation/handler"
 	handler_interface "challenge-app/internal/presentation/handler/interface"
 	"challenge-app/internal/presentation/middleware"
 	middleware_interface "challenge-app/internal/presentation/middleware/interface"
-	redisRepo "challenge-app/internal/infrastructure/repository/redis"
 	"challenge-app/internal/presentation/router"
-	"challenge-app/internal/bootstrap"
-	"challenge-app/pkg/security"
 	"challenge-app/pkg/email"
+	"challenge-app/pkg/security"
 	"context"
 
-	"time"
+	"github.com/go-playground/validator/v10"
+
 	"challenge-app/pkg/validation"
+	"time"
+
 	"github.com/gin-gonic/gin"
-	"github.com/google/wire"
 	"github.com/go-redis/redis/v8"
+	"github.com/google/wire"
 	"gorm.io/gorm"
 )
 
@@ -33,7 +35,6 @@ type PostgresDSN string
 type JWTSecret string
 type TokenExpiry time.Duration
 type RedisClient *redis.Client
-
 
 // --- Providers ---
 func ProvideDSN() PostgresDSN {
@@ -74,7 +75,7 @@ func ProvideEmailService(cfg *bootstrap.Env) *email.EmailServiceImpl {
 }
 
 func ProvideJWTService(cfg *bootstrap.Env) *security.JwtServiceImpl {
-    return security.NewJWTService(cfg)
+	return security.NewJWTService(cfg)
 }
 
 func ProvideValidator() *validator.Validate {
@@ -82,7 +83,6 @@ func ProvideValidator() *validator.Validate {
 	v.RegisterValidation("password_policy", validation.PasswordValidationFunc)
 	return v
 }
-
 
 // --- Provider Sets ---
 var SecurityProviderSet = wire.NewSet(
@@ -104,9 +104,9 @@ var RedisProviderSet = wire.NewSet(
 )
 
 var EmailProviderSet = wire.NewSet(
-	bootstrap.LoadEnv, 
+	bootstrap.LoadEnv,
 	ProvideEmailService,
-	wire.Bind(new(email.EmailService),new(*email.EmailServiceImpl),),
+	wire.Bind(new(email.EmailService), new(*email.EmailServiceImpl)),
 )
 
 var RepositoryProviderSet = wire.NewSet(
@@ -132,6 +132,14 @@ var MiddlewareProviderSet = wire.NewSet(
 	middleware.NewJWTMiddleware,
 	wire.Bind(new(middleware_interface.JWTMiddleware), new(*middleware.JWTMiddleware)),
 )
+var FollowProviderSet = wire.NewSet(
+	postgres.NewFollowRepository,
+	service.NewFollowService,
+	handler.NewFollowHandler,
+	wire.Bind(new(repository_interface.FollowRepository), new(*postgres.FollowRepository)),
+	wire.Bind(new(service_interface.FollowServicer), new(*service.FollowService)),
+	wire.Bind(new(handler_interface.FollowHandler), new(*handler.FollowHandlerImpl)), // Updated this line
+)
 
 // --- Application ---
 type Application struct {
@@ -155,6 +163,7 @@ func InitializeRouter(db *gorm.DB, validator *validator.Validate) (*gin.Engine, 
 		EmailProviderSet,
 		ServiceProviderSet,
 		HandlerProviderSet,
+		FollowProviderSet, // ADD THIS LINE
 		MiddlewareProviderSet,
 		router.SetupRouter,
 	)
@@ -171,6 +180,7 @@ func InitializeApplication() (*Application, error) {
 		EmailProviderSet,
 		ServiceProviderSet,
 		HandlerProviderSet,
+		FollowProviderSet, // ADD THIS LINE
 		MiddlewareProviderSet,
 		router.SetupRouter,
 		NewApplication,
