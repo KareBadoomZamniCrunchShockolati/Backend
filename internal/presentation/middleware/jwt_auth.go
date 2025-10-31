@@ -4,7 +4,7 @@ import (
 	"strings"
 	"challenge-app/pkg/security"
 	"github.com/gin-gonic/gin"
-	"challenge-app/pkg/errs"
+	"challenge-app/internal/domain/exception"
 )
 
 
@@ -20,18 +20,39 @@ func (m *JWTMiddleware) Handler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			panic(&errs.UnAuthorizedError{
-				MessageValue: "Missing Authorization header",
-			})
+			c.Error(exception.NewUnauthorizedException(
+				"Missing Authorization header. Token is required.",
+				"AUTH_HEADER_MISSING",
+			))
+			c.Abort() 
+			return
 		}
-
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			c.Error(exception.NewUnauthorizedException(
+				"Invalid Authorization header format. Must be 'Bearer [token]'.",
+				"AUTH_HEADER_MALFORMED",
+			))
+			c.Abort()
+			return
+		}
+		
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+		if tokenStr == "" {
+			c.Error(exception.NewUnauthorizedException(
+				"Empty token provided after 'Bearer'.",
+				"TOKEN_EMPTY",
+			))
+			c.Abort()
+			return
+		}
 		claims, err := m.JWTService.ValidateToken(tokenStr)
 		if err != nil {
-			panic(&errs.UnAuthorizedError{
-				MessageValue: "Empty or malformed token",
-			})
-
+			c.Error(exception.NewUnauthorizedException(
+				"Invalid or expired access token.",
+				"TOKEN_INVALID_EXPIRED",
+			))
+			c.Abort()
+			return
 		}
 		
 

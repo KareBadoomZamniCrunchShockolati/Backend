@@ -23,3 +23,4 @@ func NewBadRequestException(msg string, code string, meta map[string]any) BadReq
 	}
 }
 
+func (e BadRequestException) ClientError() {}

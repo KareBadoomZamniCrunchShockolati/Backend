@@ -18,3 +18,5 @@ func NewUnauthorizedException(msg string, code string) UnauthorizedException {
 		},
 	}
 }
+
+func (e UnauthorizedException) ClientError() {}

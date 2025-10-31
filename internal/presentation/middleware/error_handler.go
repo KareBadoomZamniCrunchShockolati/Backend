@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"runtime/debug"
 	"github.com/gin-gonic/gin"
-	"challenge-app/internal/domain/exception" 
+	"challenge-app/internal/domain/exception"
+	"errors"
 )
 
 type ErrorMiddleware struct {
@@ -21,7 +22,16 @@ func (p *ErrorMiddleware) PanicRecovery() gin.HandlerFunc {
 			if r := recover(); r != nil {
 				log.Printf("!!! PANIC RECOVERED !!! Request: %s %s Error: %v\nStack: %s", 
 					c.Request.Method, c.Request.URL.Path, r, debug.Stack())
-				
+				var internalErr *exception.InternalServerException
+				err, ok := r.(error)
+				if ok && errors.As(err, &internalErr) {
+					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+						"status": 	  http.StatusInternalServerError,
+						"message": 	  internalErr.Error(),
+						"error_code": internalErr.Code(),
+					})
+					return
+				}
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 					"status":  http.StatusInternalServerError,
 					"message": "An unexpected server error occurred. Please try again later.",
@@ -40,12 +50,14 @@ func (p *ErrorMiddleware) APIErrorTranslator() gin.HandlerFunc {
 
 		if len(c.Errors) > 0 {
 			err := c.Errors.Last().Err
-			
-			if clientErr, ok := err.(errs.ClientError); ok {
-				c.AbortWithStatusJSON(clientErr.Status(), gin.H{
-					"status": clientErr.Status(),
-					"message": clientErr.Message(),
-					"error_code": http.StatusText(clientErr.Status()), 
+			var clientErr exception.ClientError
+			if errors.As(err, &clientErr) {
+				status := clientErr.HTTPStatus()
+				c.AbortWithStatusJSON(status, gin.H{
+					"status":  status,
+					"message": clientErr.Error(),
+					"error_code": clientErr.Code(),
+					"details": clientErr.Details(),
 				})
 				return 
 			}

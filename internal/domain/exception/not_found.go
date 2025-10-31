@@ -24,3 +24,5 @@ func NewNotFoundException(item string, id string, code string) NotFoundException
 		},
 	}
 }
+
+func (e NotFoundException) ClientError() {}

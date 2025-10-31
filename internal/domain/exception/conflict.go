@@ -23,3 +23,5 @@ func NewConflictException(resource string, field string, code string) ConflictEx
 		},
 	}
 }
+
+func (e ConflictException) ClientError() {}

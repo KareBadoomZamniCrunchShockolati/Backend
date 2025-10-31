@@ -11,6 +11,11 @@ type Error interface {
 	Unwrap() error      
 }
 
+type ClientError interface {
+	Error
+	ClientError() 
+}
+
 type BaseError struct {
 	errorCode  string
 	message    string

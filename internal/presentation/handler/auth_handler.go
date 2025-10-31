@@ -3,15 +3,13 @@ package handler
 import (
 	"challenge-app/internal/application/dto"
 	serviceinterface "challenge-app/internal/application/service/interface"
-	"challenge-app/pkg/errs"
+	"challenge-app/internal/domain/exception"
 	"challenge-app/pkg/validation"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-
 	"github.com/gin-gonic/gin"
-	validator "github.com/go-playground/validator/v10"
 )
 
 type AuthHandler struct {
@@ -38,20 +36,20 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 	var req dto.SignupRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		// Check if it's a validation error
-		var verrs validator.ValidationErrors
-		if errors.As(err, &verrs) {
-			formatted := validation.FormatValidationError(verrs)
-			c.Error(&errs.BadRequestError{
-				MessageValue: fmt.Sprintf("Validation failed: %s", formatted),
-			})
-			return
+		
+		validationMap := validation.FormatValidationError(err)
+
+		details := make(map[string]any, len(validationMap))
+		for k, v := range validationMap {
+			details[k] = v
 		}
 
-		// For any other JSON binding issues (syntax, type mismatch, etc.)
-		c.Error(&errs.BadRequestError{
-			MessageValue: fmt.Sprintf("Invalid request format: %s", err.Error()),
-		})
+		c.Error(exception.NewBadRequestException(
+			"Input validation failed. Please review the details for specific field issues.",
+			"INPUT_VALIDATION_FAILED",
+			details,
+		))
+		return
 
 	}
 
@@ -62,10 +60,12 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 
 	user, token, err := h.AuthService.RegisterUser(req.Username, req.Email, req.Password, req.Bio)
 	if err != nil {
-		if clientErr, ok := err.(errs.ClientError); ok {
-			c.Error(clientErr)
+		var clientErr exception.ClientError
+		if errors.As(err, &clientErr) {
+			c.Error(err)
 			return
 		}
+		
 		panic(err)
 	}
 
@@ -94,9 +94,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// 1. Bind the JSON request body
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(&errs.BadRequestError{
-			MessageValue: fmt.Sprintf("Invalid request format: %s", err.Error()),
-		})
+		c.Error(exception.NewBadRequestException(
+			fmt.Sprintf("Invalid request format: %s", err.Error()),
+			"INVALID_JSON_FORMAT",
+			nil,
+		))
 		return
 	}
 
@@ -104,8 +106,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	user, token, err := h.AuthService.LoginUser(req.Email, req.Password)
 
 	if err != nil {
-		if clientErr, ok := err.(errs.ClientError); ok {
-			c.Error(clientErr)
+		var clientErr exception.ClientError
+		if errors.As(err, &clientErr) {
+			c.Error(err)
 			return
 		}
 
@@ -124,18 +127,22 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) Verify(c *gin.Context) {
 	var req dto.VerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(&errs.BadRequestError{
-			MessageValue: fmt.Sprintf("Invalid request body: %s", err.Error()),
-		})
+		c.Error(exception.NewBadRequestException(
+			fmt.Sprintf("Invalid request body: %s", err.Error()),
+			"INVALID_JSON_FORMAT",
+			nil,
+		))
 		return
 	}
 
 	token, err := h.AuthService.VerifyEmail(req.Email, req.Code)
 	if err != nil {
-		if clientErr, ok := err.(errs.ClientError); ok {
-			c.Error(clientErr)
+		var clientErr exception.ClientError		
+		if errors.As(err, &clientErr) {
+			c.Error(err)
 			return
 		}
+		
 		panic(err)
 	}
 
@@ -148,24 +155,23 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	var req dto.ResendVerificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(&errs.BadRequestError{
-			MessageValue: fmt.Sprintf("Invalid request body: %s", err.Error()),
-		})
+		c.Error(exception.NewBadRequestException(
+			fmt.Sprintf("Invalid request body: %s", err.Error()),
+			"INVALID_JSON_FORMAT",
+			nil,
+		))
 		return
 	}
 
 	err := h.AuthService.ResendVerificationEmail(req.Email)
 	if err != nil {
-		switch err.Error() {
-		case "user not found":
-			c.Error(&errs.NotFoundError{Resource: "User not found"})
+		var clientErr exception.ClientError
+		if errors.As(err, &clientErr) {
+			c.Error(err)
 			return
-		case "user is already verified":
-			c.Error(&errs.ConflictError{MessageValue: "User is already verified"})
-			return
-		default:
-			panic(err) 
 		}
+		
+		panic(err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

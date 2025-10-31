@@ -3,13 +3,11 @@ package handler
 import (
 	"challenge-app/internal/application/dto"
 	serviceinterface "challenge-app/internal/application/service/interface"
-	"challenge-app/pkg/errs"
+	"challenge-app/internal/domain/exception"
 	"errors"
 	"net/http"
-	"strings"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type UserHandler struct {
@@ -36,25 +34,29 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	userIDValue, exists := c.Get("userID")
 
 	if !exists {
-		c.Error(&errs.UnAuthorizedError{
-			MessageValue: "Authentication failed: User ID not found in context.",
-		})
+		c.Error(exception.NewUnauthorizedException(
+			"Authentication failed: User ID not found in context.",
+			"AUTH_MISSING_ID",
+		))
 		return
 	}
 
 	userID, ok := userIDValue.(uint)
 	if !ok {
-		panic(&errs.InternalServerError{
-			Err: errors.New("Server processing failed: User ID format mismatch in context."),
-		})
+		panic(exception.NewInternalServerException(
+			"Server processing failed: User ID format mismatch in context.",
+			"CONTEXT_CAST_FAIL",
+		).Wrap(errors.New("userID context value was not uint")))
 	}
 
 	user, err := h.UserService.GetUserByID(userID)
 	if err != nil {
-		if clientErr, ok := err.(errs.ClientError); ok {
-			c.Error(clientErr)
+		var clientErr exception.ClientError
+		if errors.As(err, &clientErr) {
+			c.Error(err)
 			return
 		}
+		
 		panic(err)
 	}
 
@@ -75,10 +77,12 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	users, err := h.UserService.GetAllUsers()
 	if err != nil {
-		if clientErr, ok := err.(errs.ClientError); ok {
-			c.Error(clientErr)
+		var clientErr exception.ClientError
+		if errors.As(err, &clientErr) {
+			c.Error(err)
 			return
 		}
+		
 		panic(err)
 	}
 	var userResponses []dto.UserResponse
@@ -111,24 +115,29 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	userIDVal, exists := c.Get("userID")
 	if !exists {
-		panic(&errs.UnAuthorizedError{
-			MessageValue: "Authentication failed: User ID not found in context.",
-		})
+		c.Error(exception.NewUnauthorizedException(
+			"Authentication failed: User ID not found in context.",
+			"AUTH_MISSING_ID",
+		))
+		return
 	}
 
 	userID, ok := userIDVal.(uint)
 	if !ok {
-		panic(&errs.InternalServerError{
-			Err: errors.New("Server processing failed: User ID format mismatch in context."),
-		})
+		panic(exception.NewInternalServerException(
+			"Server processing failed: User ID format mismatch in context.",
+			"CONTEXT_CAST_FAIL",
+		).Wrap(errors.New("userID context value was not uint")))
 	}
 
 	// 2. Bind the request body to the DTO
 	var req dto.UpdateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(&errs.BadRequestError{
-			MessageValue: fmt.Sprintf("Invalid request format: %s", err.Error()),
-		})
+		c.Error(exception.NewBadRequestException(
+			fmt.Sprintf("Invalid request format: %s", err.Error()),
+			"INVALID_JSON_FORMAT",
+			nil,
+		))
 		return
 	}
 
@@ -142,12 +151,9 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 	// 4. Error Handling and Status Mapping
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(err.Error(), "user not found") {
-			c.Error(&errs.NotFoundError{Resource: "user"})
-			return
-		}
-		if strings.Contains(err.Error(), "already in use") {
-			c.Error(&errs.ConflictError{MessageValue: err.Error()})
+		var clientErr exception.ClientError
+		if errors.As(err, &clientErr) {
+			c.Error(err)
 			return
 		}
 		panic(err)
@@ -176,39 +182,39 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 func (h *UserHandler) InitiateEmailChange(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.Error(&errs.UnAuthorizedError{
-			MessageValue: "Authentication failed: User ID not found in context.",
-		})
+		c.Error(exception.NewUnauthorizedException(
+			"Authentication failed: User ID not found in context.",
+			"AUTH_MISSING_ID",
+		))
 		return
 	}
 
 	userIDUint, ok := userID.(uint)
 	if !ok {
-		panic(&errs.InternalServerError{
-			Err: errors.New("server processing failed: user ID format mismatch in context"),
-		})
+		panic(exception.NewInternalServerException(
+			"Server processing failed: User ID format mismatch in context.",
+			"CONTEXT_CAST_FAIL",
+		).Wrap(errors.New("userID context value was not uint")))
 	}
 
 	var req dto.InitiateEmailChangeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(&errs.BadRequestError{
-			MessageValue: fmt.Sprintf("Invalid request body: %s", err.Error()),
-		})
+		c.Error(exception.NewBadRequestException(
+			fmt.Sprintf("Invalid request body: %s", err.Error()),
+			"INVALID_JSON_FORMAT",
+			nil,
+		))
 		return
 	}
 
 	err := h.UserService.InitiateEmailChange(userIDUint, req.NewEmail)
 	if err != nil {
-		switch {
-		case strings.Contains(err.Error(), "already in use"):
-			c.Error(&errs.ConflictError{MessageValue: err.Error()})
+		var clientErr exception.ClientError
+		if errors.As(err, &clientErr) {
+			c.Error(err)
 			return
-		case strings.Contains(err.Error(), "same as current"):
-			c.Error(&errs.BadRequestError{MessageValue: err.Error()})
-			return
-		default:
-			panic(err)
 		}
+		panic(err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -221,24 +227,22 @@ func (h *UserHandler) InitiateEmailChange(c *gin.Context) {
 func (h *UserHandler) VerifyEmailChange(c *gin.Context) {
 	var req dto.VerifyEmailChangeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(&errs.BadRequestError{
-			MessageValue: fmt.Sprintf("Invalid request body: %s", err.Error()),
-		})
+		c.Error(exception.NewBadRequestException(
+			fmt.Sprintf("Invalid request body: %s", err.Error()),
+			"INVALID_JSON_FORMAT",
+			nil,
+		))
 		return
 	}
 
 	user, err := h.UserService.CompleteEmailChange(req.OldEmail, req.NewEmail, req.Code)
 	if err != nil {
-		switch {
-		case strings.Contains(err.Error(), "not found or expired"):
-			c.Error(&errs.BadRequestError{MessageValue: "Email change request not found or expired"})
+		var clientErr exception.ClientError
+		if errors.As(err, &clientErr) {
+			c.Error(err)
 			return
-		case strings.Contains(err.Error(), "invalid verification code"):
-			c.Error(&errs.BadRequestError{MessageValue: "Invalid verification code"})
-			return
-		default:
-			panic(err)
 		}
+		panic(err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -267,22 +271,25 @@ func (h *UserHandler) VerifyEmailChange(c *gin.Context) {
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.Error(&errs.UnAuthorizedError{
-			MessageValue: "Authentication failed: User ID not found in context.",
-		})
+		c.Error(exception.NewUnauthorizedException(
+			"Authentication failed: User ID not found in context.",
+			"AUTH_MISSING_ID",
+		))
 		return
 	}
 
 	userIDUUID, ok := userID.(uint)
 	if !ok {
-		panic(&errs.InternalServerError{
-			Err: errors.New("server processing failed: user ID format mismatch in context"),
-		})
+		panic(exception.NewInternalServerException(
+			"Server processing failed: User ID format mismatch in context.",
+			"CONTEXT_CAST_FAIL",
+		).Wrap(errors.New("userID context value was not uint")))
 	}
 
 	if err := h.UserService.DeleteUser(userIDUUID); err != nil {
-		if clientErr, ok := err.(errs.ClientError); ok {
-			c.Error(clientErr)
+		var clientErr exception.ClientError
+		if errors.As(err, &clientErr) {
+			c.Error(err)
 			return
 		}
 		panic(err)

@@ -5,7 +5,6 @@ import (
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
 	"errors"
 	"fmt"
-	"strings"
 
 	"gorm.io/gorm"
 )
@@ -55,9 +54,6 @@ func toEntity(m *model.UserModel) *entity.UserEntity {
 func (r *UserRepository) CreateUser(user *model.UserModel) error {
 	userEntity := toEntity(user)
 	if err := r.DB.Create(userEntity).Error; err != nil {
-		if strings.Contains(err.Error(), "duplicate key") {
-			return fmt.Errorf("user with email or username already exists")
-		}
 		return fmt.Errorf("database error creating user: %w", err)
 	}
 	user.ID = userEntity.ID
@@ -69,7 +65,7 @@ func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) 
 	result := r.DB.Where("email = ?", email).First(&userEntity)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, result.Error
+			return nil, nil
 		}
 		return nil, fmt.Errorf("database error fetching user by email: %w", result.Error)
 	}
@@ -83,6 +79,9 @@ func (r *UserRepository) GetAllUsers() ([]model.UserModel, error) {
 		return nil, fmt.Errorf("database error fetching all users: %w", result.Error)
 	}
 	var userModels []model.UserModel
+	if len(userEntities) == 0 {
+		return []model.UserModel{}, nil
+	}
 	for _, e := range userEntities {
 		userModels = append(userModels, *toModel(&e))
 	}
@@ -94,7 +93,7 @@ func (r *UserRepository) GetUserByID(id uint) (*model.UserModel, error) {
 	result := r.DB.First(&userEntity, id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, result.Error
+			return nil, nil
 		}
 		return nil, fmt.Errorf("database error fetching user by ID: %w", result.Error)
 	}
@@ -105,21 +104,26 @@ func (r *UserRepository) UpdateUser(user *model.UserModel) (*model.UserModel, er
 	userEntity := toEntity(user)
 	result := r.DB.Model(&entity.UserEntity{}).Where("id = ?", user.ID).Updates(userEntity)
 	if result.Error != nil {
-		if strings.Contains(result.Error.Error(), "duplicate key") {
-			return nil, fmt.Errorf("email or username already in use")
-		}
 		return nil, fmt.Errorf("database error updating user: %w", result.Error)
 	}
 	return toModel(userEntity), nil
 }
 
 func (r *UserRepository) DeleteUser(id uint) error {
-	result := r.DB.Delete(&entity.UserEntity{}, id)
-	if result.Error != nil {
-		return fmt.Errorf("database error deleting user: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
+	var userEntity entity.UserEntity
+    result := r.DB.Unscoped().First(&userEntity, id)
+    if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+        return nil 
+    }
+    
+    if result.Error != nil {
+        return fmt.Errorf("database error fetching user before hard delete: %w", result.Error)
+    }
+
+    deleteResult := r.DB.Unscoped().Delete(&entity.UserEntity{}, id)
+    
+    if deleteResult.Error != nil {
+        return fmt.Errorf("database error performing hard delete: %w", deleteResult.Error)
+    }
 	return nil
 }

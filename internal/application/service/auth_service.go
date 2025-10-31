@@ -120,11 +120,13 @@ func (s *AuthService) LoginUser(email string, password string) (*model.UserModel
 	}
 	// 2. Check the password hash
 	// Use the PasswordService to compare the plaintext password with the stored hash
+	if user == nil {
+        return nil, "", exception.NewUnauthorizedException("Invalid credentials.", "AUTH_INVALID_CREDENTIALS")
+    }
+
 	match := s.PasswordSvc.CheckPasswordHash(password, user.PasswordHash)
 	if !match {
-		panic(exception.NewInternalServerException(
-			"Database failure during login", "DB_LOGIN_FAIL",
-			).Wrap(err))
+		return nil, "", exception.NewUnauthorizedException("Invalid credentials.", "AUTH_INVALID_CREDENTIALS")
 	}
 
 	token, err := s.JwtService.GenerateToken(user.ID)
