@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"gorm.io/driver/postgres"
+	"challenge-app/internal/infrastructure/repository/postgres/entity"
 	"gorm.io/gorm"
 )
 
@@ -25,5 +26,13 @@ func InitPostgresDB(dsn string) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(5)
 
 	fmt.Println("PostgreSQL connected successfully.")
+	if err := db.AutoMigrate(
+		&entity.UserEntity{},
+		&entity.FollowEntity{},
+	); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+		return nil, err
+	}
+	fmt.Println("Database migrated successfully.")
 	return db, nil
 }
