@@ -7,13 +7,13 @@ import (
 )
 
 type NotFoundException struct {
-	BaseError
+	*BaseError
 }
 
-func NewNotFoundException(item string, id string, code string) NotFoundException {
+func NewNotFoundException(item string, id string, code string) *NotFoundException {
 	msg := fmt.Sprintf("Resource '%s' with identifier '%s' not found.", item, id)
-	return NotFoundException{
-		BaseError: BaseError{
+	return &NotFoundException{
+		BaseError: &BaseError{
 			errorCode:  code,
 			message:    msg,
 			httpStatus: http.StatusNotFound, // 404

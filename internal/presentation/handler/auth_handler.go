@@ -6,7 +6,6 @@ import (
 	"challenge-app/internal/domain/exception"
 	"challenge-app/pkg/validation"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"github.com/gin-gonic/gin"
@@ -44,11 +43,7 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 			details[k] = v
 		}
 
-		c.Error(exception.NewBadRequestException(
-			"Input validation failed. Please review the details for specific field issues.",
-			"INPUT_VALIDATION_FAILED",
-			details,
-		))
+		c.Error(exception.NewValidationFailedException(details))
 		return
 
 	}
@@ -94,11 +89,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// 1. Bind the JSON request body
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(exception.NewBadRequestException(
-			fmt.Sprintf("Invalid request format: %s", err.Error()),
-			"INVALID_JSON_FORMAT",
-			nil,
-		))
+		c.Error(exception.NewInvalidRequestBodyException(err))
 		return
 	}
 
@@ -127,11 +118,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) Verify(c *gin.Context) {
 	var req dto.VerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(exception.NewBadRequestException(
-			fmt.Sprintf("Invalid request body: %s", err.Error()),
-			"INVALID_JSON_FORMAT",
-			nil,
-		))
+		c.Error(exception.NewInvalidRequestBodyException(err))
 		return
 	}
 
@@ -155,11 +142,7 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	var req dto.ResendVerificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(exception.NewBadRequestException(
-			fmt.Sprintf("Invalid request body: %s", err.Error()),
-			"INVALID_JSON_FORMAT",
-			nil,
-		))
+		c.Error(exception.NewInvalidRequestBodyException(err))
 		return
 	}
 

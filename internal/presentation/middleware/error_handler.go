@@ -22,23 +22,58 @@ func (p *ErrorMiddleware) PanicRecovery() gin.HandlerFunc {
 			if r := recover(); r != nil {
 				log.Printf("!!! PANIC RECOVERED !!! Request: %s %s Error: %v\nStack: %s", 
 					c.Request.Method, c.Request.URL.Path, r, debug.Stack())
-				var internalErr *exception.InternalServerException
 				err, ok := r.(error)
-				if ok && errors.As(err, &internalErr) {
-					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-						"status": 	  http.StatusInternalServerError,
-						"message": 	  internalErr.Error(),
-						"error_code": internalErr.Code(),
-					})
-					return
-				}
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"status":  http.StatusInternalServerError,
-					"message": "An unexpected server error occurred. Please try again later.",
-					"error_code": "server_panic",
-				})
-			}
-		}()
+				if !ok {
+                    c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+                        "status":     http.StatusInternalServerError,
+                        "message":    "An unexpected server error occurred.",
+                        "error_code": "unknown_panic",
+                    })
+                    return
+                }
+
+                switch {
+                case errors.As(err, &exception.InternalServerException{}):
+                    var ie *exception.InternalServerException
+                    _ = errors.As(err, &ie)
+                    c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+                        "status":     http.StatusInternalServerError,
+                        "message":    nil,
+                        "error_code": ie.Code(),
+                    })
+                case errors.As(err, &exception.ConflictException{}):
+                    var ce *exception.ConflictException
+                    _ = errors.As(err, &ce)
+                    c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+                        "status":     http.StatusConflict,
+                        "message":    ce.Error(),
+                        "error_code": ce.Code(),
+                    })
+                case errors.As(err, &exception.ForbiddenException{}):
+                    var fe *exception.ForbiddenException
+                    _ = errors.As(err, &fe)
+                    c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+                        "status":     http.StatusForbidden,
+                        "message":    fe.Error(),
+                        "error_code": fe.Code(),
+                    })
+                case errors.As(err, &exception.NotFoundException{}):
+                    var ne *exception.NotFoundException
+                    _ = errors.As(err, &ne)
+                    c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+                        "status":     http.StatusNotFound,
+                        "message":    ne.Error(),
+                        "error_code": ne.Code(),
+                    })
+                default:
+                    c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+                        "status":     http.StatusInternalServerError,
+                        "message":    "An unexpected server error occurred.",
+                        "error_code": "unknown_internal_error",
+                    })
+                }
+            }
+        }()
 		c.Next()
 	}
 }

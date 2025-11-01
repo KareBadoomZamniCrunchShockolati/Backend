@@ -6,7 +6,6 @@ import (
 	"challenge-app/internal/domain/exception"
 	"errors"
 	"net/http"
-	"fmt"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,19 +33,13 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	userIDValue, exists := c.Get("userID")
 
 	if !exists {
-		c.Error(exception.NewUnauthorizedException(
-			"Authentication failed: User ID not found in context.",
-			"AUTH_MISSING_ID",
-		))
+		c.Error(exception.NewMissingUserIDException())
 		return
 	}
 
 	userID, ok := userIDValue.(uint)
 	if !ok {
-		panic(exception.NewInternalServerException(
-			"Server processing failed: User ID format mismatch in context.",
-			"CONTEXT_CAST_FAIL",
-		).Wrap(errors.New("userID context value was not uint")))
+		panic(exception.NewContextCastError(errors.New("userID context value was not uint")))
 	}
 
 	user, err := h.UserService.GetUserByID(userID)
@@ -115,29 +108,19 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	userIDVal, exists := c.Get("userID")
 	if !exists {
-		c.Error(exception.NewUnauthorizedException(
-			"Authentication failed: User ID not found in context.",
-			"AUTH_MISSING_ID",
-		))
+		c.Error(exception.NewMissingUserIDException())
 		return
 	}
 
 	userID, ok := userIDVal.(uint)
 	if !ok {
-		panic(exception.NewInternalServerException(
-			"Server processing failed: User ID format mismatch in context.",
-			"CONTEXT_CAST_FAIL",
-		).Wrap(errors.New("userID context value was not uint")))
+		panic(exception.NewContextCastError(errors.New("userID context value was not uint")))
 	}
 
 	// 2. Bind the request body to the DTO
 	var req dto.UpdateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(exception.NewBadRequestException(
-			fmt.Sprintf("Invalid request format: %s", err.Error()),
-			"INVALID_JSON_FORMAT",
-			nil,
-		))
+		c.Error(exception.NewInvalidRequestBodyException(err))
 		return
 	}
 
@@ -182,28 +165,18 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 func (h *UserHandler) InitiateEmailChange(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.Error(exception.NewUnauthorizedException(
-			"Authentication failed: User ID not found in context.",
-			"AUTH_MISSING_ID",
-		))
+		c.Error(exception.NewMissingUserIDException())
 		return
 	}
 
 	userIDUint, ok := userID.(uint)
 	if !ok {
-		panic(exception.NewInternalServerException(
-			"Server processing failed: User ID format mismatch in context.",
-			"CONTEXT_CAST_FAIL",
-		).Wrap(errors.New("userID context value was not uint")))
+		panic(exception.NewContextCastError(errors.New("userID context value was not uint")))
 	}
 
 	var req dto.InitiateEmailChangeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(exception.NewBadRequestException(
-			fmt.Sprintf("Invalid request body: %s", err.Error()),
-			"INVALID_JSON_FORMAT",
-			nil,
-		))
+		c.Error(exception.NewInvalidRequestBodyException(err))
 		return
 	}
 
@@ -227,11 +200,7 @@ func (h *UserHandler) InitiateEmailChange(c *gin.Context) {
 func (h *UserHandler) VerifyEmailChange(c *gin.Context) {
 	var req dto.VerifyEmailChangeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(exception.NewBadRequestException(
-			fmt.Sprintf("Invalid request body: %s", err.Error()),
-			"INVALID_JSON_FORMAT",
-			nil,
-		))
+		c.Error(exception.NewInvalidRequestBodyException(err))
 		return
 	}
 
@@ -271,19 +240,13 @@ func (h *UserHandler) VerifyEmailChange(c *gin.Context) {
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.Error(exception.NewUnauthorizedException(
-			"Authentication failed: User ID not found in context.",
-			"AUTH_MISSING_ID",
-		))
+		c.Error(exception.NewMissingUserIDException())
 		return
 	}
 
 	userIDUUID, ok := userID.(uint)
 	if !ok {
-		panic(exception.NewInternalServerException(
-			"Server processing failed: User ID format mismatch in context.",
-			"CONTEXT_CAST_FAIL",
-		).Wrap(errors.New("userID context value was not uint")))
+		panic(exception.NewContextCastError(errors.New("userID context value was not uint")))
 	}
 
 	if err := h.UserService.DeleteUser(userIDUUID); err != nil {

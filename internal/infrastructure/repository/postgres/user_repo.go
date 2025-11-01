@@ -3,6 +3,7 @@ package postgres
 import (
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
+	"challenge-app/internal/domain/exception"
 	"errors"
 	"fmt"
 
@@ -54,7 +55,7 @@ func toEntity(m *model.UserModel) *entity.UserEntity {
 func (r *UserRepository) CreateUser(user *model.UserModel) error {
 	userEntity := toEntity(user)
 	if err := r.DB.Create(userEntity).Error; err != nil {
-		return fmt.Errorf("database error creating user: %w", err)
+		return exception.NewRepositoryError(fmt.Sprintf("CreateUser with email %s", user.Email), err)
 	}
 	user.ID = userEntity.ID
 	return nil
@@ -65,9 +66,9 @@ func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) 
 	result := r.DB.Where("email = ?", email).First(&userEntity)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, nil
+			return nil, exception.NewNotFoundException("User", email, "USER_NOT_FOUND_BY_EMAIL")
 		}
-		return nil, fmt.Errorf("database error fetching user by email: %w", result.Error)
+		return nil, exception.NewRepositoryError(fmt.Sprintf("GetUserByEmail %s", email), result.Error)
 	}
 	return toModel(&userEntity), nil
 }
@@ -76,7 +77,7 @@ func (r *UserRepository) GetAllUsers() ([]model.UserModel, error) {
 	var userEntities []entity.UserEntity
 	result := r.DB.Find(&userEntities)
 	if result.Error != nil {
-		return nil, fmt.Errorf("database error fetching all users: %w", result.Error)
+		return nil, exception.NewRepositoryError("GetAllUsers", result.Error)
 	}
 	var userModels []model.UserModel
 	if len(userEntities) == 0 {
@@ -93,9 +94,9 @@ func (r *UserRepository) GetUserByID(id uint) (*model.UserModel, error) {
 	result := r.DB.First(&userEntity, id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, nil
+			return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", id), "USER_NOT_FOUND")
 		}
-		return nil, fmt.Errorf("database error fetching user by ID: %w", result.Error)
+		return nil, exception.NewRepositoryError(fmt.Sprintf("GetUserByID %d", id), result.Error)
 	}
 	return toModel(&userEntity), nil
 }
@@ -104,7 +105,7 @@ func (r *UserRepository) UpdateUser(user *model.UserModel) (*model.UserModel, er
 	userEntity := toEntity(user)
 	result := r.DB.Model(&entity.UserEntity{}).Where("id = ?", user.ID).Updates(userEntity)
 	if result.Error != nil {
-		return nil, fmt.Errorf("database error updating user: %w", result.Error)
+		return nil, exception.NewRepositoryUpdateError(result.Error)
 	}
 	return toModel(userEntity), nil
 }
@@ -117,13 +118,13 @@ func (r *UserRepository) DeleteUser(id uint) error {
     }
     
     if result.Error != nil {
-        return fmt.Errorf("database error fetching user before hard delete: %w", result.Error)
+		return exception.NewRepositoryError(fmt.Sprintf("DeleteUser lookup %d", id), result.Error)
     }
 
     deleteResult := r.DB.Unscoped().Delete(&entity.UserEntity{}, id)
     
     if deleteResult.Error != nil {
-        return fmt.Errorf("database error performing hard delete: %w", deleteResult.Error)
+		return exception.NewRepositoryError(fmt.Sprintf("DeleteUser %d", id), deleteResult.Error)
     }
 	return nil
 }

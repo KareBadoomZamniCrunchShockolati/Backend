@@ -6,12 +6,12 @@ import (
 )
 
 type ForbiddenException struct {
-	BaseError
+	*BaseError
 }
 
-func NewForbiddenException(msg string, code string) ForbiddenException {
-	return ForbiddenException{
-		BaseError: BaseError{
+func NewForbiddenException(msg string, code string) *ForbiddenException {
+	return &ForbiddenException{
+		BaseError: &BaseError{
 			errorCode:  code,
 			message:    msg,
 			httpStatus: http.StatusForbidden, // 403

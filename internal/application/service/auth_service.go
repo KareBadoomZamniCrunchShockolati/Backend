@@ -37,22 +37,16 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 	// 1. Check if user already exists
 	existingUser, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		panic(exception.NewInternalServerException(
-			"Unexpected repository error during user check", 
-			"DB_CHECK_FAIL",
-		).Wrap(err))
+		panic(exception.NewRepositoryError("Failed to check existing user", err))
 	}
 	if existingUser != nil {
 		// DOMAIN CONFLICT -> RETURN ConflictException
-		return nil, "", exception.NewConflictException("User", "email", "USER_CONFLICT_001")
+		return nil, "", exception.NewUserConflictException(email)
 	}
 	// 2. Hash the password (Security Rule)
 	hash, err := s.PasswordSvc.HashPassword(password)
 	if err != nil {
-		panic(exception.NewInternalServerException(
-			"Password hashing failed, system state compromised",
-			"SYSTEM_HASH_FAIL",
-		).Wrap(err))
+		panic(exception.NewHashedPasswordError(err))
 	}
 
 	// 3. Create the Domain Entity
@@ -67,44 +61,29 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 	// 4. Persist user
 	err = s.UserRepo.CreateUser(user)
 	if err != nil {
-		panic(exception.NewInternalServerException(
-			fmt.Sprintf("Failed to persist new user %s", email),
-			"DB_PERSIST_FAIL",
-		).Wrap(err))
+		panic(exception.NewRepositoryError("Failed to persist new user", err))
 	}
 
 	// 5. Generate verification code
 	code, err := generateVerificationCode1()
 	if err != nil {
-		return nil, "", exception.NewInternalServerException(
-			"Failed to generate verification code",
-			"VERIFY_CODE_GEN_FAIL",
-		).Wrap(err)
+		return nil, "", exception.NewVerificationCodeGenerationError(err)
 	}
 
 	ctx := context.Background()
 	err = s.VerificationRepo.StoreVerificationCode(ctx, email, code, 5)
 	if err != nil {
-		return nil, "", exception.NewInternalServerException(
-			"Failed to store verification code",
-			"VERIFY_STORE_FAIL",
-		).Wrap(err)
+		return nil, "", exception.NewVerificationError(err)
 	}
 
 	err = s.EmailService.SendVerificationEmail(email, code)
 	if err != nil {
-		return nil, "", exception.NewInternalServerException(
-			"Failed to send verification email",
-			"EMAIL_SEND_FAIL",
-		).Wrap(err)
+		return nil, "", exception.NewEmailError(err)
 	}
 
 	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
-		panic(exception.NewInternalServerException(
-			"JWT token generation failed, system state compromised",
-			"SYSTEM_JWT_FAIL",
-		).Wrap(err))
+		panic(exception.NewJWTError(err))
 	}
 
 	return user, token, nil
@@ -113,29 +92,22 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 func (s *AuthService) LoginUser(email string, password string) (*model.UserModel, string, error) {
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		panic(exception.NewInternalServerException(
-			"Database failure during login", 
-			"DB_LOGIN_FAIL",
-			).Wrap(err))
+		panic(exception.NewDBLoginError(err))
 	}
 	// 2. Check the password hash
 	// Use the PasswordService to compare the plaintext password with the stored hash
 	if user == nil {
-        return nil, "", exception.NewUnauthorizedException("Invalid credentials.", "AUTH_INVALID_CREDENTIALS")
+        return nil, "", exception.NewAuthInvalidCredentials()
     }
 
 	match := s.PasswordSvc.CheckPasswordHash(password, user.PasswordHash)
 	if !match {
-		return nil, "", exception.NewUnauthorizedException("Invalid credentials.", "AUTH_INVALID_CREDENTIALS")
+		return nil, "", exception.NewAuthInvalidCredentials()
 	}
 
 	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
-		panic(exception.NewInternalServerException(
-			"JWT token generation failed during login, system state compromised", 
-			"SYSTEM_JWT_FAIL_LOGIN",
-		).Wrap(err))
-
+		panic(exception.NewJWTError(err))
 	}
 
 	return user, token, nil
@@ -146,36 +118,29 @@ func (s *AuthService) VerifyEmail(email, code string) (string, error) {
 
 	storedCode, err := s.VerificationRepo.GetVerificationCode(ctx, email)
 	if err != nil {
-		return "", exception.NewBadRequestException("Verification code expired or not found.",
-		 "VERIFY_CODE_EXPIRED", nil).Wrap(err)
+		return "", exception.NewVerificationCodeExpired(err)
 	}
 
 	if storedCode != code {
-		return "", exception.NewBadRequestException("Invalid verification code.", "VERIFY_CODE_INVALID", nil)
+		return "", exception.NewInvalidVerificationCode()
 	}
 
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		panic(exception.NewInternalServerException("Database failure during verification", 
-		"DB_VERIFY_FAIL",
-		).Wrap(err))
+		panic(exception.NewRepositoryVerificationError(err))
 	}
 
 	user.Verified = true
 	_, err = s.UserRepo.UpdateUser(user)
 	if err != nil {
-		panic(exception.NewInternalServerException("Failed to update user verification status", 
-		"DB_UPDATE_VERIFY_FAIL",
-		).Wrap(err))
+		panic(exception.NewRepositoryUpdateError(err))
 	}
 
 	s.VerificationRepo.DeleteVerificationCode(ctx, email)
 
 	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
-		panic(exception.NewInternalServerException("JWT generation failed after verification", 
-		"SYSTEM_JWT_FAIL_VERIFY",
-		).Wrap(err))
+		panic(exception.NewJWTError(err))
 	}
 
 	return token, nil
@@ -184,9 +149,7 @@ func (s *AuthService) VerifyEmail(email, code string) (string, error) {
 func (s *AuthService) ResendVerificationEmail(email string) error {
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		panic(exception.NewInternalServerException("Database failure during resend check", 
-		"DB_RESEND_FAIL",
-		).Wrap(err))
+		panic(exception.NewRepositoryVerificationError(err))
 	}
 
 	if user == nil {
@@ -199,27 +162,18 @@ func (s *AuthService) ResendVerificationEmail(email string) error {
 
 	code, err := generateVerificationCode1()
 	if err != nil {
-		return exception.NewInternalServerException(
-			"Failed to generate verification code",
-			"VERIFY_CODE_GEN_FAIL",
-		).Wrap(err)
+		return exception.NewVerificationCodeGenerationError(err)
 	}
 
 	ctx := context.Background()
 	err = s.VerificationRepo.StoreVerificationCode(ctx, email, code, 5)
 	if err != nil {
-		return exception.NewInternalServerException(
-			"Failed to store verification code",
-			"VERIFY_STORE_FAIL",
-		).Wrap(err)
+		return exception.NewVerificationError(err)
 	}
 
 	err = s.EmailService.SendVerificationEmail(email, code)
 	if err != nil {
-		return exception.NewInternalServerException(
-			"Failed to send verification email",
-			"EMAIL_SEND_FAIL",
-		).Wrap(err)
+		return exception.NewEmailError(err)
 	}
 
 	return nil

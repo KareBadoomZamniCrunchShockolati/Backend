@@ -6,13 +6,13 @@ import (
 )
 
 type ConflictException struct {
-	BaseError
+	*BaseError
 }
 
-func NewConflictException(resource string, field string, code string) ConflictException {
+func NewConflictException(resource string, field string, code string) *ConflictException {
 	msg := fmt.Sprintf("The %s already exists for the field %s.", resource, field)
-	return ConflictException{
-		BaseError: BaseError{
+	return &ConflictException{
+		BaseError: &BaseError{
 			errorCode:  code,
 			message:    msg,
 			httpStatus: http.StatusConflict, // 409
@@ -24,4 +24,10 @@ func NewConflictException(resource string, field string, code string) ConflictEx
 	}
 }
 
-func (e ConflictException) ClientError() {}
+
+func NewUserConflictException(identifier string) *ConflictException {
+	return NewConflictException("User", identifier, "USER_ALREADY_EXISTS")
+}
+
+
+func (e *ConflictException) ClientError() {}
