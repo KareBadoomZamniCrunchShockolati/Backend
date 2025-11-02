@@ -130,6 +130,8 @@ var HandlerProviderSet = wire.NewSet(
 
 var MiddlewareProviderSet = wire.NewSet(
 	middleware.NewJWTMiddleware,
+	middleware.NewErrorProvider,
+	wire.Bind(new(middleware_interface.ErrorMiddleware), new(*middleware.ErrorMiddleware)),
 	wire.Bind(new(middleware_interface.JWTMiddleware), new(*middleware.JWTMiddleware)),
 )
 var FollowProviderSet = wire.NewSet(

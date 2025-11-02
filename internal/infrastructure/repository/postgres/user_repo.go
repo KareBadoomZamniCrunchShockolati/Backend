@@ -3,9 +3,9 @@ package postgres
 import (
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
+	"challenge-app/internal/domain/exception"
 	"errors"
 	"fmt"
-	"strings"
 
 	"gorm.io/gorm"
 )
@@ -53,15 +53,12 @@ func toEntity(m *model.UserModel) *entity.UserEntity {
 // --- CRUD Implementation ---
 
 func (r *UserRepository) CreateUser(user *model.UserModel) error {
-    userEntity := toEntity(user)
-    if err := r.DB.Create(userEntity).Error; err != nil {
-		if strings.Contains(err.Error(), "duplicate key") {
-			return fmt.Errorf("user with email or username already exists")
-		}
-		panic(fmt.Sprintf("database error while creating user: %v", err))
+	userEntity := toEntity(user)
+	if err := r.DB.Create(userEntity).Error; err != nil {
+		return exception.NewRepositoryError(fmt.Sprintf("CreateUser with email %s", user.Email), err)
 	}
-    user.ID = userEntity.ID 
-    return nil
+	user.ID = userEntity.ID
+	return nil
 }
 
 func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) {
@@ -69,9 +66,9 @@ func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) 
 	result := r.DB.Where("email = ?", email).First(&userEntity)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, result.Error 
+			return nil, exception.NewNotFoundException("User", email, "USER_NOT_FOUND_BY_EMAIL")
 		}
-		panic(fmt.Sprintf("database error while fetching user by email: %v", result.Error))
+		return nil, exception.NewRepositoryError(fmt.Sprintf("GetUserByEmail %s", email), result.Error)
 	}
 	return toModel(&userEntity), nil
 }
@@ -80,9 +77,12 @@ func (r *UserRepository) GetAllUsers() ([]model.UserModel, error) {
 	var userEntities []entity.UserEntity
 	result := r.DB.Find(&userEntities)
 	if result.Error != nil {
-		panic(fmt.Sprintf("database error while fetching all users: %v", result.Error))
+		return nil, exception.NewRepositoryError("GetAllUsers", result.Error)
 	}
 	var userModels []model.UserModel
+	if len(userEntities) == 0 {
+		return []model.UserModel{}, nil
+	}
 	for _, e := range userEntities {
 		userModels = append(userModels, *toModel(&e))
 	}
@@ -94,9 +94,9 @@ func (r *UserRepository) GetUserByID(id uint) (*model.UserModel, error) {
 	result := r.DB.First(&userEntity, id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, result.Error
+			return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", id), "USER_NOT_FOUND")
 		}
-		return nil, result.Error
+		return nil, exception.NewRepositoryError(fmt.Sprintf("GetUserByID %d", id), result.Error)
 	}
 	return toModel(&userEntity), nil
 }
@@ -105,21 +105,26 @@ func (r *UserRepository) UpdateUser(user *model.UserModel) (*model.UserModel, er
 	userEntity := toEntity(user)
 	result := r.DB.Model(&entity.UserEntity{}).Where("id = ?", user.ID).Updates(userEntity)
 	if result.Error != nil {
-		if strings.Contains(result.Error.Error(), "duplicate key") {
-			return nil, fmt.Errorf("email or username already in use")
-		}
-		panic(fmt.Sprintf("database error while updating user: %v", result.Error))
+		return nil, exception.NewRepositoryUpdateError(result.Error)
 	}
 	return toModel(userEntity), nil
 }
 
 func (r *UserRepository) DeleteUser(id uint) error {
-	result := r.DB.Delete(&entity.UserEntity{}, id)
-	if result.Error != nil {
-		panic(fmt.Sprintf("database error while deleting user: %v", result.Error))
-	}
-	if result.RowsAffected == 0 {
-		return errors.New("user not found or already deleted")
-	}
+	var userEntity entity.UserEntity
+    result := r.DB.Unscoped().First(&userEntity, id)
+    if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+        return nil 
+    }
+    
+    if result.Error != nil {
+		return exception.NewRepositoryError(fmt.Sprintf("DeleteUser lookup %d", id), result.Error)
+    }
+
+    deleteResult := r.DB.Unscoped().Delete(&entity.UserEntity{}, id)
+    
+    if deleteResult.Error != nil {
+		return exception.NewRepositoryError(fmt.Sprintf("DeleteUser %d", id), deleteResult.Error)
+    }
 	return nil
 }
