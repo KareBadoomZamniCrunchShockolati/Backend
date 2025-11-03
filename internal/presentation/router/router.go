@@ -51,7 +51,7 @@ func SetupRouter(
 		protected.DELETE("/follow", followHandler.Unfollow)
 		protected.DELETE("/followers/remove", followHandler.RemoveFollower)
 		protected.GET("/follow/status/:user_id", followHandler.CheckFollowStatus)
-	}
+ 	}
 
 	return r
 }

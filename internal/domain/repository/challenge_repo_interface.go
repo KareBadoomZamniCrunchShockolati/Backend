@@ -4,9 +4,9 @@ import "challenge-app/internal/domain/model"
 
 type ChallengeRepository interface {
 	// CRUD
-	CreateChallenge(challenge *model.ChallengeModel) error
+	CreateChallenge(challenge *model.ChallengeModel) (*model.ChallengeModel, error)
 	GetChallengeByID(id uint) (*model.ChallengeModel, error)
-	UpdateChallenge(challenge *model.ChallengeModel) error
+	UpdateChallenge(challenge *model.ChallengeModel) (*model.ChallengeModel, error)
 	DeleteChallenge(id uint) error
 
 	// List challenges in feed, respecting visibility rules

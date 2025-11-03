@@ -22,6 +22,6 @@ type ChallengeModel struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 
-	Participants []ChallengeParticipant
-	Comments     []ChallengeComment
+	Participants []*ChallengeParticipant
+	Comments     []*ChallengeComment
 }

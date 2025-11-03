@@ -23,8 +23,8 @@ type ChallengeEntity struct {
 	Stopped         bool
 
 	// Relations
-	Participants []ChallengeParticipantEntity `gorm:"foreignKey:ChallengeID"`
-	Comments     []ChallengeCommentEntity     `gorm:"foreignKey:ChallengeID"`
+	Participants []*ChallengeParticipantEntity `gorm:"foreignKey:ChallengeID"`
+	Comments     []*ChallengeCommentEntity     `gorm:"foreignKey:ChallengeID"`
 }
 
 func (ChallengeEntity) TableName() string {
