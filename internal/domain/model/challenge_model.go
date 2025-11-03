@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type Challenge struct {
+type ChallengeModel struct {
 	ID              uint
 	Title           string
 	Description     string
