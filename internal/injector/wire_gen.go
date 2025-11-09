@@ -159,11 +159,11 @@ var RedisProviderSet = wire.NewSet(
 
 var EmailProviderSet = wire.NewSet(bootstrap.LoadEnv, ProvideEmailService, wire.Bind(new(email.EmailService), new(*email.EmailServiceImpl)))
 
-var RepositoryProviderSet = wire.NewSet(postgres.NewUserRepository, wire.Bind(new(repository.UserRepository), new(*postgres.UserRepository)))
+var RepositoryProviderSet = wire.NewSet(postgres.NewUserRepository, postgres.NewChallengeRepository, wire.Bind(new(repository.UserRepository), new(*postgres.UserRepository)), wire.Bind(new(repository.ChallengeRepository), new(*postgres.ChallengeRepository)))
 
-var ServiceProviderSet = wire.NewSet(service.NewUserService, service.NewAuthService, wire.Bind(new(serviceinterface.UserServicer), new(*service.UserService)), wire.Bind(new(serviceinterface.AuthServicer), new(*service.AuthService)))
+var ServiceProviderSet = wire.NewSet(service.NewUserService, service.NewAuthService, service.NewChallengeService, wire.Bind(new(serviceinterface.UserServicer), new(*service.UserService)), wire.Bind(new(serviceinterface.AuthServicer), new(*service.AuthService)), wire.Bind(new(serviceinterface.ChallengeServicer), new(*service.ChallengeService)))
 
-var HandlerProviderSet = wire.NewSet(handler.NewUserHandler, handler.NewAuthHandler, wire.Bind(new(handler2.UserHandler), new(*handler.UserHandler)), wire.Bind(new(handler2.AuthHandler), new(*handler.AuthHandler)))
+var HandlerProviderSet = wire.NewSet(handler.NewUserHandler, handler.NewAuthHandler, handler.NewChallengeHandler, wire.Bind(new(handler2.UserHandler), new(*handler.UserHandler)), wire.Bind(new(handler2.AuthHandler), new(*handler.AuthHandler)), wire.Bind(new(handler2.ChallengeHandler), new(*handler.ChallengeHandler)))
 
 var MiddlewareProviderSet = wire.NewSet(middleware.NewJWTMiddleware, middleware.NewErrorProvider, wire.Bind(new(middleware2.ErrorMiddleware), new(*middleware.ErrorMiddleware)), wire.Bind(new(middleware2.JWTMiddleware), new(*middleware.JWTMiddleware)))
 
