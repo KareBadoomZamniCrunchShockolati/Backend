@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"github.com/gin-gonic/gin"
+	"fmt"
 )
 
 type AuthHandler struct {
@@ -43,7 +44,10 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 			details[k] = v
 		}
 
-		c.Error(exception.NewValidationFailedException(details))
+		c.JSON(http.StatusBadRequest, gin.H{
+        "message": "Input validation failed",
+        "errors":  details,
+    	})
 		return
 
 	}
@@ -61,7 +65,12 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 			return
 		}
 		
-		panic(err)
+		fmt.Println("CRITICAL ERROR during user registration:", err) // Or use a proper logger
+		
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "An internal error occurred during registration.",
+		})
+		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{

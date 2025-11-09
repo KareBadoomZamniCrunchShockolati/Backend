@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"github.com/gin-gonic/gin"
+	"strconv"
 )
 
 type UserHandler struct {
@@ -86,6 +87,38 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, userResponses)
+}
+
+func (h *UserHandler) GetUserByID(c *gin.Context) {
+    requesterID := c.GetUint("userID")
+	idStr := c.Param("id")
+    id, err := strconv.Atoi(idStr)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+        return
+    }
+
+    user, e := h.UserService.GetUserByID(uint(id))
+    if e != nil {
+        switch e := e.(type) {
+        case *exception.NotFoundException:
+            c.JSON(http.StatusNotFound, gin.H{"error": e.Error()})
+        default:
+            c.JSON(http.StatusInternalServerError, gin.H{"error": e.Error()})
+        }
+        return
+    }
+	if requesterID != user.ID {
+        user.Email = "" // hide private info
+    }
+	c.JSON(http.StatusOK, dto.UserResponse{
+    ID:       user.ID,
+    Username: user.Username,
+    Email:    user.Email,
+    Bio:      user.Bio,
+	})
+
+
 }
 
 // UpdateProfile (CRUD - Update Handler)

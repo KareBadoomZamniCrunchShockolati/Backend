@@ -34,22 +34,25 @@ func NewAuthService(repo repository.UserRepository, verificationRepo repository.
 
 // RegisterUser (CRUD - Create Logic)
 func (s *AuthService) RegisterUser(username, email, password, bio string) (*model.UserModel, string, error) {
-	// 1. Check if user already exists
+	// 1. Check if the user already exists
 	existingUser, err := s.UserRepo.GetUserByEmail(email)
-	if err != nil {
-		panic(exception.NewRepositoryError("Failed to check existing user", err))
-	}
-	if existingUser != nil {
-		// DOMAIN CONFLICT -> RETURN ConflictException
-		return nil, "", exception.NewUserConflictException(email)
-	}
-	// 2. Hash the password (Security Rule)
-	hash, err := s.PasswordSvc.HashPassword(password)
-	if err != nil {
-		panic(exception.NewHashedPasswordError(err))
+	if err == nil {
+		if existingUser != nil {
+			return nil, "", exception.NewUserConflictException(email)
+		}
 	}
 
-	// 3. Create the Domain Entity
+	// 2. Hash the password
+	hash, err := s.PasswordSvc.HashPassword(password)
+	if err != nil {
+		return nil, "", exception.NewHashedPasswordError(err)
+	}
+
+	if bio == "" {
+		bio = ""
+	}	
+
+	// 3. Create the user domain entity
 	user := &model.UserModel{
 		Username:     username,
 		Email:        email,
@@ -58,10 +61,9 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 		Verified:     false,
 	}
 
-	// 4. Persist user
-	err = s.UserRepo.CreateUser(user)
-	if err != nil {
-		panic(exception.NewRepositoryError("Failed to persist new user", err))
+	// 4. Persist the user
+	if err := s.UserRepo.CreateUser(user); err != nil {
+		return nil, "", exception.NewRepositoryError("Failed to persist new user", err)
 	}
 
 	// 5. Generate verification code
@@ -70,24 +72,27 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 		return nil, "", exception.NewVerificationCodeGenerationError(err)
 	}
 
+	// 6. Store verification code
 	ctx := context.Background()
-	err = s.VerificationRepo.StoreVerificationCode(ctx, email, code, 5)
-	if err != nil {
+	if err := s.VerificationRepo.StoreVerificationCode(ctx, email, code, 5); err != nil {
 		return nil, "", exception.NewVerificationError(err)
 	}
 
-	err = s.EmailService.SendVerificationEmail(email, code)
-	if err != nil {
+	// 7. Send verification email
+	if err := s.EmailService.SendVerificationEmail(email, code); err != nil {
 		return nil, "", exception.NewEmailError(err)
 	}
 
+	// 8. Generate JWT token
 	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
-		panic(exception.NewJWTError(err))
+		return nil, "", exception.NewJWTError(err)
 	}
 
+	// 9. Return user and token
 	return user, token, nil
 }
+
 
 func (s *AuthService) LoginUser(email string, password string) (*model.UserModel, string, error) {
 	user, err := s.UserRepo.GetUserByEmail(email)

@@ -55,6 +55,7 @@ func toEntity(m *model.UserModel) *entity.UserEntity {
 func (r *UserRepository) CreateUser(user *model.UserModel) error {
 	userEntity := toEntity(user)
 	if err := r.DB.Create(userEntity).Error; err != nil {
+		fmt.Printf("GORM CreateUser Error: %v\n", err)
 		return exception.NewRepositoryError(fmt.Sprintf("CreateUser with email %s", user.Email), err)
 	}
 	user.ID = userEntity.ID
