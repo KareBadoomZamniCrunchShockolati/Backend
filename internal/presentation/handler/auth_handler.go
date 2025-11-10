@@ -5,11 +5,10 @@ import (
 	serviceinterface "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/domain/exception"
 	"challenge-app/pkg/validation"
-	"errors"
 	"net/http"
 	"strings"
+
 	"github.com/gin-gonic/gin"
-	"fmt"
 )
 
 type AuthHandler struct {
@@ -34,53 +33,31 @@ func NewAuthHandler(authService serviceinterface.AuthServicer) *AuthHandler {
 // Signup (CRUD - Create Handler)
 func (h *AuthHandler) Signup(c *gin.Context) {
 	var req dto.SignupRequest
-
 	if err := c.ShouldBindJSON(&req); err != nil {
-		
-		validationMap := validation.FormatValidationError(err)
-
-		details := make(map[string]any, len(validationMap))
-		for k, v := range validationMap {
-			details[k] = v
+		formatted := validation.FormatValidationError(err)
+		errorsMap := make(map[string]any, len(formatted))
+		for k, v := range formatted {
+			errorsMap[k] = v
 		}
-
-		c.JSON(http.StatusBadRequest, gin.H{
-        "message": "Input validation failed",
-        "errors":  details,
-    	})
+		c.Error(exception.NewValidationFailedException(errorsMap))
 		return
-
 	}
 
 	bio := strings.TrimSpace(req.Bio)
-	if bio == "" {
-		bio = ""
-	}
 
-	user, token, err := h.AuthService.RegisterUser(req.Username, req.Email, req.Password, req.Bio)
+	user, err := h.AuthService.RegisterUser(req.Username, req.Email, req.Password, bio)
 	if err != nil {
-		var clientErr exception.ClientError
-		if errors.As(err, &clientErr) {
-			c.Error(err)
-			return
-		}
-		
-		fmt.Println("CRITICAL ERROR during user registration:", err) // Or use a proper logger
-		
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "An internal error occurred during registration.",
-		})
+		c.Error(err)
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User registered successfully. Check your email for verification code.",
 		"user": dto.LoginResponse{
-			ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio, Token: token,
+			ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio,
 		},
 	})
 }
-
 
 // Login godoc
 // @Summary Login existing user
@@ -104,15 +81,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// 2. Service: Authenticate user
 	user, token, err := h.AuthService.LoginUser(req.Email, req.Password)
-
 	if err != nil {
-		var clientErr exception.ClientError
-		if errors.As(err, &clientErr) {
-			c.Error(err)
-			return
-		}
-
-		panic(err)
+		c.Error(err)
+		return
 	}
 
 	// 3. Success: Respond with user details (JWT will be added here later)
@@ -133,13 +104,8 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 
 	token, err := h.AuthService.VerifyEmail(req.Email, req.Code)
 	if err != nil {
-		var clientErr exception.ClientError		
-		if errors.As(err, &clientErr) {
-			c.Error(err)
-			return
-		}
-		
-		panic(err)
+		c.Error(err)
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -157,13 +123,8 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 
 	err := h.AuthService.ResendVerificationEmail(req.Email)
 	if err != nil {
-		var clientErr exception.ClientError
-		if errors.As(err, &clientErr) {
-			c.Error(err)
-			return
-		}
-		
-		panic(err)
+		c.Error(err)
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{

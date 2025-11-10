@@ -1,9 +1,9 @@
 package postgres
 
 import (
+	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
-	"challenge-app/internal/domain/exception"
 	"errors"
 	"fmt"
 
@@ -55,11 +55,14 @@ func toEntity(m *model.UserModel) *entity.UserEntity {
 func (r *UserRepository) CreateUser(user *model.UserModel) error {
 	userEntity := toEntity(user)
 	if err := r.DB.Create(userEntity).Error; err != nil {
-		fmt.Printf("GORM CreateUser Error: %v\n", err)
-		return exception.NewRepositoryError(fmt.Sprintf("CreateUser with email %s", user.Email), err)
+		return exception.NewRepositoryError("database error while creating user", err)
 	}
-	user.ID = userEntity.ID
 	return nil
+}
+
+func IsNotFoundError(err error) bool {
+	var nfErr *exception.NotFoundException
+	return errors.As(err, &nfErr)
 }
 
 func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) {
@@ -73,6 +76,19 @@ func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) 
 	}
 	return toModel(&userEntity), nil
 }
+
+func (r *UserRepository) GetUserByName(name string)(*model.UserModel, error){
+	var userEntity entity.UserEntity
+	result := r.DB.Where("username = ?", name).First(&userEntity)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, exception.NewNotFoundException("User", name, "USER_NOT_FOUND_BY_NAME")
+		}
+		return nil, exception.NewRepositoryError(fmt.Sprintf("GetUserByName %s", name), result.Error)
+	}
+	return toModel(&userEntity), nil
+}
+
 
 func (r *UserRepository) GetAllUsers() ([]model.UserModel, error) {
 	var userEntities []entity.UserEntity
@@ -113,19 +129,19 @@ func (r *UserRepository) UpdateUser(user *model.UserModel) (*model.UserModel, er
 
 func (r *UserRepository) DeleteUser(id uint) error {
 	var userEntity entity.UserEntity
-    result := r.DB.Unscoped().First(&userEntity, id)
-    if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-        return nil 
-    }
-    
-    if result.Error != nil {
-		return exception.NewRepositoryError(fmt.Sprintf("DeleteUser lookup %d", id), result.Error)
-    }
+	result := r.DB.Unscoped().First(&userEntity, id)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil
+	}
 
-    deleteResult := r.DB.Unscoped().Delete(&entity.UserEntity{}, id)
-    
-    if deleteResult.Error != nil {
+	if result.Error != nil {
+		return exception.NewRepositoryError(fmt.Sprintf("DeleteUser lookup %d", id), result.Error)
+	}
+
+	deleteResult := r.DB.Unscoped().Delete(&entity.UserEntity{}, id)
+
+	if deleteResult.Error != nil {
 		return exception.NewRepositoryError(fmt.Sprintf("DeleteUser %d", id), deleteResult.Error)
-    }
+	}
 	return nil
 }

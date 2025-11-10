@@ -53,7 +53,8 @@ func InitializeRouter(db *gorm.DB, validator2 *validator.Validate) (*gin.Engine,
 	followService := service.NewFollowService(followRepository, userRepository)
 	followHandlerImpl := handler.NewFollowHandler(followService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, jwtMiddleware)
+	errorMiddleware := middleware.NewErrorProvider()
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, jwtMiddleware, errorMiddleware)
 	return engine, nil
 }
 
@@ -82,7 +83,8 @@ func InitializeApplication() (*Application, error) {
 	followService := service.NewFollowService(followRepository, userRepository)
 	followHandlerImpl := handler.NewFollowHandler(followService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, jwtMiddleware)
+	errorMiddleware := middleware.NewErrorProvider()
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, jwtMiddleware, errorMiddleware)
 	application := NewApplication(db, engine)
 	return application, nil
 }
