@@ -26,3 +26,7 @@ type UserListResponse struct {
 type RemoveFollowerRequest struct {
 	FollowerID uint `json:"follower_id" binding:"required"`
 }
+
+type UserURI struct {
+	ID uint `uri:"id" binding:"required"`
+}

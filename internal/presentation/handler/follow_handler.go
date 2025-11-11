@@ -3,9 +3,9 @@ package handler
 import (
 	"challenge-app/internal/application/dto"
 	serviceinterface "challenge-app/internal/application/service/interface"
+	"challenge-app/internal/domain/exception"
+	
 	"net/http"
-	"strconv"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -107,13 +107,13 @@ func (h *FollowHandlerImpl) RemoveFollower(c *gin.Context) {
 }
 
 func (h *FollowHandlerImpl) GetFollowers(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	var uri  dto.UserURI
+	if err := c.ShouldBindUri(&uri); err != nil {
+		c.Error(exception.NewMissingUserIDException())
 		return
 	}
 
-	followers, err := h.FollowService.GetFollowers(uint(userID))
+	followers, err := h.FollowService.GetFollowers(uri.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get followers"})
 		return
@@ -137,13 +137,13 @@ func (h *FollowHandlerImpl) GetFollowers(c *gin.Context) {
 }
 
 func (h *FollowHandlerImpl) GetFollowing(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	var uri  dto.UserURI
+	if err := c.ShouldBindUri(&uri); err != nil {
+		c.Error(exception.NewMissingUserIDException())
 		return
 	}
 
-	following, err := h.FollowService.GetFollowing(uint(userID))
+	following, err := h.FollowService.GetFollowing(uri.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get following"})
 		return
@@ -167,19 +167,30 @@ func (h *FollowHandlerImpl) GetFollowing(c *gin.Context) {
 }
 
 func (h *FollowHandlerImpl) CheckFollowStatus(c *gin.Context) {
-	followerID, exists := c.Get("userID")
+	followerIDValue, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed"})
 		return
 	}
 
-	followingID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	followerID, ok := followerIDValue.(uint)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid context user ID"})
 		return
 	}
 
-	isFollowing, err := h.FollowService.IsFollowing(followerID.(uint), uint(followingID))
+	var uri dto.UserURI
+	if err := c.ShouldBindUri(&uri); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID in URI"})
+		return
+	}
+
+	if followerID == uri.ID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot follow yourself"})
+		return
+	}
+
+	isFollowing, err := h.FollowService.IsFollowing(followerID, uri.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check follow status"})
 		return
@@ -191,13 +202,13 @@ func (h *FollowHandlerImpl) CheckFollowStatus(c *gin.Context) {
 }
 
 func (h *FollowHandlerImpl) GetFollowStats(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	var uri dto.UserURI
+	if err := c.ShouldBindUri(&uri); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID in URI"})
 		return
 	}
 
-	stats, err := h.FollowService.GetFollowStats(uint(userID))
+	stats, err := h.FollowService.GetFollowStats(uri.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get follow stats"})
 		return

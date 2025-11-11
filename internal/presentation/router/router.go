@@ -51,10 +51,7 @@ func SetupRouter(
 		v1.POST("/resend-verification", authHandler.ResendVerification)
 		v1.POST("/users/email/verify-change", userHandler.VerifyEmailChange)
 
-		// Public follow routes
-		v1.GET("/users/:id/followers", followHandler.GetFollowers)
-		v1.GET("/users/:id/following", followHandler.GetFollowing)
-		v1.GET("/users/:id/follow-stats", followHandler.GetFollowStats)
+		
 	}
 
 	// Protected routes
@@ -73,6 +70,9 @@ func SetupRouter(
 		protected.DELETE("/follow", followHandler.Unfollow)
 		protected.DELETE("/followers/remove", followHandler.RemoveFollower)
 		protected.GET("/follow/status/:id", followHandler.CheckFollowStatus)
+		v1.GET("/users/:id/followers", followHandler.GetFollowers)
+		v1.GET("/users/:id/following", followHandler.GetFollowing)
+		v1.GET("/users/:id/follow-stats", followHandler.GetFollowStats)
 	}
 
 	return r
