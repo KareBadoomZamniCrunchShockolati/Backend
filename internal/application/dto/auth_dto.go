@@ -4,7 +4,7 @@ type SignupRequest struct {
 	Username string `json:"username" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,password_policy"`
-	Bio      string `json:"bio" binding:"required"`
+	Bio      string `json:"bio,omitempty"`
 }
 
 type AuthResponse struct {
@@ -24,7 +24,7 @@ type VerifyRequest struct {
 	Code  string `json:"code" binding:"required,len=6"`
 }
 type ResendVerificationRequest struct {
-	Email string `json:"email" binding:"required,email"`
+	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }
 
