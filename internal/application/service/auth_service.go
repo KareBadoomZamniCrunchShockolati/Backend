@@ -92,9 +92,9 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 	}
 
 	// 7. Send verification email
-	// if err := s.EmailService.SendVerificationEmail(email, code); err != nil {
-	// 	return nil, exception.NewEmailError(err)
-	// }
+	if err := s.EmailService.SendVerificationEmail(email, code); err != nil {
+		return nil, exception.NewEmailError(err)
+	}
 
 	return user, nil
 }
