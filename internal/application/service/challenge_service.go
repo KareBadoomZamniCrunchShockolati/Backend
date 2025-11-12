@@ -88,10 +88,10 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 
 	created, err := s.ChallengeRepo.CreateChallenge(ch)
 	if err != nil {
-		panic(exception.NewRepositoryError("Failed to create challenge", err))
+		return nil, exception.NewRepositoryError(err)
 	}
 	if created == nil {
-		panic(exception.NewInternalServerException("ChallengeRepo.CreateChallenge returned nil", "CHALLENGE_CREATE_FAILED", nil))
+		return nil, exception.NewInternalServerException("ChallengeRepo.CreateChallenge returned nil", "CHALLENGE_CREATE_FAILED", nil)
 	}
 
 	return created, nil
@@ -103,7 +103,7 @@ func (s *ChallengeService) GetChallengeByID(id uint) (*model.ChallengeModel, err
 		if _, ok := err.(*exception.NotFoundException); ok {
 			return nil, err
 		}
-		panic(exception.NewRepositoryError(fmt.Sprintf("GetChallengeByID %d failed", id), err))
+		return nil, exception.NewRepositoryError(err)
 	}
 	if ch == nil {
 		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", id), "CHALLENGE_NOT_FOUND")
@@ -112,14 +112,22 @@ func (s *ChallengeService) GetChallengeByID(id uint) (*model.ChallengeModel, err
 	return ch, nil
 }
 
-// UpdateChallenge updates a challenge with partial update DTO
+func (s *ChallengeService) GetAllChallenges() ([]*model.ChallengeModel, error) {
+	challenges, err := s.ChallengeRepo.GetAllChallenges()
+	if err != nil {
+		return nil, exception.NewRepositoryError(err)
+	}
+	return challenges, nil
+}
+
+// UpdateChallenge updates a challenge
 func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *dto.UpdateChallengeDTO) (*model.ChallengeModel, error) {
 	existing, err := s.ChallengeRepo.GetChallengeByID(id)
 	if err != nil {
-		if _, ok := err.(*exception.NotFoundException); ok {
-			return nil, err
-		}
-		panic(exception.NewRepositoryError(fmt.Sprintf("GetChallengeByID %d failed", id), err))
+		return nil, exception.NewRepositoryError(err)
+	}
+	if existing == nil {
+		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", id), "CHALLENGE_NOT_FOUND")
 	}
 
 	if existing.CreatorID != currentUserID {
@@ -134,10 +142,10 @@ func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *d
 
 	updated, err := s.ChallengeRepo.UpdateChallenge(existing)
 	if err != nil {
-		panic(exception.NewRepositoryError(fmt.Sprintf("UpdateChallenge %d failed", id), err))
+		return nil, exception.NewRepositoryError(err)
 	}
 	if updated == nil {
-		panic(exception.NewInternalServerException(fmt.Sprintf("ChallengeRepo.UpdateChallenge returned nil for ID %d", id), "CHALLENGE_UPDATE_FAILED", nil))
+		return nil, exception.NewInternalServerException(fmt.Sprintf("ChallengeRepo.UpdateChallenge returned nil for ID %d", id), "CHALLENGE_UPDATE_FAILED", nil)
 	}
 
 	return updated, nil
@@ -147,10 +155,10 @@ func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *d
 func (s *ChallengeService) DeleteChallenge(id uint, currentUserID uint) error {
 	ch, err := s.ChallengeRepo.GetChallengeByID(id)
 	if err != nil {
-		if _, ok := err.(*exception.NotFoundException); ok {
-			return err
-		}
-		panic(exception.NewRepositoryError(fmt.Sprintf("GetChallengeByID %d failed", id), err))
+		return exception.NewRepositoryError(err)
+	}
+	if ch == nil {
+		return exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", id), "CHALLENGE_NOT_FOUND")
 	}
 
 	if ch.CreatorID != currentUserID {
@@ -158,7 +166,7 @@ func (s *ChallengeService) DeleteChallenge(id uint, currentUserID uint) error {
 	}
 
 	if err := s.ChallengeRepo.DeleteChallenge(id); err != nil {
-		panic(exception.NewRepositoryError(fmt.Sprintf("DeleteChallenge %d failed", id), err))
+		return exception.NewRepositoryError(err)
 	}
 	return nil
 }

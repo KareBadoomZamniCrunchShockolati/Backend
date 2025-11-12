@@ -11,11 +11,11 @@ type ForbiddenException struct {
 
 func NewForbiddenException(msg string, code string) *ForbiddenException {
 	return &ForbiddenException{
-		BaseError: &BaseError{
-			errorCode:  code,
-			message:    msg,
-			httpStatus: http.StatusForbidden, // 403
-			details:    nil, 
-		},
+		BaseError: NewBaseError(
+			code,
+			msg,
+			http.StatusForbidden, // 403
+			nil, 
+		),
 	}
 }

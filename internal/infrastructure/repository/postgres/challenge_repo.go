@@ -87,7 +87,7 @@ func toCommentModels(entities []entity.ChallengeCommentEntity) []*model.Challeng
 func (r *ChallengeRepository) CreateChallenge(ch *model.ChallengeModel) (*model.ChallengeModel, error) {
 	chEntity := toChallengeEntity(ch)
 	if err := r.db.Create(chEntity).Error; err != nil {
-		return nil, exception.NewRepositoryError("failed to create challenge", err)
+		return nil, exception.NewRepositoryError(err)
 	}
 	ch.ID = chEntity.ID
 	return ch, nil
@@ -100,9 +100,22 @@ func (r *ChallengeRepository) GetChallengeByID(id uint) (*model.ChallengeModel, 
 		if err == gorm.ErrRecordNotFound {
 			return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", id), "CHALLENGE_NOT_FOUND")
 		}
-		return nil, exception.NewRepositoryError(fmt.Sprintf("GetChallengeByID %d", id), err)
+		return nil, exception.NewRepositoryError(err)
 	}
 	return toChallengeModel(&chEntity), nil
+}
+
+func (r *ChallengeRepository) GetAllChallenges() ([]*model.ChallengeModel, error) {
+	var chEntities []entity.ChallengeEntity
+	err := r.db.Find(&chEntities).Error
+	if err != nil {
+		return nil, exception.NewRepositoryError(err)
+	}
+	var challenges []*model.ChallengeModel
+	for _, e := range chEntities {
+		challenges = append(challenges, toChallengeModel(&e))
+	}
+	return challenges, nil
 }
 
 func (r *ChallengeRepository) UpdateChallenge(ch *model.ChallengeModel) (*model.ChallengeModel, error) {
@@ -111,14 +124,14 @@ func (r *ChallengeRepository) UpdateChallenge(ch *model.ChallengeModel) (*model.
 		if err == gorm.ErrRecordNotFound {
 			return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", ch.ID), "CHALLENGE_NOT_FOUND")
 		}
-		return nil, exception.NewRepositoryError(fmt.Sprintf("UpdateChallenge %d fetch failed", ch.ID), err)
+		return nil, exception.NewRepositoryError(err)
 	}
 
 	// Map changes from model to entity
 	chEntity = *toChallengeEntity(ch)
 
 	if err := r.db.Save(&chEntity).Error; err != nil {
-		return nil, exception.NewRepositoryError(fmt.Sprintf("UpdateChallenge %d save failed", ch.ID), err)
+		return nil, exception.NewRepositoryError(err)
 	}
 
 	return toChallengeModel(&chEntity), nil
@@ -126,14 +139,14 @@ func (r *ChallengeRepository) UpdateChallenge(ch *model.ChallengeModel) (*model.
 
 func (r *ChallengeRepository) DeleteChallenge(id uint) error {
 	if err := r.db.Delete(&entity.ChallengeEntity{}, id).Error; err != nil {
-		return exception.NewRepositoryError(fmt.Sprintf("DeleteChallenge %d failed", id), err)
+		return exception.NewRepositoryError(err)
 	}
 	return nil
 }
 
 func (r *ChallengeRepository) StopChallenge(id uint) error {
 	if err := r.db.Model(&entity.ChallengeEntity{}).Where("id = ?", id).Update("stopped", true).Error; err != nil {
-		return exception.NewRepositoryError(fmt.Sprintf("StopChallenge %d failed", id), err)
+		return exception.NewRepositoryError(err)
 	}
 	return nil
 }

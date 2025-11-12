@@ -7,7 +7,6 @@ import (
 	"challenge-app/pkg/validation"
 	"errors"
 	"net/http"
-	"strings"
 	"github.com/gin-gonic/gin"
 )
 
@@ -47,12 +46,7 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 		return
 
 	}
-
-	bio := strings.TrimSpace(req.Bio)
-	if bio == "" {
-		bio = ""
-	}
-
+	
 	user, token, err := h.AuthService.RegisterUser(req.Username, req.Email, req.Password, req.Bio)
 	if err != nil {
 		var clientErr exception.ClientError

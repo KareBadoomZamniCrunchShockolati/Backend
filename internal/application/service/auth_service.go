@@ -37,16 +37,15 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 	// 1. Check if user already exists
 	existingUser, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		panic(exception.NewRepositoryError("Failed to check existing user", err))
+		return nil, "", exception.NewRepositoryError(err)
 	}
 	if existingUser != nil {
-		// DOMAIN CONFLICT -> RETURN ConflictException
 		return nil, "", exception.NewUserConflictException(email)
 	}
 	// 2. Hash the password (Security Rule)
 	hash, err := s.PasswordSvc.HashPassword(password)
 	if err != nil {
-		panic(exception.NewHashedPasswordError(err))
+		return nil, "", exception.NewHashedPasswordError(err)
 	}
 
 	// 3. Create the Domain Entity
@@ -61,7 +60,7 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 	// 4. Persist user
 	err = s.UserRepo.CreateUser(user)
 	if err != nil {
-		panic(exception.NewRepositoryError("Failed to persist new user", err))
+		return nil, "", exception.NewRepositoryError(err)
 	}
 
 	// 5. Generate verification code
@@ -83,7 +82,7 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 
 	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
-		panic(exception.NewJWTError(err))
+		return nil, "", exception.NewJWTError(err)
 	}
 
 	return user, token, nil
@@ -107,7 +106,7 @@ func (s *AuthService) LoginUser(email string, password string) (*model.UserModel
 
 	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
-		panic(exception.NewJWTError(err))
+		return nil, "", exception.NewJWTError(err)
 	}
 
 	return user, token, nil
@@ -127,20 +126,20 @@ func (s *AuthService) VerifyEmail(email, code string) (string, error) {
 
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		panic(exception.NewRepositoryVerificationError(err))
+		return "", exception.NewRepositoryVerificationError(err)
 	}
 
 	user.Verified = true
 	_, err = s.UserRepo.UpdateUser(user)
 	if err != nil {
-		panic(exception.NewRepositoryUpdateError(err))
+		return "", exception.NewRepositoryUpdateError(err)
 	}
 
 	s.VerificationRepo.DeleteVerificationCode(ctx, email)
 
 	token, err := s.JwtService.GenerateToken(user.ID)
 	if err != nil {
-		panic(exception.NewJWTError(err))
+		return "", exception.NewJWTError(err)
 	}
 
 	return token, nil
@@ -149,7 +148,7 @@ func (s *AuthService) VerifyEmail(email, code string) (string, error) {
 func (s *AuthService) ResendVerificationEmail(email string) error {
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		panic(exception.NewRepositoryVerificationError(err))
+		return exception.NewRepositoryVerificationError(err)
 	}
 
 	if user == nil {
