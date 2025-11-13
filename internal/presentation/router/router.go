@@ -17,6 +17,7 @@ func SetupRouter(
 	authHandler handler.AuthHandler,
 	followHandler handler.FollowHandler,
 	jwtMiddleware middleware.JWTMiddleware,
+	challengeHandler handler.ChallengeHandler,
 ) *gin.Engine {
 	r := gin.Default()
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -34,6 +35,9 @@ func SetupRouter(
 		v1.GET("/users/:user_id/followers", followHandler.GetFollowers)
 		v1.GET("/users/:user_id/following", followHandler.GetFollowing)
 		v1.GET("/users/:user_id/follow-stats", followHandler.GetFollowStats)
+
+		v1.GET("/challenges", challengeHandler.GetAllChallenges)
+		v1.GET("/challenges/:id", challengeHandler.GetChallengeByID)
 	}
 
 	// Protected routes
@@ -51,7 +55,11 @@ func SetupRouter(
 		protected.DELETE("/follow", followHandler.Unfollow)
 		protected.DELETE("/followers/remove", followHandler.RemoveFollower)
 		protected.GET("/follow/status/:user_id", followHandler.CheckFollowStatus)
- 	}
+
+		protected.POST("/challenges", challengeHandler.CreateChallenge)
+		protected.PUT("/challenges/:id", challengeHandler.UpdateChallenge)
+		protected.DELETE("/challenges/:id", challengeHandler.DeleteChallenge)
+	}
 
 	return r
 }

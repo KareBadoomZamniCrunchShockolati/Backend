@@ -22,7 +22,7 @@ func toChallengeEntity(m *model.ChallengeModel) *entity.ChallengeEntity {
 	return &entity.ChallengeEntity{
 		Title:           m.Title,
 		Description:     m.Description,
-		Category:        m.Category,
+		CategoryID:      m.CategoryID,
 		CreatorID:       m.CreatorID,
 		MaxParticipants: m.MaxParticipants,
 		Visibility:      uint(m.Visibility),
@@ -31,7 +31,7 @@ func toChallengeEntity(m *model.ChallengeModel) *entity.ChallengeEntity {
 		EndTime:         m.EndTime,
 		Timezone:        m.Timezone,
 		ImageURL:        m.ImageURL,
-		Stopped:         m.Stopped,
+		IsStopped:       m.IsStopped,
 	}
 }
 
@@ -40,7 +40,7 @@ func toChallengeModel(e *entity.ChallengeEntity) *model.ChallengeModel {
 		ID:              e.ID,
 		Title:           e.Title,
 		Description:     e.Description,
-		Category:        e.Category,
+		CategoryID:      e.CategoryID,
 		CreatorID:       e.CreatorID,
 		MaxParticipants: e.MaxParticipants,
 		Visibility:      enum.ChallengeVisibility(e.Visibility),
@@ -48,7 +48,7 @@ func toChallengeModel(e *entity.ChallengeEntity) *model.ChallengeModel {
 		EndTime:         e.EndTime,
 		Timezone:        e.Timezone,
 		ImageURL:        e.ImageURL,
-		Stopped:         e.Stopped,
+		IsStopped:         e.IsStopped,
 		CreatedAt:       e.CreatedAt,
 		UpdatedAt:       e.UpdatedAt,
 		// Participants:  toParticipantModels(e.Participants),

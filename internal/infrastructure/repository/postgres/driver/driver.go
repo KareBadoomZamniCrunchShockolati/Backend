@@ -31,6 +31,7 @@ func InitPostgresDB(dsn string) (*gorm.DB, error) {
 		&entity.FollowEntity{},
 		&entity.ChallengeEntity{},
 		&entity.ChallengeRequestEntity{},
+		&entity.ChallengeCategoryEntity{},
 	); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 		return nil, err

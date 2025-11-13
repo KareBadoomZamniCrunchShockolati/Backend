@@ -1,4 +1,3 @@
-// internal/domain/exception/not_found.go
 package exception
 
 import (

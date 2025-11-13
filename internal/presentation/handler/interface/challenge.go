@@ -7,6 +7,7 @@ import (
 type ChallengeHandler interface {
 	CreateChallenge(c *gin.Context)
 	GetChallengeByID(c *gin.Context)
+	GetAllChallenges(c *gin.Context)
 	UpdateChallenge(c *gin.Context)
 	DeleteChallenge(c *gin.Context)
 

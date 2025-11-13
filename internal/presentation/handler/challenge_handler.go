@@ -3,7 +3,6 @@ package handler
 import (
 	"net/http"
 	"strconv"
-
 	"challenge-app/internal/application/dto"
 	"challenge-app/internal/domain/exception"
 	serviceinterface "challenge-app/internal/application/service/interface"
@@ -12,12 +11,13 @@ import (
 )
 
 type ChallengeHandler struct {
-	Challengeservice serviceinterface.ChallengeServicer
+	ChallengeServicer serviceinterface.ChallengeServicer
 }
 
 func NewChallengeHandler(Challengeservice serviceinterface.ChallengeServicer) *ChallengeHandler {
-	return &ChallengeHandler{Challengeservice: Challengeservice}
+	return &ChallengeHandler{ChallengeServicer: Challengeservice}
 }
+
 
 func (h *ChallengeHandler) CreateChallenge(c *gin.Context) {
 	var input dto.CreateChallengeDTO
@@ -26,35 +26,61 @@ func (h *ChallengeHandler) CreateChallenge(c *gin.Context) {
 		return
 	}
 
-	challenge, err := h.Challengeservice.CreateChallenge(&input)
+	challenge, err := h.ChallengeServicer.CreateChallenge(&input)
 	if err != nil {
 		handleServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, challenge)
+	responseDTO, err := h.ChallengeServicer.ToChallengeResponseDTO(challenge, getCurrentUserID(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build response"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, responseDTO)
 }
 
 func (h *ChallengeHandler) GetChallengeByID(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	id, err := parseIDParam(c, "id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid challenge id"})
 		return
 	}
 
-	challenge, err := h.Challengeservice.GetChallengeByID(uint(id))
+	challenge, err := h.ChallengeServicer.GetChallengeByID(id)
 	if err != nil {
 		handleServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, challenge)
+	responseDTO, err := h.ChallengeServicer.ToChallengeResponseDTO(challenge, getCurrentUserID(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build response"})
+		return
+	}
+
+	c.JSON(http.StatusOK, responseDTO)
+}
+
+func (h *ChallengeHandler) GetAllChallenges(c *gin.Context) {
+	challenges, err := h.ChallengeServicer.GetAllChallenges()
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	responseDTOs, err := h.ChallengeServicer.ToChallengeResponseDTOs(challenges, getCurrentUserID(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build response"})
+		return
+	}
+
+	c.JSON(http.StatusOK, responseDTOs)
 }
 
 func (h *ChallengeHandler) UpdateChallenge(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	id, err := parseIDParam(c, "id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid challenge id"})
 		return
@@ -66,24 +92,29 @@ func (h *ChallengeHandler) UpdateChallenge(c *gin.Context) {
 		return
 	}
 
-	updated, err := h.Challengeservice.UpdateChallenge(uint(id), getCurrentUserID(c), &input)
+	updated, err := h.ChallengeServicer.UpdateChallenge(id, getCurrentUserID(c), &input)
 	if err != nil {
 		handleServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, updated)
+	responseDTO, err := h.ChallengeServicer.ToChallengeResponseDTO(updated, getCurrentUserID(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build response"})
+		return
+	}
+
+	c.JSON(http.StatusOK, responseDTO)
 }
 
 func (h *ChallengeHandler) DeleteChallenge(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	id, err := parseIDParam(c, "id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid challenge id"})
 		return
 	}
 
-	if err := h.Challengeservice.DeleteChallenge(uint(id), getCurrentUserID(c)); err != nil {
+	if err := h.ChallengeServicer.DeleteChallenge(id, getCurrentUserID(c)); err != nil {
 		handleServiceError(c, err)
 		return
 	}
@@ -92,35 +123,21 @@ func (h *ChallengeHandler) DeleteChallenge(c *gin.Context) {
 }
 
 
-// --- Helper functions ---
-
-func getPagination(c *gin.Context) (offset, limit int) {
-	offsetStr := c.Query("offset")
-	limitStr := c.Query("limit")
-
-	offset = 0
-	limit = 10
-
-	if offsetStr != "" {
-		if o, err := strconv.Atoi(offsetStr); err == nil {
-			offset = o
-		}
-	}
-
-	if limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil {
-			limit = l
-		}
-	}
-	return
-}
-
 func getCurrentUserID(c *gin.Context) uint {
 	userID, exists := c.Get("currentUserID")
 	if !exists {
 		return 0
 	}
 	return userID.(uint)
+}
+
+func parseIDParam(c *gin.Context, param string) (uint, error) {
+	idStr := c.Param(param)
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return uint(id), nil
 }
 
 func handleServiceError(c *gin.Context, err error) {

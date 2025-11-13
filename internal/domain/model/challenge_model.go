@@ -9,7 +9,7 @@ type ChallengeModel struct {
 	ID              uint
 	Title           string
 	Description     string
-	Category        string
+	CategoryID      uint
 	CreatorID       uint
 	MaxParticipants uint
 	Visibility      enum.ChallengeVisibility
@@ -18,10 +18,8 @@ type ChallengeModel struct {
 	Timezone        string
 	StartTime       time.Time
 	EndTime         *time.Time
-	Stopped         bool
+	IsStopped       bool
+	CommentsEnabled bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
-
-	Participants []*ChallengeParticipant
-	Comments     []*ChallengeComment
 }

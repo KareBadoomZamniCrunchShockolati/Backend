@@ -30,6 +30,9 @@ func NewUserService(repo repository.UserRepository, vRepo repository.Verificatio
 func (s *UserService) GetUserByID(id uint) (*model.UserModel, error) {
 	user, err := s.UserRepo.GetUserByID(id)
 	if err != nil {
+		if _, ok := err.(*exception.NotFoundException); ok {
+			return nil, err
+		}
 		return nil, exception.NewRepositoryError(err)
 	}
 	if user == nil {
@@ -41,6 +44,9 @@ func (s *UserService) GetUserByID(id uint) (*model.UserModel, error) {
 func (s *UserService) GetAllUsers() ([]model.UserModel, error) {
 	users, err := s.UserRepo.GetAllUsers()
 	if err != nil {
+		if _, ok := err.(*exception.NotFoundException); ok {
+			return nil, err
+		}
 		return nil, exception.NewRepositoryError(err)
 	}
 	if users == nil {

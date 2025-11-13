@@ -12,13 +12,20 @@ import (
 
 type ChallengeService struct {
 	ChallengeRepo repository.ChallengeRepository
+	UserRepo      repository.UserRepository
+	CategoryRepo  repository.CategoryRepository
 }
 
-func NewChallengeService(chRepo repository.ChallengeRepository) *ChallengeService {
+func NewChallengeService(
+	chRepo repository.ChallengeRepository, userRepo repository.UserRepository, categoryRepo repository.CategoryRepository,
+) *ChallengeService {
 	return &ChallengeService{
 		ChallengeRepo: chRepo,
+		UserRepo:      userRepo,
+		CategoryRepo:  categoryRepo,
 	}
 }
+
 
 func toChallengeModelFromCreateDTO(input *dto.CreateChallengeDTO) *model.ChallengeModel {
 	if input == nil {
@@ -28,7 +35,7 @@ func toChallengeModelFromCreateDTO(input *dto.CreateChallengeDTO) *model.Challen
 	return &model.ChallengeModel{
 		Title:           input.Title,
 		Description:     input.Description,
-		Category:        input.Category,
+		CategoryID:      input.CategoryID,
 		CreatorID:       input.CreatorID,
 		MaxParticipants: input.MaxParticipants,
 		Visibility:      input.Visibility,
@@ -37,7 +44,7 @@ func toChallengeModelFromCreateDTO(input *dto.CreateChallengeDTO) *model.Challen
 		EndTime:         &input.EndTime,
 		Timezone:        input.Timezone,
 		ImageURL:        input.ImageURL,
-		Stopped:         false,
+		IsStopped:       false,
 	}
 }
 
@@ -52,8 +59,8 @@ func applyUpdateDTOToChallenge(existing *model.ChallengeModel, input *dto.Update
 	if input.Description != nil {
 		existing.Description = *input.Description
 	}
-	if input.Category != nil {
-		existing.Category = *input.Category
+	if input.CategoryID != nil {
+		existing.CategoryID = *input.CategoryID
 	}
 	if input.MaxParticipants != nil {
 		existing.MaxParticipants = *input.MaxParticipants
@@ -76,8 +83,62 @@ func applyUpdateDTOToChallenge(existing *model.ChallengeModel, input *dto.Update
 	if input.EndTime != nil {
 		existing.EndTime = input.EndTime
 	}
+	if input.CommentsEnabled != nil {
+		existing.CommentsEnabled = *input.CommentsEnabled
+	}
+	if input.IsStopped != nil {
+		existing.IsStopped = *input.IsStopped
+	}
 }
 
+
+func (s *ChallengeService) ToChallengeResponseDTO(ch *model.ChallengeModel, currentUserID uint) (*dto.ChallengeResponseDTO, error) {
+	creator, err := s.UserRepo.GetUserByID(ch.CreatorID)
+	if err != nil {
+		return nil, err
+	}
+
+	category, err := s.CategoryRepo.GetCategoryByID(ch.CategoryID)
+	if err != nil {
+		return nil, err
+	}
+
+	// count, err := s.ChallengeRepo.GetParticipantCount(ch.ID)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	return &dto.ChallengeResponseDTO{
+		ID:                  ch.ID,
+		Title:               ch.Title,
+		Description:         ch.Description,
+		CategoryName:        category.Name,
+		CreatorUsername:     creator.Username,
+		MaxParticipants:     ch.MaxParticipants,
+		CurrentParticipants: 0,//implement get participant count later and fix this 
+		Visibility:          ch.Visibility,
+		ImageURL:            ch.ImageURL,
+		Rule:                ch.Rule,
+		Timezone:            ch.Timezone,
+		StartTime:           ch.StartTime,
+		EndTime:             ch.EndTime,
+		IsStopped:           ch.IsStopped,
+		CommentsEnabled:     ch.CommentsEnabled,
+		CreatedAt:           ch.CreatedAt,
+	}, nil
+}
+
+func (s *ChallengeService) ToChallengeResponseDTOs(challenges []*model.ChallengeModel, currentUserID uint) ([]*dto.ChallengeResponseDTO, error) {
+	result := make([]*dto.ChallengeResponseDTO, 0, len(challenges))
+	for _, ch := range challenges {
+		dto, err := s.ToChallengeResponseDTO(ch, currentUserID)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, dto)
+	}
+	return result, nil
+}
 
 func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*model.ChallengeModel, error) {
 	if input == nil {
