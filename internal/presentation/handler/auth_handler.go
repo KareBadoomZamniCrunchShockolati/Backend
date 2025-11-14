@@ -7,6 +7,7 @@ import (
 	"challenge-app/pkg/validation"
 	"errors"
 	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,7 +35,7 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 	var req dto.SignupRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		
+
 		validationMap := validation.FormatValidationError(err)
 
 		details := make(map[string]any, len(validationMap))
@@ -46,7 +47,7 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 		return
 
 	}
-	
+
 	user, token, err := h.AuthService.RegisterUser(req.Username, req.Email, req.Password, req.Bio)
 	if err != nil {
 		var clientErr exception.ClientError
@@ -54,7 +55,7 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 			c.Error(err)
 			return
 		}
-		
+
 		panic(err)
 	}
 
@@ -65,7 +66,6 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 		},
 	})
 }
-
 
 // Login godoc
 // @Summary Login existing user
@@ -118,12 +118,12 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 
 	token, err := h.AuthService.VerifyEmail(req.Email, req.Code)
 	if err != nil {
-		var clientErr exception.ClientError		
+		var clientErr exception.ClientError
 		if errors.As(err, &clientErr) {
 			c.Error(err)
 			return
 		}
-		
+
 		panic(err)
 	}
 
@@ -147,7 +147,7 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 			c.Error(err)
 			return
 		}
-		
+
 		panic(err)
 	}
 

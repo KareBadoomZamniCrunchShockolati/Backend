@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	ErrorTypeAuthMissingID        = "AUTH_MISSING_ID"
+	ErrorTypeAuthMissingID          = "AUTH_MISSING_ID"
 	ErrorTypeAuthInvalidCredentials = "AUTH_INVALID_CREDENTIALS"
 )
 

@@ -5,16 +5,16 @@ import (
 )
 
 const (
-	ErrorTypeDBOperationFailed   = "DB_OPERATION_FAILED"
-	ErrorTypeHashFail            = "SYSTEM_HASH_FAIL"
-	ErrorTypeJWTFail             = "SYSTEM_JWT_FAIL"
-	ErrorTypeVerifyFail          = "SYSTEM_VERIFY_FAIL"
-	ErrorTypeEmailFail           = "SYSTEM_EMAIL_FAIL"
-	ErrorTypeDBLoginFail         = "DB_LOGIN_FAIL"
-	ErrorTypeDBVerifyFail        = "DB_VERIFY_FAIL"
-	ErrorTypeDBUpdateFail        = "DB_UPDATE_FAIL"
-	ErrorTypeVerifyCodeGenFail   = "VERIFY_CODE_GEN_FAIL"
-	ErrorTypeContextCastFail     = "CONTEXT_CAST_FAIL"
+	ErrorTypeDBOperationFailed = "DB_OPERATION_FAILED"
+	ErrorTypeHashFail          = "SYSTEM_HASH_FAIL"
+	ErrorTypeJWTFail           = "SYSTEM_JWT_FAIL"
+	ErrorTypeVerifyFail        = "SYSTEM_VERIFY_FAIL"
+	ErrorTypeEmailFail         = "SYSTEM_EMAIL_FAIL"
+	ErrorTypeDBLoginFail       = "DB_LOGIN_FAIL"
+	ErrorTypeDBVerifyFail      = "DB_VERIFY_FAIL"
+	ErrorTypeDBUpdateFail      = "DB_UPDATE_FAIL"
+	ErrorTypeVerifyCodeGenFail = "VERIFY_CODE_GEN_FAIL"
+	ErrorTypeContextCastFail   = "CONTEXT_CAST_FAIL"
 )
 
 // InternalServerException represents a 500 Internal Server Error
@@ -114,4 +114,3 @@ func NewContextCastError(err error) *InternalServerException {
 		err,
 	)
 }
-

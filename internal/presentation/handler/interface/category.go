@@ -2,7 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-) 
+)
 
 type CategoryHandler interface {
 	CreateCategory(c *gin.Context)

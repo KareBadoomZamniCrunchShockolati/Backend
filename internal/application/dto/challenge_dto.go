@@ -6,13 +6,13 @@ import (
 )
 
 type CreateChallengeDTO struct {
-	CreatorID       uint                     `json:"creator_id validate:"required"`
-	Title           string                   `json:"title validate:"required,min=5,max=150"`
-	Description     string                   `json:"description validate:"required,min=10,max=280"`
-	CategoryID      uint                     `json:"category validate:"required"`
+	CreatorID       uint                     `json:"creator_id" validate:"required"`
+	Title           string                   `json:"title" validate:"required,min=5,max=150"`
+	Description     string                   `json:"description" validate:"required,min=10,max=280"`
+	CategoryID      uint                     `json:"category_id" validate:"required"`
 	MaxParticipants uint                     `json:"max_participants" validate:"omitempty,min=0"`
-	Visibility      enum.ChallengeVisibility `json:"visibility validate:"required,oneof=1 2 3"`
-	Rule            string                   `json:"rule validate:"required""`
+	Visibility      enum.ChallengeVisibility `json:"visibility" validate:"required,oneof=1 2 3"`
+	Rule            string                   `json:"rule" validate:"required"`
 	CommentsEnabled bool                     `json:"comments_enabled"`
 	StartTime       time.Time                `json:"start_time"`
 	EndTime         time.Time                `json:"end_time"`

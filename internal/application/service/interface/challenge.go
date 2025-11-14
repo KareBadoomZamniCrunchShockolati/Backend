@@ -1,3 +1,4 @@
+// internal/application/service/interface/challenge.go
 package serviceinterface
 
 import (
@@ -6,33 +7,39 @@ import (
 )
 
 type ChallengeServicer interface {
-	// Challenge CRUD
 	CreateChallenge(input *dto.CreateChallengeDTO) (*model.ChallengeModel, error)
 	UpdateChallenge(id uint, currentUserID uint, input *dto.UpdateChallengeDTO) (*model.ChallengeModel, error)
-	GetChallengeByID(id uint) (*model.ChallengeModel, error)
-	GetAllChallenges() ([]*model.ChallengeModel, error)
 	DeleteChallenge(challengeID uint, currentUserID uint) error
-    ToChallengeResponseDTO(ch *model.ChallengeModel, currentUserID uint) (*dto.ChallengeResponseDTO, error)
-	ToChallengeResponseDTOs(challenges []*model.ChallengeModel, currentUserID uint) ([]*dto.ChallengeResponseDTO, error)
+	GetChallengeByID(id uint, userID uint) (*model.ChallengeModel, error)
+	GetAllChallenges() ([]*model.ChallengeModel, error)
+	ListByCategory(categoryID uint, offset, limit int) ([]*model.ChallengeModel, error)
+	ListByCreator(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
 
-	// StopChallenge(challengeID uint) error
+	StopChallenge(challengeID, currentUserID uint) error
 
-	// Listing challenges
-	// ListPublicChallenges(offset, limit int) ([]*model.ChallengeModel, error)
-	// ListPrivateChallengesForUser(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
-	// ListInviteChallengesForUser(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
-	// ListByCreator(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
-	// ListByCategory(category string, offset, limit int) ([]*model.ChallengeModel, error)
+	JoinPublicChallenge(userID, challengeID uint) error
+	JoinPrivateChallenge(userID, challengeID uint) error
+	InviteUserToChallenge(inviterID, challengeID, inviteeID uint) (*model.ChallengeInvite, error) 
+	RemoveParticipant(challengeID, removerID, participantID uint) error
+	ListChallengeParticipants(challengeID uint, userID uint) ([]*model.ChallengeParticipant, error)
 
-	// Participants
-	// SubscribeChallenge(userID, challengeID uint) error
-	// UnsubscribeChallenge(userID, challengeID uint) error
-	// ListChallengeParticipants(challengeID uint) ([]*model.ChallengeParticipant, error)
-	// ListParticipantsInUserFollowings(challengeID, userID uint) ([]*model.ChallengeParticipant, error)
+	AcceptJoinRequest(requestID, currentUserID uint) error
+	DeclineJoinRequest(requestID, currentUserID uint) error
+	AcceptInvite(inviteID, currentUserID uint) error
+	DeclineInvite(inviteID, currentUserID uint) error
 
-	// Comments
-	// AddComment(comment *model.ChallengeComment) error
-	// UpdateComment(comment *model.ChallengeComment) error
-	// DeleteComment(commentID uint) error
-	// ListComments(challengeID uint, offset, limit int) ([]*model.ChallengeComment, error)
+	LeaveChallenge(userID, challengeID uint) error
+
+	AddComment(userID uint, input *dto.AddCommentDTO) (*model.ChallengeComment, error)
+	GetAllComments(challengeID uint, offset, limit int) ([]*model.ChallengeComment, error)
+
+	GetRequestsSentByUser(userID uint) ([]*model.ChallengeRequest, error)
+	GetInvitesSentToUser(userID uint) ([]*model.ChallengeInvite, error)
+	GetInvitesSentFromChallenge(challengeID uint, creatorID uint) ([]*model.ChallengeInvite, error)
+	GetRequestsSentToChallenge(challengeID uint, creatorID uint) ([]*model.ChallengeRequest, error)
+
+	IsUserParticipant(challengeID, userID uint) (bool, error)
+	IsChallengeCreator(challengeID, userID uint) (bool, error)
+	GetChallengeParticipantCount(challengeID uint) (int, error)
+	GetChallengesUserIsParticipating(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
 }

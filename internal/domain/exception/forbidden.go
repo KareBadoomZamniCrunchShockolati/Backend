@@ -15,7 +15,7 @@ func NewForbiddenException(msg string, code string) *ForbiddenException {
 			code,
 			msg,
 			http.StatusForbidden, // 403
-			nil, 
+			nil,
 		),
 	}
 }

@@ -1,19 +1,21 @@
 package postgres
 
 import (
-    "challenge-app/internal/domain/model"
-	"challenge-app/internal/infrastructure/repository/postgres/entity"
 	"challenge-app/internal/application/dto"
-    "challenge-app/internal/domain/exception"
-    "gorm.io/gorm"
+	"challenge-app/internal/domain/exception"
+	"challenge-app/internal/domain/model"
+	"challenge-app/internal/infrastructure/repository/postgres/entity"
+	"fmt"
+
+	"gorm.io/gorm"
 )
 
 type CategoryRepository struct {
-    DB *gorm.DB
+	DB *gorm.DB
 }
 
 func NewCategoryRepository(db *gorm.DB) *CategoryRepository {
-    return &CategoryRepository{DB: db}
+	return &CategoryRepository{DB: db}
 }
 
 func ToCategoryModel(e *entity.ChallengeCategoryEntity) *model.ChallengeCategoryModel {
@@ -64,7 +66,7 @@ func (r *CategoryRepository) GetCategoryByID(id uint) (*model.ChallengeCategoryM
 	var entity entity.ChallengeCategoryEntity
 	if err := r.DB.First(&entity, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, exception.NewNotFoundException("Category", string(id), "CATEGORY_NOT_FOUND")
+			return nil, exception.NewNotFoundException("Category", fmt.Sprintf("%d", id), "CATEGORY_NOT_FOUND")
 		}
 		return nil, exception.NewRepositoryError(err)
 	}
@@ -100,7 +102,7 @@ func (r *CategoryRepository) UpdateCategory(category *model.ChallengeCategoryMod
 	var entity entity.ChallengeCategoryEntity
 	if err := r.DB.First(&entity, category.ID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, exception.NewNotFoundException("Category", string(category.ID), "CATEGORY_NOT_FOUND")
+			return nil, exception.NewNotFoundException("Category", fmt.Sprintf("%d", category.ID), "CATEGORY_NOT_FOUND")
 		}
 		return nil, exception.NewRepositoryError(err)
 	}

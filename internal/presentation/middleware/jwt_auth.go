@@ -1,12 +1,12 @@
 package middleware
 
 import (
-	"strings"
-	"challenge-app/pkg/security"
-	"github.com/gin-gonic/gin"
 	"challenge-app/internal/domain/exception"
-)
+	"challenge-app/pkg/security"
+	"strings"
 
+	"github.com/gin-gonic/gin"
+)
 
 type JWTMiddleware struct {
 	JWTService security.JWTService
@@ -24,7 +24,7 @@ func (m *JWTMiddleware) Handler() gin.HandlerFunc {
 				"Missing Authorization header. Token is required.",
 				"AUTH_HEADER_MISSING",
 			))
-			c.Abort() 
+			c.Abort()
 			return
 		}
 		if !strings.HasPrefix(authHeader, "Bearer ") {
@@ -35,7 +35,7 @@ func (m *JWTMiddleware) Handler() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		
+
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenStr == "" {
 			c.Error(exception.NewUnauthorizedException(
@@ -54,7 +54,6 @@ func (m *JWTMiddleware) Handler() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		
 
 		c.Set("userID", claims.UserID)
 		c.Next()

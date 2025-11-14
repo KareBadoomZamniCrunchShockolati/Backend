@@ -1,16 +1,15 @@
 package entity
 
-import(
-	"challenge-app/internal/domain/enum"
-	"gorm.io/gorm"
-)
-
+import "gorm.io/gorm"
 
 type ChallengeParticipantEntity struct {
 	gorm.Model
-	ChallengeID uint   `gorm:"not null;index"`
-	UserID      uint   `gorm:"not null;index"`
-	Status      enum.ParticipantStatus `gorm:"size:20;not null"` 
+	ChallengeID uint `gorm:"not null;index"`
+	UserID      uint `gorm:"not null;index"`
+	Status      uint `gorm:"not null;default:1"`
+
+	Challenge ChallengeEntity `gorm:"foreignKey:ChallengeID"`
+	User      UserEntity      `gorm:"foreignKey:UserID"`
 }
 
 func (ChallengeParticipantEntity) TableName() string {

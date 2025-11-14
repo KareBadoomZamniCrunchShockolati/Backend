@@ -1,22 +1,17 @@
 package entity
 
-import (
-	"challenge-app/internal/domain/enum"
-	"time"
-)
+import "gorm.io/gorm"
 
 type ChallengeRequestEntity struct {
-	ID          uint                   `gorm:"primaryKey;autoIncrement"`
-	ChallengeID uint                   `gorm:"not null;index"`
-	RequesterID uint                   `gorm:"not null;index"`
-	Status      enum.RequestStatus     `gorm:"not null;type:int"`
-	CreatedAt   time.Time              `gorm:"autoCreateTime"`
-	UpdatedAt   time.Time              `gorm:"autoUpdateTime"`
+	gorm.Model
+	ChallengeID uint `gorm:"not null;index"`
+	UserID      uint `gorm:"not null;index"`
+	Status      uint `gorm:"not null;default:1"`
 
-	Challenge   *ChallengeEntity `gorm:"foreignKey:ChallengeID;constraint:OnDelete:CASCADE"`
-	Requester   *UserEntity      `gorm:"foreignKey:RequesterID;constraint:OnDelete:CASCADE"`
+	Challenge ChallengeEntity `gorm:"foreignKey:ChallengeID"`
+	User      UserEntity      `gorm:"foreignKey:UserID"`
 }
 
 func (ChallengeRequestEntity) TableName() string {
-	return "challenge_requests"
+	return "challenge_join_requests"
 }

@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"log"
 
-	"gorm.io/driver/postgres"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
+
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -32,6 +33,9 @@ func InitPostgresDB(dsn string) (*gorm.DB, error) {
 		&entity.ChallengeEntity{},
 		&entity.ChallengeRequestEntity{},
 		&entity.ChallengeCategoryEntity{},
+		&entity.ChallengeParticipantEntity{},
+		&entity.ChallengeInviteEntity{},
+		&entity.ChallengeCommentEntity{},
 	); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 		return nil, err

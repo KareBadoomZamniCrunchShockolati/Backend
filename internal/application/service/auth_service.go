@@ -1,10 +1,10 @@
 package service
 
 import (
+	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
 	"challenge-app/pkg/email"
-	"challenge-app/internal/domain/exception"
 	"challenge-app/pkg/security"
 	"context"
 	"crypto/rand"
@@ -91,13 +91,12 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 func (s *AuthService) LoginUser(email string, password string) (*model.UserModel, string, error) {
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		panic(exception.NewDBLoginError(err))
+		return nil, "", exception.NewDBLoginError(err)
 	}
-	// 2. Check the password hash
-	// Use the PasswordService to compare the plaintext password with the stored hash
+
 	if user == nil {
-        return nil, "", exception.NewAuthInvalidCredentials()
-    }
+		return nil, "", exception.NewAuthInvalidCredentials()
+	}
 
 	match := s.PasswordSvc.CheckPasswordHash(password, user.PasswordHash)
 	if !match {

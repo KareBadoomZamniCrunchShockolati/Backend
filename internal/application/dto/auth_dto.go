@@ -24,7 +24,7 @@ type VerifyRequest struct {
 	Code  string `json:"code" binding:"required,len=6"`
 }
 type ResendVerificationRequest struct {
-	Email string `json:"email" binding:"required,email"`
+	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }
 

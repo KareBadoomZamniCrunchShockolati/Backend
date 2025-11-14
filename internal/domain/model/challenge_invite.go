@@ -5,11 +5,12 @@ import (
 	"time"
 )
 
-type ChallengeParticipant struct {
+type ChallengeInvite struct {
 	ID          uint
 	ChallengeID uint
-	UserID      uint
-	Status      enum.ParticipantStatus
+	InviterID   uint
+	InviteeID   uint
+	Status      enum.InviteStatus
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

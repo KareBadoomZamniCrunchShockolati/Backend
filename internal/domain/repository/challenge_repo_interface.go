@@ -3,27 +3,21 @@ package repository
 import "challenge-app/internal/domain/model"
 
 type ChallengeRepository interface {
-	// CRUD 
+	// CRUD
 	CreateChallenge(challenge *model.ChallengeModel) (*model.ChallengeModel, error)
-	GetAllChallenges() ([]*model.ChallengeModel, error)
 	GetChallengeByID(id uint) (*model.ChallengeModel, error)
+	GetAllChallenges() ([]*model.ChallengeModel, error)
 	UpdateChallenge(challenge *model.ChallengeModel) (*model.ChallengeModel, error)
 	DeleteChallenge(id uint) error
 	StopChallenge(id uint) error
 
-	// ListPublicChallenges(offset, limit int) ([]*model.ChallengeModel, error)
-	// ListPrivateChallengesForUser(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
-	// ListInviteChallengesForUser(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
+	// List challenges with filters
+	ListPublicChallenges(offset, limit int) ([]*model.ChallengeModel, error)
+	ListChallengesByCreator(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
+	ListChallengesByCategory(categoryID uint, offset, limit int) ([]*model.ChallengeModel, error)
+	SearchChallengesByCategory(categoryName string, offset, limit int) ([]*model.ChallengeModel, error)
+	ListChallengesByParticipant(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
 
-	// Challenges created by a specific user
-	// ListByCreator(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
-
-	// Challenges the user is participating in
-	// ListByParticipant(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
-
-	// Challenges by category
-	// ListByCategory(category string, offset, limit int) ([]*model.ChallengeModel, error)
-
-	// Exists(challengeID uint) (bool, error)
-	// IsCreator(userID, challengeID uint) (bool, error)
+	// Check if user is challenge creator
+	IsChallengeCreator(challengeID, userID uint) (bool, error)
 }

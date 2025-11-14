@@ -1,156 +1,468 @@
+// internal/presentation/handler/challenge_handler.go
 package handler
 
 import (
-	"net/http"
-	"strconv"
 	"challenge-app/internal/application/dto"
-	"challenge-app/internal/domain/exception"
 	serviceinterface "challenge-app/internal/application/service/interface"
+	"challenge-app/internal/domain/enum"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 type ChallengeHandler struct {
-	ChallengeServicer serviceinterface.ChallengeServicer
+	challengeService serviceinterface.ChallengeServicer
 }
 
-func NewChallengeHandler(Challengeservice serviceinterface.ChallengeServicer) *ChallengeHandler {
-	return &ChallengeHandler{ChallengeServicer: Challengeservice}
+func NewChallengeHandler(
+	challengeService serviceinterface.ChallengeServicer,
+) *ChallengeHandler {
+	return &ChallengeHandler{
+		challengeService: challengeService,
+	}
 }
 
-
-func (h *ChallengeHandler) CreateChallenge(c *gin.Context) {
-	var input dto.CreateChallengeDTO
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
-		return
+func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
+	type createChallengeParams struct {
+		Title           string `json:"title" validate:"required,min=5,max=150"`
+		Description     string `json:"description" validate:"required,min=10,max=280"`
+		CategoryID      uint   `json:"category_id" validate:"required"`
+		MaxParticipants uint   `json:"max_participants" validate:"omitempty,min=0"`
+		Visibility      uint   `json:"visibility" validate:"required,oneof=1 2 3"`
+		Rule            string `json:"rule" validate:"required"`
+		CommentsEnabled bool   `json:"comments_enabled"`
+		StartTime       string `json:"start_time" validate:"required"`
+		EndTime         string `json:"end_time" validate:"required"`
+		Timezone        string `json:"timezone"`
+		ImageURL        string `json:"image_url"`
 	}
-
-	challenge, err := h.ChallengeServicer.CreateChallenge(&input)
+	params := Validated[createChallengeParams](ctx)
+	userID, _ := ctx.Get("userID")
+	startTime, err := time.Parse(time.RFC3339, params.StartTime)
 	if err != nil {
-		handleServiceError(c, err)
-		return
+		panic("Invalid start time format: " + err.Error())
 	}
 
-	responseDTO, err := h.ChallengeServicer.ToChallengeResponseDTO(challenge, getCurrentUserID(c))
+	endTime, err := time.Parse(time.RFC3339, params.EndTime)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build response"})
-		return
+		panic("Invalid end time format: " + err.Error())
 	}
 
-	c.JSON(http.StatusCreated, responseDTO)
+	createChallengeDTO := &dto.CreateChallengeDTO{
+		CreatorID:       userID.(uint),
+		Title:           params.Title,
+		Description:     params.Description,
+		CategoryID:      params.CategoryID,
+		MaxParticipants: params.MaxParticipants,
+		Visibility:      enum.ChallengeVisibility(params.Visibility),
+		Rule:            params.Rule,
+		CommentsEnabled: params.CommentsEnabled,
+		StartTime:       startTime,
+		EndTime:         endTime,
+		Timezone:        params.Timezone,
+		ImageURL:        params.ImageURL,
+	}
+	challenge, err := h.challengeService.CreateChallenge(createChallengeDTO)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "Challenge created successfully", challenge)
 }
 
-func (h *ChallengeHandler) GetChallengeByID(c *gin.Context) {
-	id, err := parseIDParam(c, "id")
+func (h *ChallengeHandler) GetChallengeByID(ctx *gin.Context) {
+	type getChallengeParams struct {
+		ID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[getChallengeParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	challenge, err := h.challengeService.GetChallengeByID(params.ID, userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid challenge id"})
-		return
+		panic(err)
 	}
 
-	challenge, err := h.ChallengeServicer.GetChallengeByID(id)
-	if err != nil {
-		handleServiceError(c, err)
-		return
-	}
-
-	responseDTO, err := h.ChallengeServicer.ToChallengeResponseDTO(challenge, getCurrentUserID(c))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build response"})
-		return
-	}
-
-	c.JSON(http.StatusOK, responseDTO)
+	Response(ctx, 200, "", challenge)
 }
 
-func (h *ChallengeHandler) GetAllChallenges(c *gin.Context) {
-	challenges, err := h.ChallengeServicer.GetAllChallenges()
-	if err != nil {
-		handleServiceError(c, err)
-		return
+func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
+	type updateChallengeParams struct {
+		ID              uint    `uri:"id" validate:"required"`
+		Title           *string `json:"title"`
+		Description     *string `json:"description"`
+		CategoryID      *uint   `json:"category_id"`
+		MaxParticipants *uint   `json:"max_participants"`
+		Visibility      *uint   `json:"visibility"`
+		Rule            *string `json:"rule"`
+		CommentsEnabled *bool   `json:"comments_enabled"`
+		IsStopped       *bool   `json:"is_stopped"`
+		EndTime         *string `json:"end_time"`
+		ImageURL        *string `json:"image_url"`
+		StartTime       *string `json:"start_time"`
+		Timezone        *string `json:"timezone"`
+	}
+	params := Validated[updateChallengeParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	var startTime *time.Time
+	var endTime *time.Time
+	if params.StartTime != nil {
+		parsedTime, err := time.Parse(time.RFC3339, *params.StartTime)
+		if err != nil {
+			panic("Invalid start time format: " + err.Error())
+		}
+		startTime = &parsedTime
+	}
+	if params.EndTime != nil {
+		parsedTime, err := time.Parse(time.RFC3339, *params.EndTime)
+		if err != nil {
+			panic("Invalid end time format: " + err.Error())
+		}
+		endTime = &parsedTime
+	}
+	updateChallengeDTO := &dto.UpdateChallengeDTO{
+		Title:           params.Title,
+		Description:     params.Description,
+		CategoryID:      params.CategoryID,
+		MaxParticipants: params.MaxParticipants,
+		Visibility:      (*enum.ChallengeVisibility)(params.Visibility),
+		Rule:            params.Rule,
+		CommentsEnabled: params.CommentsEnabled,
+		IsStopped:       params.IsStopped,
+		EndTime:         endTime,
+		ImageURL:        params.ImageURL,
+		StartTime:       startTime,
+		Timezone:        params.Timezone,
 	}
 
-	responseDTOs, err := h.ChallengeServicer.ToChallengeResponseDTOs(challenges, getCurrentUserID(c))
+	updatedChallenge, err := h.challengeService.UpdateChallenge(params.ID, userID.(uint), updateChallengeDTO)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build response"})
-		return
+		panic(err)
 	}
 
-	c.JSON(http.StatusOK, responseDTOs)
+	Response(ctx, 200, "Challenge updated successfully", updatedChallenge)
 }
 
-func (h *ChallengeHandler) UpdateChallenge(c *gin.Context) {
-	id, err := parseIDParam(c, "id")
+func (h *ChallengeHandler) DeleteChallenge(ctx *gin.Context) {
+	type deleteChallengeParams struct {
+		ID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[deleteChallengeParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	err := h.challengeService.DeleteChallenge(params.ID, userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid challenge id"})
-		return
+		panic(err)
 	}
 
-	var input dto.UpdateChallengeDTO
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
-		return
-	}
-
-	updated, err := h.ChallengeServicer.UpdateChallenge(id, getCurrentUserID(c), &input)
-	if err != nil {
-		handleServiceError(c, err)
-		return
-	}
-
-	responseDTO, err := h.ChallengeServicer.ToChallengeResponseDTO(updated, getCurrentUserID(c))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build response"})
-		return
-	}
-
-	c.JSON(http.StatusOK, responseDTO)
+	Response(ctx, 200, "Challenge deleted successfully", nil)
 }
 
-func (h *ChallengeHandler) DeleteChallenge(c *gin.Context) {
-	id, err := parseIDParam(c, "id")
+func (h *ChallengeHandler) GetAllChallenges(ctx *gin.Context) {
+	challenges, err := h.challengeService.GetAllChallenges()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid challenge id"})
-		return
+		panic(err)
 	}
 
-	if err := h.ChallengeServicer.DeleteChallenge(id, getCurrentUserID(c)); err != nil {
-		handleServiceError(c, err)
-		return
-	}
-
-	c.Status(http.StatusNoContent)
+	Response(ctx, 200, "", challenges)
 }
 
-
-func getCurrentUserID(c *gin.Context) uint {
-	userID, exists := c.Get("currentUserID")
-	if !exists {
-		return 0
+func (h *ChallengeHandler) ListByCategory(ctx *gin.Context) {
+	type listByCategoryParams struct {
+		CategoryID uint `uri:"category_id" validate:"required"`
+		Page       int  `form:"page"`
+		PageSize   int  `form:"pageSize"`
 	}
-	return userID.(uint)
-}
-
-func parseIDParam(c *gin.Context, param string) (uint, error) {
-	idStr := c.Param(param)
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	params := Validated[listByCategoryParams](ctx)
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.ListByCategory(params.CategoryID, offset, limit)
 	if err != nil {
-		return 0, err
+		panic(err)
 	}
-	return uint(id), nil
+
+	Response(ctx, 200, "", challenges)
 }
 
-func handleServiceError(c *gin.Context, err error) {
-	switch e := err.(type) {
-	case *exception.NotFoundException:
-		c.JSON(http.StatusNotFound, gin.H{"error": e.Error()})
-	case *exception.BadRequestException:
-		c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
-	case *exception.UnauthorizedException:
-		c.JSON(http.StatusUnauthorized, gin.H{"error": e.Error()})
-	case *exception.ConflictException:
-		c.JSON(http.StatusConflict, gin.H{"error": e.Error()})
-	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+func (h *ChallengeHandler) ListByCreator(ctx *gin.Context) {
+	type listByCreatorParams struct {
+		UserID   uint `uri:"user_id" validate:"required"`
+		Page     int  `form:"page"`
+		PageSize int  `form:"pageSize"`
 	}
+	params := Validated[listByCreatorParams](ctx)
+
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+
+	challenges, err := h.challengeService.ListByCreator(params.UserID, offset, limit)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", challenges)
+}
+
+func (h *ChallengeHandler) StopChallenge(ctx *gin.Context) {
+	type stopChallengeParams struct {
+		ID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[stopChallengeParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	err := h.challengeService.StopChallenge(params.ID, userID.(uint))
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "Challenge stopped successfully", nil)
+}
+
+func (h *ChallengeHandler) JoinPublicChallenge(ctx *gin.Context) {
+	type joinPublicChallengeParams struct {
+		ID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[joinPublicChallengeParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	err := h.challengeService.JoinPublicChallenge(userID.(uint), params.ID)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "Successfully joined challenge", nil)
+}
+
+func (h *ChallengeHandler) JoinPrivateChallenge(ctx *gin.Context) {
+	type joinPrivateChallengeParams struct {
+		ID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[joinPrivateChallengeParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	err := h.challengeService.JoinPrivateChallenge(userID.(uint), params.ID)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "Join request sent successfully", nil)
+}
+
+func (h *ChallengeHandler) InviteUserToChallenge(ctx *gin.Context) {
+	type inviteUserParams struct {
+		ID        uint `uri:"id" validate:"required"`
+		InviteeID uint `json:"invitee_id" validate:"required"`
+	}
+	params := Validated[inviteUserParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	createdInvite, err := h.challengeService.InviteUserToChallenge(userID.(uint), params.ID, params.InviteeID)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "User invited successfully", createdInvite)
+}
+
+func (h *ChallengeHandler) RemoveParticipant(ctx *gin.Context) {
+	type removeParticipantParams struct {
+		ID            uint `uri:"id" validate:"required"`
+		ParticipantID uint `uri:"participant_id" validate:"required"`
+	}
+	params := Validated[removeParticipantParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	err := h.challengeService.RemoveParticipant(params.ID, userID.(uint), params.ParticipantID)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "Participant removed successfully", nil)
+}
+
+func (h *ChallengeHandler) ListChallengeParticipants(ctx *gin.Context) {
+	type listParticipantsParams struct {
+		ID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[listParticipantsParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	participants, err := h.challengeService.ListChallengeParticipants(params.ID, userID.(uint))
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", participants)
+}
+
+func (h *ChallengeHandler) AcceptJoinRequest(ctx *gin.Context) {
+	type acceptJoinRequestParams struct {
+		RequestID uint `uri:"request_id" validate:"required"`
+	}
+	params := Validated[acceptJoinRequestParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	err := h.challengeService.AcceptJoinRequest(params.RequestID, userID.(uint))
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "Join request accepted successfully", nil)
+}
+
+func (h *ChallengeHandler) DeclineJoinRequest(ctx *gin.Context) {
+	type declineJoinRequestParams struct {
+		RequestID uint `uri:"request_id" validate:"required"`
+	}
+	params := Validated[declineJoinRequestParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	err := h.challengeService.DeclineJoinRequest(params.RequestID, userID.(uint))
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "Join request declined successfully", nil)
+}
+
+func (h *ChallengeHandler) AcceptInvite(ctx *gin.Context) {
+	type acceptInviteParams struct {
+		InviteID uint `uri:"invite_id" validate:"required"`
+	}
+	params := Validated[acceptInviteParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	err := h.challengeService.AcceptInvite(params.InviteID, userID.(uint))
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "Invite accepted successfully", nil)
+}
+
+func (h *ChallengeHandler) DeclineInvite(ctx *gin.Context) {
+	type declineInviteParams struct {
+		InviteID uint `uri:"invite_id" validate:"required"`
+	}
+	params := Validated[declineInviteParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	err := h.challengeService.DeclineInvite(params.InviteID, userID.(uint))
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "Invite declined successfully", nil)
+}
+
+func (h *ChallengeHandler) LeaveChallenge(ctx *gin.Context) {
+	type leaveChallengeParams struct {
+		ID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[leaveChallengeParams](ctx)
+	userID, _ := ctx.Get("userID")
+
+	err := h.challengeService.LeaveChallenge(userID.(uint), params.ID)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "Successfully left challenge", nil)
+}
+
+func (h *ChallengeHandler) AddComment(ctx *gin.Context) {
+	type addCommentParams struct {
+		ID      uint   `uri:"id" validate:"required"`
+		Content string `json:"content" validate:"required,min=1,max=1000"`
+	}
+	params := Validated[addCommentParams](ctx)
+	userID, _ := ctx.Get("userID")
+	addCommentDTO := &dto.AddCommentDTO{
+		ChallengeID: params.ID,
+		Content:     params.Content,
+	}
+	comment, err := h.challengeService.AddComment(userID.(uint), addCommentDTO)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "Comment added successfully", comment)
+}
+
+func (h *ChallengeHandler) GetAllComments(ctx *gin.Context) {
+	type getAllCommentsParams struct {
+		ID       uint `uri:"id" validate:"required"`
+		Page     int  `form:"page"`
+		PageSize int  `form:"pageSize"`
+	}
+	params := Validated[getAllCommentsParams](ctx)
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	comments, err := h.challengeService.GetAllComments(params.ID, offset, limit)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", comments)
+}
+
+func (h *ChallengeHandler) GetRequestsSentByUser(ctx *gin.Context) {
+	userID, _ := ctx.Get("userID")
+	requests, err := h.challengeService.GetRequestsSentByUser(userID.(uint))
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", requests)
+}
+
+func (h *ChallengeHandler) GetInvitesSentToUser(ctx *gin.Context) {
+	userID, _ := ctx.Get("userID")
+	invites, err := h.challengeService.GetInvitesSentToUser(userID.(uint))
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", invites)
+}
+
+func (h *ChallengeHandler) GetInvitesSentFromChallenge(ctx *gin.Context) {
+	type getInvitesParams struct {
+		ID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[getInvitesParams](ctx)
+	userID, _ := ctx.Get("userID")
+	invites, err := h.challengeService.GetInvitesSentFromChallenge(params.ID, userID.(uint))
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", invites)
+}
+
+func (h *ChallengeHandler) GetRequestsSentToChallenge(ctx *gin.Context) {
+	type getRequestsParams struct {
+		ID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[getRequestsParams](ctx)
+	userID, _ := ctx.Get("userID")
+	requests, err := h.challengeService.GetRequestsSentToChallenge(params.ID, userID.(uint))
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", requests)
+}
+
+func (h *ChallengeHandler) GetChallengesUserIsParticipating(ctx *gin.Context) {
+	type getParticipatingChallengesParams struct {
+		Page     int `form:"page"`
+		PageSize int `form:"pageSize"`
+	}
+	params := Validated[getParticipatingChallengesParams](ctx)
+	userID, _ := ctx.Get("userID")
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.GetChallengesUserIsParticipating(userID.(uint), offset, limit)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", challenges)
 }
