@@ -29,6 +29,7 @@ services:
       retries: 5
 
   backend:
+    build: .
     image: backend-app:latest
     env_file:
       - .env

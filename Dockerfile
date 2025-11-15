@@ -1,29 +1,32 @@
-FROM golang:1.23.0-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
-RUN apk add --no-cache gcc musl-dev libwebp-dev jpeg-dev
+RUN echo "https://mirror.arvancloud.ir/alpine/v3.22/main" > /etc/apk/repositories && \
+    echo "https://mirror.arvancloud.ir/alpine/v3.22/community" >> /etc/apk/repositories
+
+RUN apk update && apk add --no-cache git
 
 WORKDIR /app
 
-RUN go env -w GOPROXY=https://proxy.golang.org,direct
+RUN go env -w GOPROXY=https://goproxy.cn,direct
 
 COPY go.mod go.sum ./
+
 RUN go mod download -x
 
 COPY . .
 
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-w -s" -o main ./cmd/bidlancer
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o main ./cmd/api
 
-FROM alpine:3.21
+FROM alpine:latest
 
-RUN apk add --no-cache ca-certificates tzdata libwebp-dev jpeg-dev
+RUN echo "https://mirror.arvancloud.ir/alpine/v3.22/main" > /etc/apk/repositories && \
+    echo "https://mirror.arvancloud.ir/alpine/v3.22/community" >> /etc/apk/repositories
+
+RUN apk update && apk --no-cache add ca-certificates
 
 WORKDIR /app
 
-RUN mkdir -p ./internal/jwt ./SSL ./internal/application/email_templates
-
 COPY --from=builder /app/main .
-
-
 
 EXPOSE 8080
 
