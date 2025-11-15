@@ -1,41 +1,30 @@
-# Build stage
-FROM golang:1.23-alpine AS builder
-# Install dependencies
-RUN apk add --no-cache git
+FROM golang:1.23.0-alpine AS builder
 
-# Set working directory
+RUN apk add --no-cache gcc musl-dev libwebp-dev jpeg-dev
+
 WORKDIR /app
 
-# Copy go mod files
+RUN go env -w GOPROXY=https://proxy.golang.org,direct
+
 COPY go.mod go.sum ./
+RUN go mod download -x
 
-# Download dependencies
-RUN go mod download
-
-# Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/api
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-w -s" -o main ./cmd/bidlancer
 
-# Final stage
-FROM alpine:latest
+FROM alpine:3.21
 
-# Install CA certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates
-
-# Create app user for security
-RUN addgroup -S app && adduser -S app -G app
-USER app
+RUN apk add --no-cache ca-certificates tzdata libwebp-dev jpeg-dev
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /app/main .
-COPY --from=builder /app/docs ./docs
+RUN mkdir -p ./internal/jwt ./SSL ./internal/application/email_templates
 
-# Expose port
+COPY --from=builder /app/main .
+
+
+
 EXPOSE 8080
 
-# Run the application
 CMD ["./main"]
