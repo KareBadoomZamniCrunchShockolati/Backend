@@ -10,6 +10,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	_ "challenge-app/docs"
+
 	"github.com/gin-contrib/cors"
 )
 
@@ -27,7 +28,7 @@ func SetupRouter(
 	// Global middleware
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
-	r.Use(errorMiddleware.PanicRecovery()) // <- Add panic recovery
+	r.Use(errorMiddleware.PanicRecovery())      // <- Add panic recovery
 	r.Use(errorMiddleware.APIErrorTranslator()) // <- Translate client errors
 
 	// CORS configuration
@@ -38,10 +39,24 @@ func SetupRouter(
 		AllowCredentials: true,
 	}))
 
+	// Root health endpoint
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "API is running",
+		})
+	})
+
 	// Swagger endpoint
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	v1 := r.Group("/api/v1")
+
+	// API v1 health endpoint
+	v1.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "API v1 is running",
+		})
+	})
 
 	// Public routes
 	{
@@ -50,12 +65,10 @@ func SetupRouter(
 		v1.POST("/verify", authHandler.Verify)
 		v1.POST("/resend-verification", authHandler.ResendVerification)
 		v1.POST("/users/email/verify-change", userHandler.VerifyEmailChange)
-
-		
 	}
 
 	// Protected routes
-	protected := r.Group("/api/v1")
+	protected := v1.Group("") // Use v1 as base for protected routes
 	protected.Use(jwtMiddleware.Handler())
 	{
 		protected.GET("/users", userHandler.GetAllUsers)
@@ -70,10 +83,12 @@ func SetupRouter(
 		protected.DELETE("/follow", followHandler.Unfollow)
 		protected.DELETE("/followers/remove", followHandler.RemoveFollower)
 		protected.GET("/follow/status/:id", followHandler.CheckFollowStatus)
-		v1.GET("/users/:id/followers", followHandler.GetFollowers)
-		v1.GET("/users/:id/following", followHandler.GetFollowing)
-		v1.GET("/users/:id/follow-stats", followHandler.GetFollowStats)
 	}
+
+	// Public follow routes (moved outside protected group)
+	v1.GET("/users/:id/followers", followHandler.GetFollowers)
+	v1.GET("/users/:id/following", followHandler.GetFollowing)
+	v1.GET("/users/:id/follow-stats", followHandler.GetFollowStats)
 
 	return r
 }
