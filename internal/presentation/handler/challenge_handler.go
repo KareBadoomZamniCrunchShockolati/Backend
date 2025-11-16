@@ -5,7 +5,9 @@ import (
 	"challenge-app/internal/application/dto"
 	serviceinterface "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/domain/enum"
+	"challenge-app/internal/domain/exception"
 	"time"
+	"log"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,7 +39,11 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 		ImageURL        string `json:"image_url"`
 	}
 	params := Validated[createChallengeParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
+
 	startTime, err := time.Parse(time.RFC3339, params.StartTime)
 	if err != nil {
 		panic("Invalid start time format: " + err.Error())
@@ -75,9 +81,9 @@ func (h *ChallengeHandler) GetChallengeByID(ctx *gin.Context) {
 		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[getChallengeParams](ctx)
-	userID, _ := ctx.Get("userID")
 
-	challenge, err := h.challengeService.GetChallengeByID(params.ID, userID.(uint))
+
+	challenge, err := h.challengeService.GetChallengeByID(params.ID)
 	if err != nil {
 		panic(err)
 	}
@@ -102,7 +108,10 @@ func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
 		Timezone        *string `json:"timezone"`
 	}
 	params := Validated[updateChallengeParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID,exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	var startTime *time.Time
 	var endTime *time.Time
@@ -148,7 +157,10 @@ func (h *ChallengeHandler) DeleteChallenge(ctx *gin.Context) {
 		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[deleteChallengeParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	err := h.challengeService.DeleteChallenge(params.ID, userID.(uint))
 	if err != nil {
@@ -206,7 +218,10 @@ func (h *ChallengeHandler) StopChallenge(ctx *gin.Context) {
 		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[stopChallengeParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID,exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	err := h.challengeService.StopChallenge(params.ID, userID.(uint))
 	if err != nil {
@@ -220,8 +235,14 @@ func (h *ChallengeHandler) JoinPublicChallenge(ctx *gin.Context) {
 	type joinPublicChallengeParams struct {
 		ID uint `uri:"id" validate:"required"`
 	}
+	log.Println("here is fine")
 	params := Validated[joinPublicChallengeParams](ctx)
-	userID, _ := ctx.Get("userID")
+	
+	userID,exists := ctx.Get("userID")
+	log.Println("or here")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	err := h.challengeService.JoinPublicChallenge(userID.(uint), params.ID)
 	if err != nil {
@@ -236,10 +257,14 @@ func (h *ChallengeHandler) JoinPrivateChallenge(ctx *gin.Context) {
 		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[joinPrivateChallengeParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	err := h.challengeService.JoinPrivateChallenge(userID.(uint), params.ID)
 	if err != nil {
+		log.Println("here in handler")
 		panic(err)
 	}
 
@@ -252,7 +277,10 @@ func (h *ChallengeHandler) InviteUserToChallenge(ctx *gin.Context) {
 		InviteeID uint `json:"invitee_id" validate:"required"`
 	}
 	params := Validated[inviteUserParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	createdInvite, err := h.challengeService.InviteUserToChallenge(userID.(uint), params.ID, params.InviteeID)
 	if err != nil {
@@ -268,7 +296,10 @@ func (h *ChallengeHandler) RemoveParticipant(ctx *gin.Context) {
 		ParticipantID uint `uri:"participant_id" validate:"required"`
 	}
 	params := Validated[removeParticipantParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	err := h.challengeService.RemoveParticipant(params.ID, userID.(uint), params.ParticipantID)
 	if err != nil {
@@ -283,7 +314,10 @@ func (h *ChallengeHandler) ListChallengeParticipants(ctx *gin.Context) {
 		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[listParticipantsParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	participants, err := h.challengeService.ListChallengeParticipants(params.ID, userID.(uint))
 	if err != nil {
@@ -298,7 +332,10 @@ func (h *ChallengeHandler) AcceptJoinRequest(ctx *gin.Context) {
 		RequestID uint `uri:"request_id" validate:"required"`
 	}
 	params := Validated[acceptJoinRequestParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	err := h.challengeService.AcceptJoinRequest(params.RequestID, userID.(uint))
 	if err != nil {
@@ -313,7 +350,10 @@ func (h *ChallengeHandler) DeclineJoinRequest(ctx *gin.Context) {
 		RequestID uint `uri:"request_id" validate:"required"`
 	}
 	params := Validated[declineJoinRequestParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	err := h.challengeService.DeclineJoinRequest(params.RequestID, userID.(uint))
 	if err != nil {
@@ -328,7 +368,10 @@ func (h *ChallengeHandler) AcceptInvite(ctx *gin.Context) {
 		InviteID uint `uri:"invite_id" validate:"required"`
 	}
 	params := Validated[acceptInviteParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	err := h.challengeService.AcceptInvite(params.InviteID, userID.(uint))
 	if err != nil {
@@ -343,7 +386,10 @@ func (h *ChallengeHandler) DeclineInvite(ctx *gin.Context) {
 		InviteID uint `uri:"invite_id" validate:"required"`
 	}
 	params := Validated[declineInviteParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	err := h.challengeService.DeclineInvite(params.InviteID, userID.(uint))
 	if err != nil {
@@ -358,7 +404,10 @@ func (h *ChallengeHandler) LeaveChallenge(ctx *gin.Context) {
 		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[leaveChallengeParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID,exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 
 	err := h.challengeService.LeaveChallenge(userID.(uint), params.ID)
 	if err != nil {
@@ -374,7 +423,10 @@ func (h *ChallengeHandler) AddComment(ctx *gin.Context) {
 		Content string `json:"content" validate:"required,min=1,max=1000"`
 	}
 	params := Validated[addCommentParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 	addCommentDTO := &dto.AddCommentDTO{
 		ChallengeID: params.ID,
 		Content:     params.Content,
@@ -404,7 +456,11 @@ func (h *ChallengeHandler) GetAllComments(ctx *gin.Context) {
 }
 
 func (h *ChallengeHandler) GetRequestsSentByUser(ctx *gin.Context) {
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		ctx.Error(exception.NewMissingUserIDException())
+		return
+	}
 	requests, err := h.challengeService.GetRequestsSentByUser(userID.(uint))
 	if err != nil {
 		panic(err)
@@ -414,7 +470,10 @@ func (h *ChallengeHandler) GetRequestsSentByUser(ctx *gin.Context) {
 }
 
 func (h *ChallengeHandler) GetInvitesSentToUser(ctx *gin.Context) {
-	userID, _ := ctx.Get("userID")
+	userID,exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 	invites, err := h.challengeService.GetInvitesSentToUser(userID.(uint))
 	if err != nil {
 		panic(err)
@@ -428,7 +487,10 @@ func (h *ChallengeHandler) GetInvitesSentFromChallenge(ctx *gin.Context) {
 		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[getInvitesParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
 	invites, err := h.challengeService.GetInvitesSentFromChallenge(params.ID, userID.(uint))
 	if err != nil {
 		panic(err)
@@ -442,7 +504,11 @@ func (h *ChallengeHandler) GetRequestsSentToChallenge(ctx *gin.Context) {
 		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[getRequestsParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+		return
+	}
 	requests, err := h.challengeService.GetRequestsSentToChallenge(params.ID, userID.(uint))
 	if err != nil {
 		panic(err)
@@ -457,7 +523,11 @@ func (h *ChallengeHandler) GetChallengesUserIsParticipating(ctx *gin.Context) {
 		PageSize int `form:"pageSize"`
 	}
 	params := Validated[getParticipatingChallengesParams](ctx)
-	userID, _ := ctx.Get("userID")
+	userID,exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+		return
+	}
 	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
 	challenges, err := h.challengeService.GetChallengesUserIsParticipating(userID.(uint), offset, limit)
 	if err != nil {

@@ -10,7 +10,7 @@ type ChallengeServicer interface {
 	CreateChallenge(input *dto.CreateChallengeDTO) (*model.ChallengeModel, error)
 	UpdateChallenge(id uint, currentUserID uint, input *dto.UpdateChallengeDTO) (*model.ChallengeModel, error)
 	DeleteChallenge(challengeID uint, currentUserID uint) error
-	GetChallengeByID(id uint, userID uint) (*model.ChallengeModel, error)
+	GetChallengeByID(id uint) (*model.ChallengeModel, error)
 	GetAllChallenges() ([]*model.ChallengeModel, error)
 	ListByCategory(categoryID uint, offset, limit int) ([]*model.ChallengeModel, error)
 	ListByCreator(userID uint, offset, limit int) ([]*model.ChallengeModel, error)

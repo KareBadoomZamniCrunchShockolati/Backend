@@ -4,6 +4,7 @@ package service
 import (
 	"fmt"
 	"time"
+	"log"
 
 	"challenge-app/internal/application/dto"
 	"challenge-app/internal/domain/enum"
@@ -166,7 +167,7 @@ func (s *ChallengeService) DeleteChallenge(challengeID uint, currentUserID uint)
 	return s.challengeRepo.DeleteChallenge(challengeID)
 }
 
-func (s *ChallengeService) GetChallengeByID(id uint, userID uint) (*model.ChallengeModel, error) {
+func (s *ChallengeService) GetChallengeByID(id uint) (*model.ChallengeModel, error) {
 	challenge, err := s.challengeRepo.GetChallengeByID(id)
 	if err != nil {
 		return nil, err
@@ -245,15 +246,19 @@ func (s *ChallengeService) JoinPublicChallenge(userID, challengeID uint) error {
 func (s *ChallengeService) JoinPrivateChallenge(userID, challengeID uint) error {
 	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
 	if err != nil {
-		return err
+		log.Println("here in service1")
+		return exception.NewRepositoryError(err)
 	}
 	if challenge == nil {
+		log.Println("here in service2")
 		return exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", challengeID), "CHALLENGE_NOT_FOUND")
 	}
 	if challenge.Visibility != enum.VisibilityPrivate {
+		log.Println("here in service3")
 		return exception.NewForbiddenException("Challenge is not private", "CHALLENGE_NOT_PRIVATE")
 	}
 	if challenge.IsStopped {
+		log.Println("here in service4")
 		return exception.NewForbiddenException("Challenge is stopped", "CHALLENGE_STOPPED")
 	}
 	if err := s.checkParticipantLimit(challengeID, challenge.MaxParticipants); err != nil {
@@ -270,6 +275,7 @@ func (s *ChallengeService) JoinPrivateChallenge(userID, challengeID uint) error 
 
 	requests, err := s.joinRequestRepo.GetUserJoinRequests(userID)
 	if err != nil {
+		log.Println("here in service5")
 		return exception.NewRepositoryError(err)
 	}
 	for _, req := range requests {

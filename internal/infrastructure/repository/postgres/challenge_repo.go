@@ -5,6 +5,7 @@ import (
 	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
+	"log"
 
 	"gorm.io/gorm"
 )
@@ -30,6 +31,7 @@ func (r *ChallengeRepository) GetChallengeByID(id uint) (*model.ChallengeModel, 
 	var entity entity.ChallengeEntity
 	result := r.db.Preload("Participants").Preload("Comments").First(&entity, id)
 	if result.Error != nil {
+		log.Println("here in repo")
 		if result.Error == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
