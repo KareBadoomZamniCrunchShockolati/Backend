@@ -5,9 +5,8 @@ import (
 	serviceinterface "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/domain/exception"
 	"challenge-app/pkg/validation"
-	"strings"
-	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -41,7 +40,8 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 			errorsMap[k] = v
 		}
 		c.Error(exception.NewValidationFailedException(errorsMap))
-		return
+		panic(errorsMap)
+	}
 
 	bio := strings.TrimSpace(req.Bio)
 
@@ -99,7 +99,7 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 	var req dto.VerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.Error(exception.NewInvalidRequestBodyException(err))
-		return
+		panic(err)
 	}
 
 	token, err := h.AuthService.VerifyEmail(req.Email, req.Code)
@@ -118,7 +118,7 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	var req dto.ResendVerificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.Error(exception.NewInvalidRequestBodyException(err))
-		return
+		panic(err)
 	}
 
 	err := h.AuthService.ResendVerificationEmail(req.Email)

@@ -4,7 +4,6 @@ import (
 	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
-	"challenge-app/internal/domain/exception"
 	"errors"
 	"fmt"
 
@@ -81,7 +80,7 @@ func (r *UserRepository) GetUserByName(name string)(*model.UserModel, error){
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, exception.NewNotFoundException("User", name, "USER_NOT_FOUND_BY_NAME")
 		}
-		return nil, exception.NewRepositoryError(fmt.Sprintf("GetUserByName %s", name), result.Error)
+		return nil, exception.NewRepositoryError(result.Error)
 	}
 	return toModel(&userEntity), nil
 }

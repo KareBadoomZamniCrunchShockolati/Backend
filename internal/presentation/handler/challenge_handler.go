@@ -536,3 +536,12 @@ func (h *ChallengeHandler) GetChallengesUserIsParticipating(ctx *gin.Context) {
 
 	Response(ctx, 200, "", challenges)
 }
+
+func (h *ChallengeHandler) GetAllCategories(ctx *gin.Context) {
+    categories, err := h.challengeService.GetAllCategories()
+    if err != nil {
+        panic(err)
+    }
+
+    Response(ctx, 200, "", categories)
+}

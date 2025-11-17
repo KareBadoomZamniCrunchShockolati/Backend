@@ -52,9 +52,6 @@ func InitializeRouter(db *gorm.DB, validator2 *validator.Validate) (*gin.Engine,
 	followRepository := postgres.NewFollowRepository(db)
 	followService := service.NewFollowService(followRepository, userRepository)
 	followHandlerImpl := handler.NewFollowHandler(followService)
-	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
-	errorMiddleware := middleware.NewErrorProvider()
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, jwtMiddleware, errorMiddleware)
 	challengeRepository := postgres.NewChallengeRepository(db)
 	challengeParticipantRepository := postgres.NewChallengeParticipantRepository(db)
 	challengeCommentRepository := postgres.NewChallengeCommentRepository(db)
@@ -63,7 +60,9 @@ func InitializeRouter(db *gorm.DB, validator2 *validator.Validate) (*gin.Engine,
 	categoryRepository := postgres.NewCategoryRepository(db)
 	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, challengeCommentRepository, challengeInviteRepository, challengeRequestRepository, categoryRepository, userRepository)
 	challengeHandler := handler.NewChallengeHandler(challengeService)
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, jwtMiddleware, challengeHandler)
+	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
+	errorMiddleware := middleware.NewErrorProvider()
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, jwtMiddleware, errorMiddleware)
 	return engine, nil
 }
 
@@ -91,9 +90,6 @@ func InitializeApplication() (*Application, error) {
 	followRepository := postgres.NewFollowRepository(db)
 	followService := service.NewFollowService(followRepository, userRepository)
 	followHandlerImpl := handler.NewFollowHandler(followService)
-	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
-	errorMiddleware := middleware.NewErrorProvider()
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, jwtMiddleware, errorMiddleware)
 	challengeRepository := postgres.NewChallengeRepository(db)
 	challengeParticipantRepository := postgres.NewChallengeParticipantRepository(db)
 	challengeCommentRepository := postgres.NewChallengeCommentRepository(db)
@@ -102,7 +98,9 @@ func InitializeApplication() (*Application, error) {
 	categoryRepository := postgres.NewCategoryRepository(db)
 	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, challengeCommentRepository, challengeInviteRepository, challengeRequestRepository, categoryRepository, userRepository)
 	challengeHandler := handler.NewChallengeHandler(challengeService)
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, jwtMiddleware, challengeHandler)
+	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
+	errorMiddleware := middleware.NewErrorProvider()
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, jwtMiddleware, errorMiddleware)
 	application := NewApplication(db, engine)
 	return application, nil
 }

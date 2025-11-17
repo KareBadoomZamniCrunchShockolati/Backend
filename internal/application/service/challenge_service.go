@@ -3,8 +3,8 @@ package service
 
 import (
 	"fmt"
-	"time"
 	"log"
+	"time"
 
 	"challenge-app/internal/application/dto"
 	"challenge-app/internal/domain/enum"
@@ -240,7 +240,7 @@ func (s *ChallengeService) JoinPublicChallenge(userID, challengeID uint) error {
 		Status:      enum.StatusJoined,
 	}
 	_, err = s.participantRepo.CreateParticipant(participant)
-	return exception.NewRepositoryError(err)
+	return err
 }
 
 func (s *ChallengeService) JoinPrivateChallenge(userID, challengeID uint) error {
@@ -428,13 +428,17 @@ func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) erro
 		Status:      enum.StatusJoined,
 	}
 	_, err = s.participantRepo.CreateParticipant(participant)
+	err = s.joinRequestRepo.DeleteJoinRequest(requestID)
+	if err != nil {
+		return exception.NewRepositoryError(err)
+	}
 	return err
 }
 
 func (s *ChallengeService) DeclineJoinRequest(requestID, currentUserID uint) error {
 	request, err := s.joinRequestRepo.GetJoinRequest(requestID)
 	if err != nil {
-		return err
+		return exception.NewRepositoryError(err)
 	}
 	if request == nil {
 		return exception.NewNotFoundException("Join request", fmt.Sprintf("%d", requestID), "JOIN_REQUEST_NOT_FOUND")
@@ -453,6 +457,10 @@ func (s *ChallengeService) DeclineJoinRequest(requestID, currentUserID uint) err
 	}
 	request.Status = enum.RequestRejected
 	_, err = s.joinRequestRepo.UpdateJoinRequest(request)
+	err = s.joinRequestRepo.DeleteJoinRequest(requestID)
+	if err != nil {
+		return exception.NewRepositoryError(err)
+	}
 	return err
 }
 
@@ -491,6 +499,11 @@ func (s *ChallengeService) AcceptInvite(inviteID, currentUserID uint) error {
 		return exception.NewRepositoryError(err)
 	}
 
+	err = s.inviteRepo.DeleteInvite(inviteID)
+	if err != nil {
+		return exception.NewRepositoryError(err)
+	}
+
 	participant := &model.ChallengeParticipant{
 		ChallengeID: invite.ChallengeID,
 		UserID:      currentUserID,
@@ -516,6 +529,10 @@ func (s *ChallengeService) DeclineInvite(inviteID, currentUserID uint) error {
 	}
 	invite.Status = enum.InviteDeclined
 	_, err = s.inviteRepo.UpdateInvite(invite)
+	if err != nil {
+		return exception.NewRepositoryError(err)
+	}
+	err = s.inviteRepo.DeleteInvite(inviteID)
 	if err != nil {
 		return exception.NewRepositoryError(err)
 	}
@@ -587,6 +604,10 @@ func (s *ChallengeService) GetAllComments(challengeID uint, offset, limit int) (
 	}
 
 	return s.commentRepo.GetChallengeComments(challengeID)
+}
+
+func (s *ChallengeService) GetAllCategories() ([]*model.ChallengeCategoryModel, error) {
+	return s.categoryRepo.GetAllCategories()
 }
 
 func (s *ChallengeService) GetRequestsSentByUser(userID uint) ([]*model.ChallengeRequest, error) {

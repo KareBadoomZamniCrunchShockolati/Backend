@@ -12,8 +12,6 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	_ "challenge-app/docs"
-
-	"github.com/gin-contrib/cors"
 )
 
 // SetupRouter sets up all routes, middleware, and swagger
@@ -21,6 +19,7 @@ func SetupRouter(
 	userHandler handler.UserHandler,
 	authHandler handler.AuthHandler,
 	followHandler handler.FollowHandler,
+	challengeHandler handler.ChallengeHandler,
 	jwtMiddleware middleware.JWTMiddleware,
 	errorMiddleware middleware.ErrorMiddleware,
 ) *gin.Engine {
@@ -69,16 +68,15 @@ func SetupRouter(
 		v1.POST("/users/email/verify-change", userHandler.VerifyEmailChange)
 
 		// Public follow routes
-		v1.GET("/users/:user_id/followers", followHandler.GetFollowers)
-		v1.GET("/users/:user_id/following", followHandler.GetFollowing)
-		v1.GET("/users/:user_id/follow-stats", followHandler.GetFollowStats)
+		// v1.GET("/users/:id/followers", followHandler.GetFollowers)
+		// v1.GET("/users/:id/following", followHandler.GetFollowing)
+		// v1.GET("/users/:id/follow-stats", followHandler.GetFollowStats)
 
 		// Public challenge routes
 		v1.GET("/challenges", challengeHandler.GetAllChallenges)
 		v1.GET("/challenges/:id", challengeHandler.GetChallengeByID)
 		v1.GET("/challenges/category/:category_id", challengeHandler.ListByCategory)
 		v1.GET("/challenges/creator/:user_id", challengeHandler.ListByCreator)
-		v1.GET("/challenges/:id/participants", challengeHandler.ListChallengeParticipants)
 		v1.GET("/challenges/:id/comments", challengeHandler.GetAllComments)
 	}
 
@@ -112,6 +110,9 @@ func SetupRouter(
 
 		// Protected challenge participant management (creator only)
 		protected.DELETE("/challenges/:id/participants/:participant_id", challengeHandler.RemoveParticipant)
+
+		protected.GET("/challenges/:id/participants", challengeHandler.ListChallengeParticipants)
+
 
 		// Protected challenge invite routes
 		protected.POST("/challenges/:id/invite", challengeHandler.InviteUserToChallenge)

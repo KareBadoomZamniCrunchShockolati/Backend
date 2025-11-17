@@ -4,11 +4,11 @@ import (
 	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
-	"challenge-app/internal/infrastructure/repository/postgres"
 	"challenge-app/pkg/email"
 	"challenge-app/pkg/security"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 )
@@ -37,10 +37,9 @@ func NewAuthService(repo repository.UserRepository, verificationRepo repository.
 func (s *AuthService) RegisterUser(username, email, password, bio string) (*model.UserModel, error) {
 	existingUser, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		// A. If it's a NotFoundException, the user doesn't exist. Proceed.
-		// We use errors.As because IsNotFoundError uses errors.As.
-		if !postgres.IsNotFoundError(err) {
-			return nil, exception.NewRepositoryError("Failed to check existing user by email", err)
+		var notFoundErr *exception.NotFoundException
+		if !errors.As(err, &notFoundErr) {
+			return nil, exception.NewRepositoryError(err)
 		}
 	}
 
@@ -50,8 +49,9 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 
 	existingUser, err = s.UserRepo.GetUserByName(username)
 	if err != nil {
-		if !postgres.IsNotFoundError(err) {
-			return nil, exception.NewRepositoryError("Failed to check existing user by name", err)
+		var notFoundErr *exception.NotFoundException
+		if !errors.As(err, &notFoundErr) {
+			return nil, err
 		}
 	}
 
@@ -76,25 +76,25 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 
 	// 4. Persist the user
 	if err := s.UserRepo.CreateUser(user); err != nil {
-		return nil, exception.NewRepositoryError("Failed to persist new user", err)
+		return nil, err
 	}
 
 	// 5. Generate verification code
-	code, err := generateVerificationCode1()
-	if err != nil {
-		return nil, exception.NewVerificationCodeGenerationError(err)
-	}
+	// code, err := generateVerificationCode1()
+	// if err != nil {
+	// 	return nil, exception.NewVerificationCodeGenerationError(err)
+	// }
 
-	// 6. Store verification code
-	ctx := context.Background()
-	if err := s.VerificationRepo.StoreVerificationCode(ctx, email, code, 5); err != nil {
-		return nil, exception.NewVerificationError(err)
-	}
+	// // 6. Store verification code
+	// ctx := context.Background()
+	// if err := s.VerificationRepo.StoreVerificationCode(ctx, email, code, 5); err != nil {
+	// 	return nil, exception.NewVerificationError(err)
+	// }
 
-	// 7. Send verification email
-	if err := s.EmailService.SendVerificationEmail(email, code); err != nil {
-		return nil, exception.NewEmailError(err)
-	}
+	// // 7. Send verification email
+	// if err := s.EmailService.SendVerificationEmail(email, code); err != nil {
+	// 	return nil, exception.NewEmailError(err)
+	// }
 
 	return user, nil
 }
@@ -102,7 +102,8 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 func (s *AuthService) LoginUser(email string, password string) (*model.UserModel, string, error) {
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		if postgres.IsNotFoundError(err) {
+		var notFoundErr *exception.NotFoundException
+		if !errors.As(err, &notFoundErr){
 			return nil,"", exception.NewNotFoundException("User", email, "USER_EMAIL_NOT_FOUND")
 		}
 		return nil, "", err
@@ -130,7 +131,7 @@ func (s *AuthService) VerifyEmail(email, code string) (string, error) {
 
 	storedCode, err := s.VerificationRepo.GetVerificationCode(ctx, email)
 	if err != nil {
-		return "", exception.NewVerificationCodeExpired(err)
+		return "", err
 	}
 
 	if storedCode != code {
@@ -139,13 +140,13 @@ func (s *AuthService) VerifyEmail(email, code string) (string, error) {
 
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		return "", exception.NewRepositoryVerificationError(err)
+		return "", err
 	}
 
 	user.Verified = true
 	_, err = s.UserRepo.UpdateUser(user)
 	if err != nil {
-		return "", exception.NewRepositoryUpdateError(err)
+		return "", err
 	}
 
 	s.VerificationRepo.DeleteVerificationCode(ctx, email)
