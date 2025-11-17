@@ -6,6 +6,7 @@ import (
 	"challenge-app/internal/domain/exception"
 	"errors"
 	"net/http"
+	"strconv"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,7 +30,6 @@ func NewUserHandler(userService serviceinterface.UserServicer) *UserHandler {
 // @Security BearerAuth
 // GetProfile (CRUD - Read Handler)
 func (h *UserHandler) GetProfile(c *gin.Context) {
-
 	userIDValue, exists := c.Get("userID")
 
 	if !exists {
@@ -49,6 +49,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 			c.Error(err)
 			return
 		}
+
 		
 		panic(err)
 	}
@@ -75,6 +76,7 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 			c.Error(err)
 			return
 		}
+
 		
 		panic(err)
 	}
@@ -86,6 +88,37 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, userResponses)
+}
+
+func (h *UserHandler) GetUserByID(c *gin.Context) {
+	requesterID := c.GetUint("userID")
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	user, e := h.UserService.GetUserByID(uint(id))
+	if e != nil {
+		switch e := e.(type) {
+		case *exception.NotFoundException:
+			c.JSON(http.StatusNotFound, gin.H{"error": e.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": e.Error()})
+		}
+		return
+	}
+	if requesterID != user.ID {
+		user.Email = "" // hide private info
+	}
+	c.JSON(http.StatusOK, dto.UserResponse{
+		ID:       user.ID,
+		Username: user.Username,
+		Email:    user.Email,
+		Bio:      user.Bio,
+	})
+
 }
 
 // UpdateProfile (CRUD - Update Handler)
@@ -152,7 +185,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": successMessage,
-		"user": dto.UserResponse{ 
+		"user": dto.UserResponse{
 			ID:       user.ID,
 			Username: user.Username,
 			Email:    user.Email,

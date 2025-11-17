@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
 	"challenge-app/internal/domain/exception"
@@ -72,6 +73,19 @@ func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) 
 	}
 	return toModel(&userEntity), nil
 }
+
+func (r *UserRepository) GetUserByName(name string)(*model.UserModel, error){
+	var userEntity entity.UserEntity
+	result := r.DB.Where("username = ?", name).First(&userEntity)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, exception.NewNotFoundException("User", name, "USER_NOT_FOUND_BY_NAME")
+		}
+		return nil, exception.NewRepositoryError(fmt.Sprintf("GetUserByName %s", name), result.Error)
+	}
+	return toModel(&userEntity), nil
+}
+
 
 func (r *UserRepository) GetAllUsers() ([]model.UserModel, error) {
 	var userEntities []entity.UserEntity

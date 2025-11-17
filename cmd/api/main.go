@@ -1,11 +1,13 @@
 package main
 
 import (
-	_ "challenge-app/docs" // Swagger docs
+	_ "challenge-app/docs"
 	"challenge-app/internal/bootstrap"
 	"challenge-app/internal/injector"
 	"challenge-app/pkg/validation"
 	"log"
+	"os"
+
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -31,6 +33,11 @@ import (
 // @name Authorization
 
 func main() {
+	// Load environment based on APP_MODE
+	if os.Getenv("APP_MODE") == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	// Register custom validation if necessary
 	if err := validation.RegisterGinValidator(); err != nil {
 		log.Fatalf("Failed to register custom validator: %v", err)
@@ -66,8 +73,8 @@ func main() {
 
 	log.Printf("Starting server on port %s...", bootstrap.AppPort)
 
-	// Start the server
-	if err := app.Router.Run(":" + bootstrap.AppPort); err != nil {
+	// Start the server - use 0.0.0.0 for Docker
+	if err := app.Router.Run("0.0.0.0:" + bootstrap.AppPort); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

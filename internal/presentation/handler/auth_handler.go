@@ -5,6 +5,7 @@ import (
 	serviceinterface "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/domain/exception"
 	"challenge-app/pkg/validation"
+	"strings"
 	"errors"
 	"net/http"
 
@@ -33,36 +34,27 @@ func NewAuthHandler(authService serviceinterface.AuthServicer) *AuthHandler {
 // Signup (CRUD - Create Handler)
 func (h *AuthHandler) Signup(c *gin.Context) {
 	var req dto.SignupRequest
-
 	if err := c.ShouldBindJSON(&req); err != nil {
-
-		validationMap := validation.FormatValidationError(err)
-
-		details := make(map[string]any, len(validationMap))
-		for k, v := range validationMap {
-			details[k] = v
+		formatted := validation.FormatValidationError(err)
+		errorsMap := make(map[string]any, len(formatted))
+		for k, v := range formatted {
+			errorsMap[k] = v
 		}
-
-		c.Error(exception.NewValidationFailedException(details))
+		c.Error(exception.NewValidationFailedException(errorsMap))
 		return
 
-	}
+	bio := strings.TrimSpace(req.Bio)
 
-	user, token, err := h.AuthService.RegisterUser(req.Username, req.Email, req.Password, req.Bio)
+	user, err := h.AuthService.RegisterUser(req.Username, req.Email, req.Password, bio)
 	if err != nil {
-		var clientErr exception.ClientError
-		if errors.As(err, &clientErr) {
-			c.Error(err)
-			return
-		}
-
+		c.Error(err)
 		panic(err)
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User registered successfully. Check your email for verification code.",
 		"user": dto.LoginResponse{
-			ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio, Token: token,
+			ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio,
 		},
 	})
 }
@@ -89,14 +81,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// 2. Service: Authenticate user
 	user, token, err := h.AuthService.LoginUser(req.Email, req.Password)
-
 	if err != nil {
-		var clientErr exception.ClientError
-		if errors.As(err, &clientErr) {
-			c.Error(err)
-			return
-		}
-
+		c.Error(err)
 		panic(err)
 	}
 
@@ -118,12 +104,7 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 
 	token, err := h.AuthService.VerifyEmail(req.Email, req.Code)
 	if err != nil {
-		var clientErr exception.ClientError
-		if errors.As(err, &clientErr) {
-			c.Error(err)
-			return
-		}
-
+		c.Error(err)
 		panic(err)
 	}
 
@@ -142,12 +123,7 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 
 	err := h.AuthService.ResendVerificationEmail(req.Email)
 	if err != nil {
-		var clientErr exception.ClientError
-		if errors.As(err, &clientErr) {
-			c.Error(err)
-			return
-		}
-
+		c.Error(err)
 		panic(err)
 	}
 

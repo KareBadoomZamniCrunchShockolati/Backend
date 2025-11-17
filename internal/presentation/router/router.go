@@ -12,24 +12,53 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	_ "challenge-app/docs"
+
+	"github.com/gin-contrib/cors"
 )
 
+// SetupRouter sets up all routes, middleware, and swagger
 func SetupRouter(
 	userHandler handler.UserHandler,
 	authHandler handler.AuthHandler,
 	followHandler handler.FollowHandler,
 	jwtMiddleware middleware.JWTMiddleware,
-	challengeHandler handler.ChallengeHandler,
+	errorMiddleware middleware.ErrorMiddleware,
 ) *gin.Engine {
-	r := gin.Default()
+
+	r := gin.New()
+
+	// Global middleware
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
+	r.Use(errorMiddleware.PanicRecovery())      // <- Add panic recovery
+	r.Use(errorMiddleware.APIErrorTranslator()) // <- Translate client errors
+
+	// CORS configuration
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"}, // Allow requests from localhost:3000
+		AllowOrigins:     []string{"*"}, // Allow requests from localhost:3000 or anywhere
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowHeaders:     []string{"Content-Type", "Authorization", "ACCEPT"},
 		AllowCredentials: true,
 	}))
+
+	// Root health endpoint
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "API is running",
+		})
+	})
+
+	// Swagger endpoint
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	v1 := r.Group("/api/v1")
+
+	// API v1 health endpoint
+	v1.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "API v1 is running",
+		})
+	})
 
 	// Public routes
 	{
@@ -54,10 +83,11 @@ func SetupRouter(
 	}
 
 	// Protected routes
-	protected := r.Group("/api/v1")
+	protected := v1.Group("") // Use v1 as base for protected routes
 	protected.Use(jwtMiddleware.Handler())
 	{
 		protected.GET("/users", userHandler.GetAllUsers)
+		protected.GET("/users/:id", userHandler.GetUserByID)
 		protected.GET("/users/profile", userHandler.GetProfile)
 		protected.PUT("/users/profile", userHandler.UpdateProfile)
 		protected.POST("/users/email/change", userHandler.InitiateEmailChange)
@@ -67,7 +97,7 @@ func SetupRouter(
 		protected.POST("/follow", followHandler.Follow)
 		protected.DELETE("/follow", followHandler.Unfollow)
 		protected.DELETE("/followers/remove", followHandler.RemoveFollower)
-		protected.GET("/follow/status/:user_id", followHandler.CheckFollowStatus)
+		protected.GET("/follow/status/:id", followHandler.CheckFollowStatus)
 
 		// Protected challenge routes - CRUD
 		protected.POST("/challenges", challengeHandler.CreateChallenge)
@@ -102,6 +132,11 @@ func SetupRouter(
 		protected.GET("/challenges/:id/requests", challengeHandler.GetRequestsSentToChallenge)
 		protected.GET("/challenges/:id/invites", challengeHandler.GetInvitesSentFromChallenge)
 	}
+
+	// Public follow routes (moved outside protected group)
+	v1.GET("/users/:id/followers", followHandler.GetFollowers)
+	v1.GET("/users/:id/following", followHandler.GetFollowing)
+	v1.GET("/users/:id/follow-stats", followHandler.GetFollowStats)
 
 	return r
 }

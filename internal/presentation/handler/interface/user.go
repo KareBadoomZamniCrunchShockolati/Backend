@@ -11,5 +11,6 @@ type UserHandler interface {
 	DeleteUser(c *gin.Context)
 	InitiateEmailChange(c *gin.Context)
 	VerifyEmailChange(c *gin.Context)
+	GetUserByID(c *gin.Context)
 	
 }
