@@ -5,8 +5,9 @@ import (
 	serviceinterface "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/domain/exception"
 	"challenge-app/pkg/validation"
-	"net/http"
 	"strings"
+	"errors"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -41,14 +42,13 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 		}
 		c.Error(exception.NewValidationFailedException(errorsMap))
 		return
-	}
 
 	bio := strings.TrimSpace(req.Bio)
 
 	user, err := h.AuthService.RegisterUser(req.Username, req.Email, req.Password, bio)
 	if err != nil {
 		c.Error(err)
-		return
+		panic(err)
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
@@ -83,7 +83,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	user, token, err := h.AuthService.LoginUser(req.Email, req.Password)
 	if err != nil {
 		c.Error(err)
-		return
+		panic(err)
 	}
 
 	// 3. Success: Respond with user details (JWT will be added here later)
@@ -105,7 +105,7 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 	token, err := h.AuthService.VerifyEmail(req.Email, req.Code)
 	if err != nil {
 		c.Error(err)
-		return
+		panic(err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -124,7 +124,7 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	err := h.AuthService.ResendVerificationEmail(req.Email)
 	if err != nil {
 		c.Error(err)
-		return
+		panic(err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

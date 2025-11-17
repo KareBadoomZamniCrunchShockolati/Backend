@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 
+	"challenge-app/internal/infrastructure/repository/postgres/entity"
+
 	"gorm.io/driver/postgres"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
 	"gorm.io/gorm"

@@ -111,12 +111,26 @@ var EmailProviderSet = wire.NewSet(
 
 var RepositoryProviderSet = wire.NewSet(
 	postgres.NewUserRepository,
+	postgres.NewChallengeRepository,
+	postgres.NewCategoryRepository,
+	postgres.NewChallengeInviteRepository,
+	postgres.NewChallengeParticipantRepository,
+	postgres.NewChallengeCommentRepository,
+	postgres.NewChallengeRequestRepository,
+	wire.Bind(new(repository_interface.ChallengeRequestRepository), new(*postgres.ChallengeRequestRepository)),
+	wire.Bind(new(repository_interface.ChallengeCommentRepository), new(*postgres.ChallengeCommentRepository)),
+	wire.Bind(new(repository_interface.ChallengeInviteRepository), new(*postgres.ChallengeInviteRepository)),
+	wire.Bind(new(repository_interface.ChallengeParticipantRepository), new(*postgres.ChallengeParticipantRepository)),
 	wire.Bind(new(repository_interface.UserRepository), new(*postgres.UserRepository)),
+	wire.Bind(new(repository_interface.ChallengeRepository), new(*postgres.ChallengeRepository)),
+	wire.Bind(new(repository_interface.CategoryRepository), new(*postgres.CategoryRepository)), 
 )
 
 var ServiceProviderSet = wire.NewSet(
 	service.NewUserService,
 	service.NewAuthService,
+	service.NewChallengeService,
+	wire.Bind(new(service_interface.ChallengeServicer), new(*service.ChallengeService)),
 	wire.Bind(new(service_interface.UserServicer), new(*service.UserService)),
 	wire.Bind(new(service_interface.AuthServicer), new(*service.AuthService)),
 )
@@ -124,8 +138,10 @@ var ServiceProviderSet = wire.NewSet(
 var HandlerProviderSet = wire.NewSet(
 	handler.NewUserHandler,
 	handler.NewAuthHandler,
+	handler.NewChallengeHandler,
 	wire.Bind(new(handler_interface.UserHandler), new(*handler.UserHandler)),
 	wire.Bind(new(handler_interface.AuthHandler), new(*handler.AuthHandler)),
+	wire.Bind(new(handler_interface.ChallengeHandler), new(*handler.ChallengeHandler)),
 )
 
 var MiddlewareProviderSet = wire.NewSet(

@@ -5,14 +5,14 @@ import (
 )
 
 type UserServicer interface {
-    // CRUD Operations
-    UpdateUser(id uint, username, bio, newEmail string) (*model.UserModel, error)
-    DeleteUser(id uint) error
+	// CRUD Operations
+	UpdateUser(id uint, username, bio, newEmail string) (*model.UserModel, error)
+	DeleteUser(id uint) error
 
-    // Read Operations
-    GetUserByID(id uint) (*model.UserModel, error)
-    GetAllUsers() ([]model.UserModel, error)
+	// Read Operations
+	GetUserByID(id uint) (*model.UserModel, error)
+	GetAllUsers() ([]model.UserModel, error)
 
-    InitiateEmailChange(id uint, newEmail string) error
-    CompleteEmailChange(oldEmail, newEmail, code string) (*model.UserModel, error)
+	InitiateEmailChange(id uint, newEmail string) error
+	CompleteEmailChange(oldEmail, newEmail, code string) (*model.UserModel, error)
 }

@@ -1,12 +1,13 @@
 package middleware
 
 import (
-	"strings"
+	"challenge-app/internal/domain/exception"
 	"challenge-app/pkg/security"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"challenge-app/internal/domain/exception"
 )
-
 
 type JWTMiddleware struct {
 	JWTService security.JWTService

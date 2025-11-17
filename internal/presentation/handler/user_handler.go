@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -51,6 +50,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 			return
 		}
 
+		
 		panic(err)
 	}
 
@@ -77,6 +77,7 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 			return
 		}
 
+		
 		panic(err)
 	}
 	var userResponses []dto.UserResponse

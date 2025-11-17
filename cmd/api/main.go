@@ -8,6 +8,8 @@ import (
 	"log"
 	"os"
 
+
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -46,6 +48,28 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error initializing dependencies: %v", err)
 	}
+
+	// Set up Gin router
+	r := gin.Default()
+
+	// Apply CORS middleware globally
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"}, // Allow requests from localhost:3000
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+		AllowHeaders:     []string{"Content-Type", "Authorization", "ACCEPT"},
+		AllowCredentials: true,
+	}))
+
+	// Example route for Swagger or health check endpoint
+	r.GET("/api/v1/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "API is running",
+		})
+	})
+
+	// Set up routes, inject your application, etc.
+	// Example route:
+	// app.Router.GET("/api/v1/users", getUserHandler)
 
 	log.Printf("Starting server on port %s...", bootstrap.AppPort)
 
