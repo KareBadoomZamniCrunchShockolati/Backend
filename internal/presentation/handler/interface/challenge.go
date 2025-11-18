@@ -31,4 +31,5 @@ type ChallengeHandler interface {
 	GetRequestsSentToChallenge(ctx *gin.Context)
 	GetChallengesUserIsParticipating(ctx *gin.Context)
 	GetAllCategories(ctx *gin.Context)
+	GetMutualFollowersInChallenge(ctx *gin.Context)
 }

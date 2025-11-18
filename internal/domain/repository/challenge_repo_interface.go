@@ -17,6 +17,7 @@ type ChallengeRepository interface {
 	ListChallengesByCategory(categoryID uint, offset, limit int) ([]*model.ChallengeModel, error)
 	SearchChallengesByCategory(categoryName string, offset, limit int) ([]*model.ChallengeModel, error)
 	ListChallengesByParticipant(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
+	GetMutualFollowersInChallenge(userID, challengeID uint) ([]*model.UserModel, error)
 
 	// Check if user is challenge creator
 	IsChallengeCreator(challengeID, userID uint) (bool, error)

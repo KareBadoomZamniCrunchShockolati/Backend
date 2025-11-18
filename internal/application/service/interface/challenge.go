@@ -44,4 +44,6 @@ type ChallengeServicer interface {
 	IsChallengeCreator(challengeID, userID uint) (bool, error)
 	GetChallengeParticipantCount(challengeID uint) (int, error)
 	GetChallengesUserIsParticipating(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
+
+	GetMutualFollowersInChallenge(userID, challengeID uint) ([]*model.UserModel, error)
 }

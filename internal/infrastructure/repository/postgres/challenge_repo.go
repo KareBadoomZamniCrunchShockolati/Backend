@@ -127,7 +127,7 @@ func (r *ChallengeRepository) ListChallengesByCategory(categoryID uint, offset, 
 func (r *ChallengeRepository) ListChallengesByParticipant(userID uint, offset, limit int) ([]*model.ChallengeModel, error) {
 	var chEntities []entity.ChallengeEntity
 	result := r.db.Joins("JOIN challenge_participants cp ON cp.challenge_id = challenges.id").
-		Where("cp.user_id = ? AND cp.status IN ?", userID, []uint{uint(enum.StatusJoined), uint(enum.StatusPending)}).
+		Where("cp.user_id = ? AND cp.status IN ?", userID, []uint{uint(enum.StatusJoined)}).
 		Offset(offset).Limit(limit).Find(&chEntities)
 	if result.Error != nil {
 		return nil, exception.NewRepositoryError(result.Error)
@@ -165,6 +165,37 @@ func (r *ChallengeRepository) IsChallengeCreator(challengeID, userID uint) (bool
 		return false, exception.NewRepositoryError(result.Error)
 	}
 	return chEntity.CreatorID == userID, nil
+}
+
+func (r *ChallengeRepository) GetMutualFollowersInChallenge(userID, challengeID uint) ([]*model.UserModel, error) {
+    var userEntities []entity.UserEntity
+    
+    err := r.db.Table("users u").
+        Joins("INNER JOIN challenge_participants cp ON u.id = cp.user_id").
+        Joins("INNER JOIN follows f ON u.id = f.following_id").
+        Where("cp.challenge_id = ? AND f.follower_id = ? AND cp.status IN ? AND f.status = ?", 
+            challengeID, 
+            userID, 
+            []uint{uint(enum.StatusJoined), uint(enum.StatusPending)},
+            "active").
+        Select("u.id, u.username, u.email, u.bio, u.verified").
+        Find(&userEntities).Error
+    
+    if err != nil {
+        return nil, exception.NewRepositoryError(err)
+    }
+    userModels := make([]*model.UserModel, len(userEntities))
+    for i, u := range userEntities {
+        userModels[i] = &model.UserModel{
+            ID:       u.ID,
+            Username: u.Username,
+            Email:    u.Email,
+            Bio:      u.Bio,
+            Verified: u.Verified,
+        }
+    }
+    
+    return userModels, nil
 }
 
 // Helpers

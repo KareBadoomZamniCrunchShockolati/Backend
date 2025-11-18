@@ -162,7 +162,7 @@ func (s *AuthService) VerifyEmail(email, code string) (string, error) {
 func (s *AuthService) ResendVerificationEmail(email string) error {
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		return exception.NewRepositoryVerificationError(err)
+		return err
 	}
 
 	if user == nil {

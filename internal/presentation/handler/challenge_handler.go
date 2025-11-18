@@ -526,7 +526,6 @@ func (h *ChallengeHandler) GetChallengesUserIsParticipating(ctx *gin.Context) {
 	userID,exists := ctx.Get("userID")
 	if !exists {
 		panic(exception.NewMissingUserIDException())
-		return
 	}
 	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
 	challenges, err := h.challengeService.GetChallengesUserIsParticipating(userID.(uint), offset, limit)
@@ -544,4 +543,21 @@ func (h *ChallengeHandler) GetAllCategories(ctx *gin.Context) {
     }
 
     Response(ctx, 200, "", categories)
+}
+
+func (h *ChallengeHandler) GetMutualFollowersInChallenge(ctx *gin.Context) {
+    type getMutualFollowersParams struct {
+        ChallengeID uint `uri:"id" validate:"required"`
+    }
+    params := Validated[getMutualFollowersParams](ctx)
+    userID, exists := ctx.Get("userID")
+    if !exists {
+        panic(exception.NewMissingUserIDException())
+    }
+    mutualFollowers, err := h.challengeService.GetMutualFollowersInChallenge(userID.(uint), params.ChallengeID)
+    if err != nil {
+        panic(err)
+    }
+
+    Response(ctx, 200, "", mutualFollowers)
 }

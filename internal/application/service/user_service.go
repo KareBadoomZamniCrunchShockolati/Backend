@@ -33,7 +33,7 @@ func (s *UserService) GetUserByID(id uint) (*model.UserModel, error) {
 		if _, ok := err.(*exception.NotFoundException); ok {
 			return nil, err
 		}
-		return nil, exception.NewRepositoryError(err)
+		return nil, err
 	}
 	if user == nil {
 		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", id), "USER_NOT_FOUND_001")
@@ -47,7 +47,7 @@ func (s *UserService) GetAllUsers() ([]model.UserModel, error) {
 		if _, ok := err.(*exception.NotFoundException); ok {
 			return nil, err
 		}
-		return nil, exception.NewRepositoryError(err)
+		return nil, err
 	}
 	if users == nil {
 		return nil, exception.NewInternalServerException("UserRepo.GetAllUsers returned nil slice", "CODE_LOGIC_ERROR", nil)
@@ -75,7 +75,7 @@ func (s *UserService) UpdateUser(id uint, username, bio, newEmail string) (*mode
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
 			return nil, exception.NewConflictException("User field", "username/email", "USER_UPDATE_CONFLICT")
 		}
-		return nil, exception.NewRepositoryUpdateError(err)
+		return nil, err
 
 	}
 	if updatedUser == nil {
@@ -91,7 +91,7 @@ func (s *UserService) InitiateEmailChange(userID uint, newEmail string) error {
 	// 1. getting the user with his ID
 	user, err := s.UserRepo.GetUserByID(userID)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 	if user == nil {
 		return exception.NewNotFoundException("User", fmt.Sprintf("%d", userID), "USER_NOT_FOUND_003")
@@ -104,7 +104,7 @@ func (s *UserService) InitiateEmailChange(userID uint, newEmail string) error {
 	// 3. Check if new email is already taken by another user
 	existingUser, _ := s.UserRepo.GetUserByEmail(newEmail)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 
 	if existingUser != nil && existingUser.ID != user.ID {
@@ -241,7 +241,7 @@ func (s *UserService) DeleteUser(id uint) error {
 		if errors.As(err, &nf) {
 			return nf
 		}
-		return exception.NewRepositoryError(err)
+		return err
 
 	}
 	return nil

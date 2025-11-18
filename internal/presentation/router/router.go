@@ -132,6 +132,8 @@ func SetupRouter(
 		protected.GET("/challenges/invites", challengeHandler.GetInvitesSentToUser)
 		protected.GET("/challenges/:id/requests", challengeHandler.GetRequestsSentToChallenge)
 		protected.GET("/challenges/:id/invites", challengeHandler.GetInvitesSentFromChallenge)
+
+		protected.GET("/challenges/:id/mutual-followers", challengeHandler.GetMutualFollowersInChallenge)
 	}
 
 	// Public follow routes (moved outside protected group)

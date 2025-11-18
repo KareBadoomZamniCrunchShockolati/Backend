@@ -21,6 +21,7 @@ type ChallengeService struct {
 	joinRequestRepo repository.ChallengeRequestRepository
 	categoryRepo    repository.CategoryRepository
 	userRepo        repository.UserRepository
+	followRepo      repository.FollowRepository
 }
 
 func NewChallengeService(
@@ -31,6 +32,7 @@ func NewChallengeService(
 	joinRequestRepo repository.ChallengeRequestRepository,
 	categoryRepo repository.CategoryRepository,
 	userRepo repository.UserRepository,
+	followRepo repository.FollowRepository,
 ) *ChallengeService {
 	return &ChallengeService{
 		challengeRepo:   challengeRepo,
@@ -40,6 +42,7 @@ func NewChallengeService(
 		joinRequestRepo: joinRequestRepo,
 		categoryRepo:    categoryRepo,
 		userRepo:        userRepo,
+		followRepo:      followRepo,
 	}
 }
 
@@ -50,14 +53,14 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 	}
 	category, err := s.categoryRepo.GetCategoryByID(input.CategoryID)
 	if err != nil {
-		return nil, exception.NewRepositoryError(err)
+		return nil, err
 	}
 	if category == nil {
 		return nil, exception.NewNotFoundException("Category", fmt.Sprintf("%d", input.CategoryID), "CATEGORY_NOT_FOUND")
 	}
 	user, err := s.userRepo.GetUserByID(input.CreatorID)
 	if err != nil {
-		return nil, exception.NewRepositoryError(err)
+		return nil, err
 	} else if user == nil {
 		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", input.CreatorID), "USER_NOT_FOUND")
 	}
@@ -79,16 +82,15 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 	}
 	created, err := s.challengeRepo.CreateChallenge(challenge)
 	if err != nil {
-		return nil, exception.NewRepositoryError(err)
+		return nil, err
 	}
 
 	return created, nil
 }
-
 func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *dto.UpdateChallengeDTO) (*model.ChallengeModel, error) {
 	challenge, err := s.challengeRepo.GetChallengeByID(id)
 	if err != nil {
-		return nil, exception.NewRepositoryError(err)
+		return nil, err
 	}
 	if challenge == nil {
 		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", id), "CHALLENGE_NOT_FOUND")
@@ -97,6 +99,14 @@ func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *d
 	if challenge.CreatorID != currentUserID {
 		return nil, exception.NewUnauthorizedException("Only the creator can update this challenge", "CHALLENGE_UPDATE_FORBIDDEN")
 	}
+
+	if input.StartTime != nil {
+		if challenge.StartTime.Before(time.Now()) {
+			return nil, exception.NewBadRequestException("Cannot change StartTime, challenge already started", "CHALLENGE_ALREADY_STARTED", nil)
+		}
+		challenge.StartTime = *input.StartTime
+	}
+
 	if input.Title != nil {
 		challenge.Title = *input.Title
 	}
@@ -107,7 +117,7 @@ func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *d
 		challenge.CategoryID = *input.CategoryID
 		category, err := s.categoryRepo.GetCategoryByID(challenge.CategoryID)
 		if err != nil {
-			return nil, exception.NewRepositoryError(err)
+			return nil, err
 		}
 		if category == nil {
 			return nil, exception.NewNotFoundException("Category", fmt.Sprintf("%d", challenge.CategoryID), "CATEGORY_NOT_FOUND")
@@ -127,12 +137,6 @@ func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *d
 	}
 	if input.Timezone != nil {
 		challenge.Timezone = *input.Timezone
-	}
-	if input.StartTime != nil {
-		if challenge.StartTime.Before(time.Now()) {
-			return nil, exception.NewBadRequestException("Cannot change StartTime, challenge already started", "CHALLENGE_ALREADY_STARTED", nil)
-		}
-		challenge.StartTime = *input.StartTime
 	}
 	if input.EndTime != nil {
 		challenge.EndTime = input.EndTime
@@ -356,7 +360,7 @@ func (s *ChallengeService) RemoveParticipant(challengeID, removerID, participant
 
 	isParticipant, err := s.participantRepo.IsUserParticipant(challengeID, participantID)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 	if !isParticipant {
 		return exception.NewBadRequestException("User is not a participant", "USER_NOT_PARTICIPANT", nil)
@@ -378,7 +382,7 @@ func (s *ChallengeService) ListChallengeParticipants(challengeID uint, userID ui
 		isCreator := challenge.CreatorID == userID
 		isParticipant, err := s.participantRepo.IsUserParticipant(challengeID, userID)
 		if err != nil {
-			return nil, exception.NewRepositoryError(err)
+			return nil, err
 		}
 		if !isCreator && !isParticipant {
 			return nil, exception.NewUnauthorizedException("You must be a participant or creator to view challenge participants", "PARTICIPANTS_ACCESS_DENIED")
@@ -391,7 +395,7 @@ func (s *ChallengeService) ListChallengeParticipants(challengeID uint, userID ui
 func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) error {
 	request, err := s.joinRequestRepo.GetJoinRequest(requestID)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 	if request == nil {
 		return exception.NewNotFoundException("Join request", fmt.Sprintf("%d", requestID), "JOIN_REQUEST_NOT_FOUND")
@@ -403,7 +407,7 @@ func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) erro
 
 	challenge, err := s.challengeRepo.GetChallengeByID(request.ChallengeID)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 
 	if challenge.CreatorID != currentUserID {
@@ -419,7 +423,7 @@ func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) erro
 	request.Status = enum.RequestAccepted
 	_, err = s.joinRequestRepo.UpdateJoinRequest(request)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 
 	participant := &model.ChallengeParticipant{
@@ -428,9 +432,12 @@ func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) erro
 		Status:      enum.StatusJoined,
 	}
 	_, err = s.participantRepo.CreateParticipant(participant)
+	if err != nil {
+		return err
+	}
 	err = s.joinRequestRepo.DeleteJoinRequest(requestID)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 	return err
 }
@@ -438,7 +445,7 @@ func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) erro
 func (s *ChallengeService) DeclineJoinRequest(requestID, currentUserID uint) error {
 	request, err := s.joinRequestRepo.GetJoinRequest(requestID)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 	if request == nil {
 		return exception.NewNotFoundException("Join request", fmt.Sprintf("%d", requestID), "JOIN_REQUEST_NOT_FOUND")
@@ -449,7 +456,7 @@ func (s *ChallengeService) DeclineJoinRequest(requestID, currentUserID uint) err
 	}
 	challenge, err := s.challengeRepo.GetChallengeByID(request.ChallengeID)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 
 	if challenge.CreatorID != currentUserID {
@@ -457,9 +464,12 @@ func (s *ChallengeService) DeclineJoinRequest(requestID, currentUserID uint) err
 	}
 	request.Status = enum.RequestRejected
 	_, err = s.joinRequestRepo.UpdateJoinRequest(request)
+	if err != nil {
+		return err
+	}
 	err = s.joinRequestRepo.DeleteJoinRequest(requestID)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 	return err
 }
@@ -482,7 +492,7 @@ func (s *ChallengeService) AcceptInvite(inviteID, currentUserID uint) error {
 
 	challenge, err := s.challengeRepo.GetChallengeByID(invite.ChallengeID)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 
 	if challenge.IsStopped {
@@ -496,12 +506,12 @@ func (s *ChallengeService) AcceptInvite(inviteID, currentUserID uint) error {
 	invite.Status = enum.InviteAccepted
 	_, err = s.inviteRepo.UpdateInvite(invite)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 
 	err = s.inviteRepo.DeleteInvite(inviteID)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 
 	participant := &model.ChallengeParticipant{
@@ -530,11 +540,11 @@ func (s *ChallengeService) DeclineInvite(inviteID, currentUserID uint) error {
 	invite.Status = enum.InviteDeclined
 	_, err = s.inviteRepo.UpdateInvite(invite)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 	err = s.inviteRepo.DeleteInvite(inviteID)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 	return nil
 }
@@ -550,7 +560,7 @@ func (s *ChallengeService) LeaveChallenge(userID, challengeID uint) error {
 
 	isParticipant, err := s.participantRepo.IsUserParticipant(challengeID, userID)
 	if err != nil {
-		return exception.NewRepositoryError(err)
+		return err
 	}
 	if !isParticipant {
 		return exception.NewBadRequestException("User is not a participant", "USER_NOT_PARTICIPANT", nil)
@@ -562,7 +572,7 @@ func (s *ChallengeService) LeaveChallenge(userID, challengeID uint) error {
 func (s *ChallengeService) AddComment(userID uint, input *dto.AddCommentDTO) (*model.ChallengeComment, error) {
 	challenge, err := s.challengeRepo.GetChallengeByID(input.ChallengeID)
 	if err != nil {
-		return nil, exception.NewRepositoryError(err)
+		return nil, err
 	}
 	if challenge == nil {
 		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", input.ChallengeID), "CHALLENGE_NOT_FOUND")
@@ -575,7 +585,7 @@ func (s *ChallengeService) AddComment(userID uint, input *dto.AddCommentDTO) (*m
 	}
 	isParticipant, err := s.participantRepo.IsUserParticipant(input.ChallengeID, userID)
 	if err != nil {
-		return nil, exception.NewRepositoryError(err)
+		return nil, err
 	}
 	if !isParticipant {
 		return nil, exception.NewForbiddenException("Only participants can comment", "USER_NOT_PARTICIPANT")
@@ -621,7 +631,7 @@ func (s *ChallengeService) GetInvitesSentToUser(userID uint) ([]*model.Challenge
 func (s *ChallengeService) GetInvitesSentFromChallenge(challengeID uint, creatorID uint) ([]*model.ChallengeInvite, error) {
 	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
 	if err != nil {
-		return nil, exception.NewRepositoryError(err)
+		return nil, err
 	}
 	if challenge == nil {
 		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", challengeID), "CHALLENGE_NOT_FOUND")
@@ -661,6 +671,16 @@ func (s *ChallengeService) GetChallengeParticipantCount(challengeID uint) (int, 
 
 func (s *ChallengeService) GetChallengesUserIsParticipating(userID uint, offset, limit int) ([]*model.ChallengeModel, error) {
 	return s.challengeRepo.ListChallengesByParticipant(userID, offset, limit)
+}
+func (s *ChallengeService) GetMutualFollowersInChallenge(userID, challengeID uint) ([]*model.UserModel, error) {
+    challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+    if err != nil {
+        return nil, err
+    }
+    if challenge == nil {
+        return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", challengeID), "CHALLENGE_NOT_FOUND")
+    }
+    return s.challengeRepo.GetMutualFollowersInChallenge(userID, challengeID)
 }
 
 // Helper
