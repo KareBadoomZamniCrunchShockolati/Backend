@@ -507,7 +507,6 @@ func (h *ChallengeHandler) GetRequestsSentToChallenge(ctx *gin.Context) {
 	userID, exists := ctx.Get("userID")
 	if !exists {
 		panic(exception.NewMissingUserIDException())
-		return
 	}
 	requests, err := h.challengeService.GetRequestsSentToChallenge(params.ID, userID.(uint))
 	if err != nil {
@@ -560,4 +559,62 @@ func (h *ChallengeHandler) GetMutualFollowersInChallenge(ctx *gin.Context) {
     }
 
     Response(ctx, 200, "", mutualFollowers)
+}
+
+func (h *ChallengeHandler) LikeChallenge(ctx *gin.Context) {
+    type likeChallengeParams struct {
+        ChallengeID uint `uri:"id" validate:"required"`
+    }
+    params := Validated[likeChallengeParams](ctx)
+    userIDInterface, exists := ctx.Get("userID")
+    if !exists {
+        panic("User not authenticated")
+    }
+    userID, ok := userIDInterface.(uint)
+    if !ok || userID == 0 {
+        panic("Invalid user ID in context")
+    }
+
+    err := h.challengeService.LikeChallenge(userID, params.ChallengeID)
+    if err != nil {
+        panic(err)
+    }
+
+    Response(ctx, 200, "Challenge liked successfully", nil)
+}
+
+func (h *ChallengeHandler) UnlikeChallenge(ctx *gin.Context) {
+    type unlikeChallengeParams struct {
+        ChallengeID uint `uri:"id" validate:"required"`
+    }
+    params := Validated[unlikeChallengeParams](ctx)
+    userIDInterface, exists := ctx.Get("userID")
+    if !exists {
+        panic("User not authenticated")
+    }
+    userID, ok := userIDInterface.(uint)
+    if !ok || userID == 0 {
+        panic("Invalid user ID in context")
+    }
+
+    err := h.challengeService.UnlikeChallenge(userID, params.ChallengeID)
+    if err != nil {
+        panic(err)
+    }
+
+    Response(ctx, 200, "Challenge unliked successfully", nil)
+}
+
+func (h *ChallengeHandler) GetChallengeLikeCount(ctx *gin.Context) {
+    type getLikeCountParams struct {
+        ChallengeID uint `uri:"id" validate:"required"`
+    }
+    params := Validated[getLikeCountParams](ctx)
+
+    count, err := h.challengeService.GetChallengeLikeCount(params.ChallengeID)
+    if err != nil {
+        panic(err)
+    }
+
+    Response(ctx, 200, "", gin.H{"like_count": count})
 }

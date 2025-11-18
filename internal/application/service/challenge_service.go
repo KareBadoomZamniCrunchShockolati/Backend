@@ -80,6 +80,7 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 		IsStopped:       false,
 		CommentsEnabled: input.CommentsEnabled,
 	}
+	log.Println("CHALLENGE START TIME:, ", challenge.StartTime)
 	created, err := s.challengeRepo.CreateChallenge(challenge)
 	if err != nil {
 		return nil, err
@@ -99,7 +100,7 @@ func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *d
 	if challenge.CreatorID != currentUserID {
 		return nil, exception.NewUnauthorizedException("Only the creator can update this challenge", "CHALLENGE_UPDATE_FORBIDDEN")
 	}
-
+	log.Println("Challenge Start time in service: ", challenge.StartTime)
 	if input.StartTime != nil {
 		if challenge.StartTime.Before(time.Now()) {
 			return nil, exception.NewBadRequestException("Cannot change StartTime, challenge already started", "CHALLENGE_ALREADY_STARTED", nil)
@@ -673,14 +674,67 @@ func (s *ChallengeService) GetChallengesUserIsParticipating(userID uint, offset,
 	return s.challengeRepo.ListChallengesByParticipant(userID, offset, limit)
 }
 func (s *ChallengeService) GetMutualFollowersInChallenge(userID, challengeID uint) ([]*model.UserModel, error) {
-    challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+	if err != nil {
+		return nil, err
+	}
+	if challenge == nil {
+		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", challengeID), "CHALLENGE_NOT_FOUND")
+	}
+	return s.challengeRepo.GetMutualFollowersInChallenge(userID, challengeID)
+}
+
+func (s *ChallengeService) LikeChallenge(userID, challengeID uint) error {
+    isParticipant, err := s.participantRepo.IsUserParticipant(challengeID, userID)
     if err != nil {
-        return nil, err
+        return err
     }
-    if challenge == nil {
-        return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", challengeID), "CHALLENGE_NOT_FOUND")
+    if !isParticipant {
+        return exception.NewForbiddenException("Only participants can like challenges", "USER_NOT_PARTICIPANT")
     }
-    return s.challengeRepo.GetMutualFollowersInChallenge(userID, challengeID)
+    
+    isLiked, err := s.challengeRepo.IsUserLikedChallenge(challengeID, userID)
+    if err != nil {
+        return err
+    }
+    if isLiked {
+        return exception.NewConflictException("Like", "user_id", "USER_ALREADY_LIKED")
+    }
+    
+    like := &model.ChallengeLike{
+        ChallengeID: challengeID,
+        UserID:      userID,
+    }
+    
+    return s.challengeRepo.CreateLike(like)
+}
+
+func (s *ChallengeService) UnlikeChallenge(userID, challengeID uint) error {
+    isParticipant, err := s.participantRepo.IsUserParticipant(challengeID, userID)
+    if err != nil {
+        return err
+    }
+    if !isParticipant {
+        return exception.NewForbiddenException("Only participants can unlike challenges", "USER_NOT_PARTICIPANT")
+    }
+    
+    isLiked, err := s.challengeRepo.IsUserLikedChallenge(challengeID, userID)
+    if err != nil {
+        return err
+    }
+    if !isLiked {
+        return exception.NewBadRequestException("User has not liked this challenge", "USER_NOT_LIKED", nil)
+    }
+    
+    return s.challengeRepo.DeleteLike(challengeID, userID)
+}
+
+func (s *ChallengeService) IsUserLikedChallenge(userID, challengeID uint) (bool, error) {
+    return s.challengeRepo.IsUserLikedChallenge(challengeID, userID)
+}
+
+func (s *ChallengeService) GetChallengeLikeCount(challengeID uint) (uint, error) {
+    return s.challengeRepo.GetLikeCount(challengeID)
 }
 
 // Helper

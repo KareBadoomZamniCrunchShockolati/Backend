@@ -46,4 +46,8 @@ type ChallengeServicer interface {
 	GetChallengesUserIsParticipating(userID uint, offset, limit int) ([]*model.ChallengeModel, error)
 
 	GetMutualFollowersInChallenge(userID, challengeID uint) ([]*model.UserModel, error)
+	LikeChallenge(userID, challengeID uint) error
+    UnlikeChallenge(userID, challengeID uint) error
+    IsUserLikedChallenge(userID, challengeID uint) (bool, error)
+    GetChallengeLikeCount(challengeID uint) (uint, error)
 }

@@ -21,9 +21,11 @@ type ChallengeEntity struct {
 	EndTime         *time.Time
 	IsStopped       bool `gorm:"default:false"`
 	CommentsEnabled bool `gorm:"default:false"`
+	LikeCount       uint `gorm:"default:0"`  
 	// Relations
 	Participants []*ChallengeParticipantEntity `gorm:"foreignKey:ChallengeID"`
 	Comments     []*ChallengeCommentEntity     `gorm:"foreignKey:ChallengeID"`
+	Likes        []*ChallengeLikeEntity        `gorm:"foreignKey:ChallengeID"`
 	Category     ChallengeCategoryEntity       `gorm:"foreignKey:CategoryID"`
 }
 

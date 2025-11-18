@@ -113,7 +113,6 @@ func SetupRouter(
 
 		protected.GET("/challenges/:id/participants", challengeHandler.ListChallengeParticipants)
 
-
 		// Protected challenge invite routes
 		protected.POST("/challenges/:id/invite", challengeHandler.InviteUserToChallenge)
 		protected.POST("/challenges/invites/:invite_id/accept", challengeHandler.AcceptInvite)
@@ -134,6 +133,12 @@ func SetupRouter(
 		protected.GET("/challenges/:id/invites", challengeHandler.GetInvitesSentFromChallenge)
 
 		protected.GET("/challenges/:id/mutual-followers", challengeHandler.GetMutualFollowersInChallenge)
+
+		protected.POST("/challenges/:id/like", challengeHandler.LikeChallenge)
+		protected.DELETE("/challenges/:id/like", challengeHandler.UnlikeChallenge)
+		protected.GET("/challenges/:id/likes", challengeHandler.GetChallengeLikeCount)
+
+		protected.GET("/challenges/categories", challengeHandler.GetAllCategories)
 	}
 
 	// Public follow routes (moved outside protected group)

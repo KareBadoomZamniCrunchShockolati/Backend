@@ -6,7 +6,7 @@ import (
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
 	"log"
-
+	"fmt"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +24,7 @@ func (r *ChallengeRepository) CreateChallenge(challenge *model.ChallengeModel) (
 	if result.Error != nil {
 		return nil, exception.NewRepositoryError(result.Error)
 	}
+	log.Println("Created Challenge with StartTime:", challenge.StartTime)
 	return toChallengeModelWithID(*entity, challenge), nil
 }
 
@@ -31,7 +32,6 @@ func (r *ChallengeRepository) GetChallengeByID(id uint) (*model.ChallengeModel, 
 	var entity entity.ChallengeEntity
 	result := r.db.Preload("Participants").Preload("Comments").First(&entity, id)
 	if result.Error != nil {
-		log.Println("here in repo")
 		if result.Error == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
@@ -57,6 +57,7 @@ func (r *ChallengeRepository) GetAllChallenges() ([]*model.ChallengeModel, error
 func (r *ChallengeRepository) UpdateChallenge(challenge *model.ChallengeModel) (*model.ChallengeModel, error) {
 	entity := toChallengeEntity(challenge)
 	entity.ID = challenge.ID
+	log.Println("Updating Challenge with StartTime:", challenge.StartTime)
 	result := r.db.Save(&entity)
 	if result.Error != nil {
 		return nil, exception.NewRepositoryError(result.Error)
@@ -168,34 +169,96 @@ func (r *ChallengeRepository) IsChallengeCreator(challengeID, userID uint) (bool
 }
 
 func (r *ChallengeRepository) GetMutualFollowersInChallenge(userID, challengeID uint) ([]*model.UserModel, error) {
-    var userEntities []entity.UserEntity
-    
-    err := r.db.Table("users u").
-        Joins("INNER JOIN challenge_participants cp ON u.id = cp.user_id").
-        Joins("INNER JOIN follows f ON u.id = f.following_id").
-        Where("cp.challenge_id = ? AND f.follower_id = ? AND cp.status IN ? AND f.status = ?", 
-            challengeID, 
-            userID, 
-            []uint{uint(enum.StatusJoined), uint(enum.StatusPending)},
-            "active").
-        Select("u.id, u.username, u.email, u.bio, u.verified").
-        Find(&userEntities).Error
-    
-    if err != nil {
-        return nil, exception.NewRepositoryError(err)
-    }
-    userModels := make([]*model.UserModel, len(userEntities))
-    for i, u := range userEntities {
-        userModels[i] = &model.UserModel{
-            ID:       u.ID,
-            Username: u.Username,
-            Email:    u.Email,
-            Bio:      u.Bio,
-            Verified: u.Verified,
-        }
-    }
-    
-    return userModels, nil
+	var userEntities []entity.UserEntity
+
+	err := r.db.Table("users u").
+		Joins("INNER JOIN challenge_participants cp ON u.id = cp.user_id").
+		Joins("INNER JOIN follows f ON u.id = f.following_id").
+		Where("cp.challenge_id = ? AND f.follower_id = ? AND cp.status IN ? AND f.status = ?",
+			challengeID,
+			userID,
+			[]uint{uint(enum.StatusJoined), uint(enum.StatusPending)},
+			"active").
+		Select("u.id, u.username, u.email, u.bio, u.verified").
+		Find(&userEntities).Error
+
+	if err != nil {
+		return nil, exception.NewRepositoryError(err)
+	}
+	userModels := make([]*model.UserModel, len(userEntities))
+	for i, u := range userEntities {
+		userModels[i] = &model.UserModel{
+			ID:       u.ID,
+			Username: u.Username,
+			Email:    u.Email,
+			Bio:      u.Bio,
+			Verified: u.Verified,
+		}
+	}
+
+	return userModels, nil
+}
+
+func (r *ChallengeRepository) CreateLike(like *model.ChallengeLike) error {
+	likeEntity := &entity.ChallengeLikeEntity{
+		ChallengeID: like.ChallengeID,
+		UserID:      like.UserID,
+	}
+	result := r.db.Create(likeEntity)
+	if result.Error != nil {
+		return exception.NewRepositoryError(result.Error)
+	}
+	result = r.db.Model(&entity.ChallengeEntity{}).
+		Where("id = ?", like.ChallengeID).
+		Update("like_count", gorm.Expr("like_count + ?", 1))
+	if result.Error != nil {
+		return exception.NewRepositoryError(result.Error)
+	}
+
+	return nil
+}
+
+func (r *ChallengeRepository) DeleteLike(challengeID, userID uint) error {
+	result := r.db.Where("challenge_id = ? AND user_id = ?", challengeID, userID).Delete(&entity.ChallengeLikeEntity{})
+	if result.Error != nil {
+		return exception.NewRepositoryError(result.Error)
+	}
+	
+	if result.RowsAffected == 0 {
+		return exception.NewNotFoundException("Like", fmt.Sprintf("challenge_id:%d,user_id:%d", challengeID, userID), "LIKE_NOT_FOUND")
+	}
+	
+	result = r.db.Model(&entity.ChallengeEntity{}).
+		Where("id = ?", challengeID).
+		Update("like_count", gorm.Expr("GREATEST(like_count - ?, 0)", 1))
+	if result.Error != nil {
+		return exception.NewRepositoryError(result.Error)
+	}
+	
+	return nil
+}
+
+func (r *ChallengeRepository) IsUserLikedChallenge(challengeID, userID uint) (bool, error) {
+	var count int64
+	err := r.db.Model(&entity.ChallengeLikeEntity{}).
+		Where("challenge_id = ? AND user_id = ?", challengeID, userID).
+		Count(&count).Error
+	if err != nil {
+		return false, exception.NewRepositoryError(err)
+	}
+	return count > 0, nil
+}
+
+func (r *ChallengeRepository) GetLikeCount(challengeID uint) (uint, error) {
+	var challenge entity.ChallengeEntity
+	err := r.db.Select("like_count").Where("id = ?", challengeID).First(&challenge).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return 0, nil
+		}
+		return 0, exception.NewRepositoryError(err)
+	}
+	return challenge.LikeCount, nil
 }
 
 // Helpers
@@ -228,6 +291,7 @@ func toChallengeModel(e *entity.ChallengeEntity) *model.ChallengeModel {
 		Visibility:      enum.ChallengeVisibility(e.Visibility),
 		Rule:            e.Rule,
 		EndTime:         e.EndTime,
+		StartTime:       *e.StartTime,
 		Timezone:        e.Timezone,
 		ImageURL:        e.ImageURL,
 		IsStopped:       e.IsStopped,
