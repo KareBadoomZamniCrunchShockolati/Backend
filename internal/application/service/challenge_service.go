@@ -1,9 +1,7 @@
-// internal/application/service/challenge_service.go
 package service
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"challenge-app/internal/application/dto"
@@ -80,7 +78,6 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 		IsStopped:       false,
 		CommentsEnabled: input.CommentsEnabled,
 	}
-	log.Println("CHALLENGE START TIME:, ", challenge.StartTime)
 	created, err := s.challengeRepo.CreateChallenge(challenge)
 	if err != nil {
 		return nil, err
@@ -88,8 +85,9 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 
 	return created, nil
 }
+
 func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *dto.UpdateChallengeDTO) (*model.ChallengeModel, error) {
-	challenge, err := s.challengeRepo.GetChallengeByID(id)
+	challenge, err := s.challengeRepo.GetChallengeByID(id, currentUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +98,6 @@ func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *d
 	if challenge.CreatorID != currentUserID {
 		return nil, exception.NewUnauthorizedException("Only the creator can update this challenge", "CHALLENGE_UPDATE_FORBIDDEN")
 	}
-	log.Println("Challenge Start time in service: ", challenge.StartTime)
 	if input.StartTime != nil {
 		if challenge.StartTime.Before(time.Now()) {
 			return nil, exception.NewBadRequestException("Cannot change StartTime, challenge already started", "CHALLENGE_ALREADY_STARTED", nil)
@@ -158,7 +155,7 @@ func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *d
 }
 
 func (s *ChallengeService) DeleteChallenge(challengeID uint, currentUserID uint) error {
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, currentUserID)
 	if err != nil {
 		return err
 	}
@@ -172,31 +169,8 @@ func (s *ChallengeService) DeleteChallenge(challengeID uint, currentUserID uint)
 	return s.challengeRepo.DeleteChallenge(challengeID)
 }
 
-func (s *ChallengeService) GetChallengeByID(id uint) (*model.ChallengeModel, error) {
-	challenge, err := s.challengeRepo.GetChallengeByID(id)
-	if err != nil {
-		return nil, err
-	}
-	if challenge == nil {
-		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", id), "CHALLENGE_NOT_FOUND")
-	}
-	return challenge, nil
-}
-
-func (s *ChallengeService) GetAllChallenges() ([]*model.ChallengeModel, error) {
-	return s.challengeRepo.GetAllChallenges()
-}
-
-func (s *ChallengeService) ListByCategory(categoryID uint, offset, limit int) ([]*model.ChallengeModel, error) {
-	return s.challengeRepo.ListChallengesByCategory(categoryID, offset, limit)
-}
-
-func (s *ChallengeService) ListByCreator(userID uint, offset, limit int) ([]*model.ChallengeModel, error) {
-	return s.challengeRepo.ListChallengesByCreator(userID, offset, limit)
-}
-
 func (s *ChallengeService) StopChallenge(challengeID, currentUserID uint) error {
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, currentUserID)
 	if err != nil {
 		return err
 	}
@@ -211,8 +185,181 @@ func (s *ChallengeService) StopChallenge(challengeID, currentUserID uint) error 
 	return s.challengeRepo.StopChallenge(challengeID)
 }
 
+func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDetailDTO, error) {
+	challenge, err := s.challengeRepo.GetChallengeByID(id, userID)
+	if err != nil {
+		return nil, err
+	}
+	if challenge == nil {
+		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", id), "CHALLENGE_NOT_FOUND")
+	}
+	categoryName := ""
+	if challenge.CategoryID > 0 {
+		category, err := s.categoryRepo.GetCategoryByID(challenge.CategoryID)
+		if err == nil && category != nil {
+			categoryName = category.Name
+		}
+	}
+	creatorUsername := ""
+	if challenge.CreatorID > 0 {
+		user, err := s.userRepo.GetUserByID(challenge.CreatorID)
+		if err == nil && user != nil {
+			creatorUsername = user.Username
+		}
+	}
+
+	totalParticipants, err := s.participantRepo.GetParticipantCount(id)
+	if err != nil {
+		return nil, err
+	}
+	var mutualDTOs []dto.UserPreviewDTO
+	if userID > 0 {
+		mutualUsers, err := s.challengeRepo.GetMutualFollowersInChallenge(userID, id)
+		if err == nil && len(mutualUsers) > 0 {
+			mutualDTOs = make([]dto.UserPreviewDTO, len(mutualUsers))
+			for i, u := range mutualUsers {
+				mutualDTOs[i] = dto.UserPreviewDTO{
+					ID:       u.ID,
+					Username: u.Username,
+				}
+			}
+		}
+	}
+	comments, err := s.commentRepo.GetChallengeComments(id, 0, 20)
+	if err != nil {
+		return nil, err
+	}
+	commentDTOs := make([]dto.CommentResponseDTO, len(comments))
+	for i, c := range comments {
+		username := ""
+		if c.UserID > 0 {
+			user, err := s.userRepo.GetUserByID(c.UserID)
+			if err == nil && user != nil {
+				username = user.Username
+			}
+		}
+		commentDTOs[i] = dto.CommentResponseDTO{
+			ID:       c.ID,
+			UserID:   c.UserID,
+			Username: username,
+			Content:  c.Content,
+		}
+	}	
+	participants, err := s.participantRepo.GetParticipantsByChallenge(id, 0, 20)
+	if err != nil {
+		return nil, err
+	}
+	participantDTOs := make([]dto.ParticipantResponseDTO, len(participants))
+	for i, p := range participants {
+		username := ""
+		if p.UserID > 0 {
+			user, err := s.userRepo.GetUserByID(p.UserID)
+			if err == nil && user != nil {
+				username = user.Username
+			}
+		}
+		participantDTOs[i] = dto.ParticipantResponseDTO{
+			UserID:   p.UserID,
+			Username: username,
+		}
+	}
+	likeCount, _ := s.challengeRepo.GetLikeCount(id)
+	isUserLiked := false
+	if userID > 0 {
+		isUserLiked, _ = s.challengeRepo.IsUserLikedChallenge(id, userID)
+	}
+	isUserParticipating := false
+	if userID > 0 {
+		isUserParticipating, err = s.participantRepo.IsUserParticipant(id, userID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	previewDTO := dto.ChallengePreviewDTO{
+		ID:                  challenge.ID,
+		Title:               challenge.Title,
+		Description:         challenge.Description,
+		Rule:                challenge.Rule,
+		CategoryName:        categoryName,
+		CreatorUsername:     creatorUsername,
+		CreatorID:           challenge.CreatorID,
+		Visibility:          challenge.Visibility,
+		ImageURL:            challenge.ImageURL,
+		MaxParticipants:     challenge.MaxParticipants,
+		CurrentParticipants: int(totalParticipants),
+		LikeCount:           likeCount,
+		CommentCount:        uint(len(comments)),
+		StartTime:           challenge.StartTime,
+		EndTime:             challenge.EndTime,
+		Timezone:            challenge.Timezone,
+		CreatedAt:           challenge.CreatedAt,
+		IsUserParticipating: isUserParticipating,
+		IsUserLiked:         isUserLiked,
+		MutualParticipants:  mutualDTOs,
+	}
+	return &dto.ChallengeDetailDTO{
+		ChallengePreviewDTO: previewDTO,
+		CommentsEnabled:     challenge.CommentsEnabled,
+		Participants:        participantDTOs,
+		Comments:            commentDTOs,
+	}, nil
+}
+
+func (s *ChallengeService) GetAllChallenges(userID, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.GetAllChallenges(uint(userID), offset, limit)
+}
+
+func (s *ChallengeService) ListDiscoverableChallenges(currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.ListDiscoverableChallenges(currentUserID, offset, limit)
+}
+
+func (s *ChallengeService) ListPublicChallenges(offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.ListPublicChallenges(offset, limit)
+}
+
+func (s *ChallengeService) ListChallengesByCreatorID(creatorID, currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.ListChallengesByCreatorID(creatorID, currentUserID, offset, limit)
+}
+
+func (s *ChallengeService) ListChallengesByCreatorUsername(username string, currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.ListChallengesByCreatorUsername(username, currentUserID, offset, limit)
+}
+
+func (s *ChallengeService) ListChallengesByCategoryID(categoryID, currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.ListChallengesByCategoryID(categoryID, currentUserID, offset, limit)
+}
+
+func (s *ChallengeService) ListChallengesByCategoryName(name string, currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.ListChallengesByCategoryName(name, currentUserID, offset, limit)
+}
+
+func (s *ChallengeService) ListChallengesByParticipantCount(currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.ListChallengesByParticipantCount(currentUserID, offset, limit)
+}
+
+func (s *ChallengeService) ListChallengesByLikeCount(currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.ListChallengesByLikeCount(currentUserID, offset, limit)
+}
+
+func (s *ChallengeService) ListChallengesStartingSoon(currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.ListChallengesStartingSoon(currentUserID, offset, limit)
+}
+
+func (s *ChallengeService) ListTopCreatorsChallenge(offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.ListTopCreatorsChallenge(offset, limit)
+}
+
+func (s *ChallengeService) ListChallengesJoinedByUser(currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.ListChallengesJoinedByUser(currentUserID, offset, limit)
+}
+
+func (s *ChallengeService) SearchChallenges(query string, visibility []enum.ChallengeVisibility, currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.SearchChallenges(query, visibility, currentUserID, offset, limit)
+}
+
+
 func (s *ChallengeService) JoinPublicChallenge(userID, challengeID uint) error {
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
 	if err != nil {
 		return err
 	}
@@ -249,21 +396,17 @@ func (s *ChallengeService) JoinPublicChallenge(userID, challengeID uint) error {
 }
 
 func (s *ChallengeService) JoinPrivateChallenge(userID, challengeID uint) error {
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
 	if err != nil {
-		log.Println("here in service1")
 		return exception.NewRepositoryError(err)
 	}
 	if challenge == nil {
-		log.Println("here in service2")
 		return exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", challengeID), "CHALLENGE_NOT_FOUND")
 	}
 	if challenge.Visibility != enum.VisibilityPrivate {
-		log.Println("here in service3")
 		return exception.NewForbiddenException("Challenge is not private", "CHALLENGE_NOT_PRIVATE")
 	}
 	if challenge.IsStopped {
-		log.Println("here in service4")
 		return exception.NewForbiddenException("Challenge is stopped", "CHALLENGE_STOPPED")
 	}
 	if err := s.checkParticipantLimit(challengeID, challenge.MaxParticipants); err != nil {
@@ -280,7 +423,6 @@ func (s *ChallengeService) JoinPrivateChallenge(userID, challengeID uint) error 
 
 	requests, err := s.joinRequestRepo.GetUserJoinRequests(userID)
 	if err != nil {
-		log.Println("here in service5")
 		return exception.NewRepositoryError(err)
 	}
 	for _, req := range requests {
@@ -299,7 +441,7 @@ func (s *ChallengeService) JoinPrivateChallenge(userID, challengeID uint) error 
 }
 
 func (s *ChallengeService) InviteUserToChallenge(inviterID, challengeID, inviteeID uint) (*model.ChallengeInvite, error) {
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, inviterID)
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +490,7 @@ func (s *ChallengeService) InviteUserToChallenge(inviterID, challengeID, invitee
 }
 
 func (s *ChallengeService) RemoveParticipant(challengeID, removerID, participantID uint) error {
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, removerID)
 	if err != nil {
 		return err
 	}
@@ -370,8 +512,8 @@ func (s *ChallengeService) RemoveParticipant(challengeID, removerID, participant
 	return s.participantRepo.DeleteParticipant(challengeID, participantID)
 }
 
-func (s *ChallengeService) ListChallengeParticipants(challengeID uint, userID uint) ([]*model.ChallengeParticipant, error) {
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+func (s *ChallengeService) ListChallengeParticipants(challengeID uint, userID uint, offset, limit int) ([]*model.ChallengeParticipant, error) {
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +532,7 @@ func (s *ChallengeService) ListChallengeParticipants(challengeID uint, userID ui
 		}
 	}
 
-	return s.participantRepo.GetParticipantsByChallenge(challengeID)
+	return s.participantRepo.GetParticipantsByChallenge(challengeID, offset, limit)
 }
 
 func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) error {
@@ -406,7 +548,7 @@ func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) erro
 		return exception.NewBadRequestException("Join request is not pending", "JOIN_REQUEST_NOT_PENDING", nil)
 	}
 
-	challenge, err := s.challengeRepo.GetChallengeByID(request.ChallengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(request.ChallengeID, currentUserID)
 	if err != nil {
 		return err
 	}
@@ -455,7 +597,7 @@ func (s *ChallengeService) DeclineJoinRequest(requestID, currentUserID uint) err
 	if request.Status != enum.RequestPending {
 		return exception.NewBadRequestException("Join request is not pending", "JOIN_REQUEST_NOT_PENDING", nil)
 	}
-	challenge, err := s.challengeRepo.GetChallengeByID(request.ChallengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(request.ChallengeID, currentUserID)
 	if err != nil {
 		return err
 	}
@@ -491,7 +633,7 @@ func (s *ChallengeService) AcceptInvite(inviteID, currentUserID uint) error {
 		return exception.NewUnauthorizedException("You are not authorized to accept this invite", "INVITE_NOT_AUTHORIZED")
 	}
 
-	challenge, err := s.challengeRepo.GetChallengeByID(invite.ChallengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(invite.ChallengeID, currentUserID)
 	if err != nil {
 		return err
 	}
@@ -521,7 +663,10 @@ func (s *ChallengeService) AcceptInvite(inviteID, currentUserID uint) error {
 		Status:      enum.StatusJoined,
 	}
 	_, err = s.participantRepo.CreateParticipant(participant)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.inviteRepo.DeleteInvite(inviteID)
 }
 
 func (s *ChallengeService) DeclineInvite(inviteID, currentUserID uint) error {
@@ -551,7 +696,7 @@ func (s *ChallengeService) DeclineInvite(inviteID, currentUserID uint) error {
 }
 
 func (s *ChallengeService) LeaveChallenge(userID, challengeID uint) error {
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
 	if err != nil {
 		return err
 	}
@@ -571,7 +716,10 @@ func (s *ChallengeService) LeaveChallenge(userID, challengeID uint) error {
 }
 
 func (s *ChallengeService) AddComment(userID uint, input *dto.AddCommentDTO) (*model.ChallengeComment, error) {
-	challenge, err := s.challengeRepo.GetChallengeByID(input.ChallengeID)
+	if input == nil {
+		return nil, exception.NewBadRequestException("Input cannot be nil", "COMMENT_ADD_BAD_INPUT", nil)
+	}
+	challenge, err := s.challengeRepo.GetChallengeByID(input.ChallengeID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -580,9 +728,6 @@ func (s *ChallengeService) AddComment(userID uint, input *dto.AddCommentDTO) (*m
 	}
 	if !challenge.CommentsEnabled {
 		return nil, exception.NewForbiddenException("Comments are disabled for this challenge", "COMMENTS_DISABLED")
-	}
-	if input == nil {
-		return nil, exception.NewBadRequestException("Input cannot be nil", "COMMENT_ADD_BAD_INPUT", nil)
 	}
 	isParticipant, err := s.participantRepo.IsUserParticipant(input.ChallengeID, userID)
 	if err != nil {
@@ -601,8 +746,8 @@ func (s *ChallengeService) AddComment(userID uint, input *dto.AddCommentDTO) (*m
 	return createdComment, err
 }
 
-func (s *ChallengeService) GetAllComments(challengeID uint, offset, limit int) ([]*model.ChallengeComment, error) {
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+func (s *ChallengeService) GetAllComments(challengeID, userID uint, offset, limit int) ([]*model.ChallengeComment, error) {
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -614,9 +759,39 @@ func (s *ChallengeService) GetAllComments(challengeID uint, offset, limit int) (
 		return nil, exception.NewForbiddenException("Comments are disabled for this challenge", "COMMENTS_DISABLED")
 	}
 
-	return s.commentRepo.GetChallengeComments(challengeID)
+	return s.commentRepo.GetChallengeComments(challengeID, offset, limit)
 }
 
+func (s *ChallengeService) GetComment(commentID, userID uint) (*dto.CommentResponseDTO, error) {
+    comment, err := s.commentRepo.GetComment(commentID)
+    if err != nil {
+        return nil, err
+    }
+    if comment == nil {
+        return nil, exception.NewNotFoundException("Comment", fmt.Sprintf("%d", commentID), "COMMENT_NOT_FOUND")
+    }
+    challenge, err := s.challengeRepo.GetChallengeByID(comment.ChallengeID, userID)
+    if err != nil {
+        return nil, err
+    }
+    if challenge == nil {
+        return nil, exception.NewUnauthorizedException("You don't have permission to view this comment", "COMMENT_ACCESS_DENIED")
+    }
+    username := ""
+    if comment.UserID > 0 {
+        user, err := s.userRepo.GetUserByID(comment.UserID)
+        if err == nil && user != nil {
+            username = user.Username
+        }
+    }
+    return &dto.CommentResponseDTO{
+        ID:       comment.ID,
+        UserID:   comment.UserID,
+        Username: username,
+        Content:  comment.Content,
+        CreatedAt: comment.CreatedAt,
+    }, nil
+}
 func (s *ChallengeService) GetAllCategories() ([]*model.ChallengeCategoryModel, error) {
 	return s.categoryRepo.GetAllCategories()
 }
@@ -630,7 +805,7 @@ func (s *ChallengeService) GetInvitesSentToUser(userID uint) ([]*model.Challenge
 }
 
 func (s *ChallengeService) GetInvitesSentFromChallenge(challengeID uint, creatorID uint) ([]*model.ChallengeInvite, error) {
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, creatorID)
 	if err != nil {
 		return nil, err
 	}
@@ -644,7 +819,7 @@ func (s *ChallengeService) GetInvitesSentFromChallenge(challengeID uint, creator
 }
 
 func (s *ChallengeService) GetRequestsSentToChallenge(challengeID uint, creatorID uint) ([]*model.ChallengeRequest, error) {
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, creatorID)
 	if err != nil {
 		return nil, err
 	}
@@ -674,7 +849,7 @@ func (s *ChallengeService) GetChallengesUserIsParticipating(userID uint, offset,
 	return s.challengeRepo.ListChallengesByParticipant(userID, offset, limit)
 }
 func (s *ChallengeService) GetMutualFollowersInChallenge(userID, challengeID uint) ([]*model.UserModel, error) {
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID)
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -685,56 +860,56 @@ func (s *ChallengeService) GetMutualFollowersInChallenge(userID, challengeID uin
 }
 
 func (s *ChallengeService) LikeChallenge(userID, challengeID uint) error {
-    isParticipant, err := s.participantRepo.IsUserParticipant(challengeID, userID)
-    if err != nil {
-        return err
-    }
-    if !isParticipant {
-        return exception.NewForbiddenException("Only participants can like challenges", "USER_NOT_PARTICIPANT")
-    }
-    
-    isLiked, err := s.challengeRepo.IsUserLikedChallenge(challengeID, userID)
-    if err != nil {
-        return err
-    }
-    if isLiked {
-        return exception.NewConflictException("Like", "user_id", "USER_ALREADY_LIKED")
-    }
-    
-    like := &model.ChallengeLike{
-        ChallengeID: challengeID,
-        UserID:      userID,
-    }
-    
-    return s.challengeRepo.CreateLike(like)
+	isParticipant, err := s.participantRepo.IsUserParticipant(challengeID, userID)
+	if err != nil {
+		return err
+	}
+	if !isParticipant {
+		return exception.NewForbiddenException("Only participants can like challenges", "USER_NOT_PARTICIPANT")
+	}
+
+	isLiked, err := s.challengeRepo.IsUserLikedChallenge(challengeID, userID)
+	if err != nil {
+		return err
+	}
+	if isLiked {
+		return exception.NewConflictException("Like", "user_id", "USER_ALREADY_LIKED")
+	}
+
+	like := &model.ChallengeLike{
+		ChallengeID: challengeID,
+		UserID:      userID,
+	}
+
+	return s.challengeRepo.CreateLike(like)
 }
 
 func (s *ChallengeService) UnlikeChallenge(userID, challengeID uint) error {
-    isParticipant, err := s.participantRepo.IsUserParticipant(challengeID, userID)
-    if err != nil {
-        return err
-    }
-    if !isParticipant {
-        return exception.NewForbiddenException("Only participants can unlike challenges", "USER_NOT_PARTICIPANT")
-    }
-    
-    isLiked, err := s.challengeRepo.IsUserLikedChallenge(challengeID, userID)
-    if err != nil {
-        return err
-    }
-    if !isLiked {
-        return exception.NewBadRequestException("User has not liked this challenge", "USER_NOT_LIKED", nil)
-    }
-    
-    return s.challengeRepo.DeleteLike(challengeID, userID)
+	isParticipant, err := s.participantRepo.IsUserParticipant(challengeID, userID)
+	if err != nil {
+		return err
+	}
+	if !isParticipant {
+		return exception.NewForbiddenException("Only participants can unlike challenges", "USER_NOT_PARTICIPANT")
+	}
+
+	isLiked, err := s.challengeRepo.IsUserLikedChallenge(challengeID, userID)
+	if err != nil {
+		return err
+	}
+	if !isLiked {
+		return exception.NewBadRequestException("User has not liked this challenge", "USER_NOT_LIKED", nil)
+	}
+
+	return s.challengeRepo.DeleteLike(challengeID, userID)
 }
 
 func (s *ChallengeService) IsUserLikedChallenge(userID, challengeID uint) (bool, error) {
-    return s.challengeRepo.IsUserLikedChallenge(challengeID, userID)
+	return s.challengeRepo.IsUserLikedChallenge(challengeID, userID)
 }
 
 func (s *ChallengeService) GetChallengeLikeCount(challengeID uint) (uint, error) {
-    return s.challengeRepo.GetLikeCount(challengeID)
+	return s.challengeRepo.GetLikeCount(challengeID)
 }
 
 // Helper

@@ -12,7 +12,4 @@ type ChallengeRequest struct {
 	Status      enum.RequestStatus
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-
-	Challenge *ChallengeModel
-	Requester *UserModel
 }

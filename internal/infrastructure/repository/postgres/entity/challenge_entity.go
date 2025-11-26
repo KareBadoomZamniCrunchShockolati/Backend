@@ -13,7 +13,7 @@ type ChallengeEntity struct {
 	CategoryID      uint       `gorm:"not null;index"`
 	CreatorID       uint       `gorm:"not null;index"`
 	MaxParticipants uint       `gorm:"default:0"`
-	Visibility      uint       `gorm:"not null;index:idx_creator_visibility"`
+	Visibility      string     `gorm:"not null;index:idx_creator_visibility"`
 	ImageURL        string     `gorm:"type:text"`
 	Rule            string     `gorm:"size:255;not null"`
 	Timezone        string     `gorm:"size:50"`

@@ -1,4 +1,3 @@
-// internal/domain/enum/invite_status.go
 package enum
 
 type InviteStatus uint

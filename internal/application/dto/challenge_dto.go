@@ -11,7 +11,7 @@ type CreateChallengeDTO struct {
 	Description     string                   `json:"description" validate:"required,min=10,max=280"`
 	CategoryID      uint                     `json:"category_id" validate:"required"`
 	MaxParticipants uint                     `json:"max_participants" validate:"omitempty,min=0"`
-	Visibility      enum.ChallengeVisibility `json:"visibility" validate:"required,oneof=1 2 3"`
+	Visibility      enum.ChallengeVisibility `json:"visibility" validate:"required,oneof=public private invite"`
 	Rule            string                   `json:"rule" validate:"required"`
 	CommentsEnabled bool                     `json:"comments_enabled"`
 	StartTime       time.Time                `json:"start_time"`
@@ -36,22 +36,32 @@ type UpdateChallengeDTO struct {
 	Timezone        *string                   `json:"timezone,omitempty"`
 }
 
-type ChallengeResponseDTO struct {
+type ChallengePreviewDTO struct {
 	ID                  uint                     `json:"id"`
 	Title               string                   `json:"title"`
 	Description         string                   `json:"description"`
+	Rule                string                   `json:"recurrence_rule"`
 	CategoryName        string                   `json:"category_name"`
 	CreatorUsername     string                   `json:"creator_username"`
-	MaxParticipants     uint                     `json:"max_participants"`
-	CurrentParticipants int                      `json:"current_participants"`
+	CreatorID           uint                     `json:"creator_id"`
 	Visibility          enum.ChallengeVisibility `json:"visibility"`
 	ImageURL            string                   `json:"image_url"`
-	Rule                string                   `json:"recurrence_rule"`
-	Timezone            string                   `json:"timezone"`
+	MaxParticipants     uint                     `json:"max_participants"`
+	CurrentParticipants int                      `json:"current_participants"`
+	LikeCount           uint                     `json:"like_count"`
+	CommentCount        uint                     `json:"comment_count"`
 	StartTime           time.Time                `json:"start_time"`
 	EndTime             *time.Time               `json:"end_time,omitempty"`
-	IsStopped           bool                     `json:"is_stopped"`
-	CommentsEnabled     bool                     `json:"comments_enabled"`
+	Timezone            string                   `json:"timezone"`
 	CreatedAt           time.Time                `json:"created_at"`
 	IsUserParticipating bool                     `json:"is_user_participating"`
+	IsUserLiked         bool                     `json:"is_user_liked"`
+	MutualParticipants  []UserPreviewDTO         `json:"mutual_participants"`
+}
+
+type ChallengeDetailDTO struct {
+	ChallengePreviewDTO
+	CommentsEnabled bool                     `json:"comments_enabled"`
+	Participants    []ParticipantResponseDTO `json:"participants,omitempty"`
+	Comments        []CommentResponseDTO     `json:"comments,omitempty"`
 }

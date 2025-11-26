@@ -32,14 +32,13 @@ func (r *ChallengeCommentRepository) GetComment(commentID uint) (*model.Challeng
 		return toChallengeCommentModel(&entity)
 	})
 }
+func (r *ChallengeCommentRepository) GetChallengeComments(challengeID uint, offset, limit int) ([]*model.ChallengeComment, error) {
 
-func (r *ChallengeCommentRepository) GetChallengeComments(challengeID uint) ([]*model.ChallengeComment, error) {
 	var entities []entity.ChallengeCommentEntity
-	result := r.db.Where("challenge_id = ?", challengeID).Find(&entities)
+	result := r.db.Where("challenge_id = ?", challengeID).Order("created_at DESC").Offset(int(offset)).Limit(int(limit)).Find(&entities)
 	if result.Error != nil {
 		return nil, exception.NewRepositoryError(result.Error)
 	}
-
 	comments := make([]*model.ChallengeComment, len(entities))
 	for i, e := range entities {
 		comments[i] = toChallengeCommentModel(&e)

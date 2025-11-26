@@ -34,13 +34,12 @@ func (r *ChallengeParticipantRepository) GetParticipant(challengeID, userID uint
 	})
 }
 
-func (r *ChallengeParticipantRepository) GetParticipantsByChallenge(challengeID uint) ([]*model.ChallengeParticipant, error) {
+func (r *ChallengeParticipantRepository) GetParticipantsByChallenge(challengeID uint, offset, limit int) ([]*model.ChallengeParticipant, error) {
 	var entities []entity.ChallengeParticipantEntity
-	result := r.db.Where("challenge_id = ?", challengeID).Find(&entities)
+	result := r.db.Where("challenge_id = ?", challengeID).Offset(int(offset)).Limit(int(limit)).Find(&entities)
 	if result.Error != nil {
 		return nil, exception.NewRepositoryError(result.Error)
 	}
-
 	participants := make([]*model.ChallengeParticipant, len(entities))
 	for i, e := range entities {
 		participants[i] = toChallengeParticipantModel(&e)

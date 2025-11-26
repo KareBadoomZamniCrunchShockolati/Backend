@@ -1,4 +1,3 @@
-// internal/presentation/handler/challenge_handler.go
 package handler
 
 import (
@@ -7,7 +6,6 @@ import (
 	"challenge-app/internal/domain/enum"
 	"challenge-app/internal/domain/exception"
 	"time"
-	"log"
 
 	"github.com/gin-gonic/gin"
 )
@@ -81,9 +79,12 @@ func (h *ChallengeHandler) GetChallengeByID(ctx *gin.Context) {
 		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[getChallengeParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		userID = uint(0)
+	}
 
-
-	challenge, err := h.challengeService.GetChallengeByID(params.ID)
+	challenge, err := h.challengeService.GetChallengeByID(params.ID, userID.(uint))
 	if err != nil {
 		panic(err)
 	}
@@ -129,12 +130,17 @@ func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
 		}
 		endTime = &parsedTime
 	}
+	var visibility *enum.ChallengeVisibility
+	if params.Visibility != nil {
+		v := enum.ChallengeVisibility(*params.Visibility)
+		visibility = &v
+	}
 	updateChallengeDTO := &dto.UpdateChallengeDTO{
 		Title:           params.Title,
 		Description:     params.Description,
 		CategoryID:      params.CategoryID,
 		MaxParticipants: params.MaxParticipants,
-		Visibility:      (*enum.ChallengeVisibility)(params.Visibility),
+		Visibility:      visibility,
 		Rule:            params.Rule,
 		CommentsEnabled: params.CommentsEnabled,
 		IsStopped:       params.IsStopped,
@@ -170,8 +176,18 @@ func (h *ChallengeHandler) DeleteChallenge(ctx *gin.Context) {
 	Response(ctx, 200, "Challenge deleted successfully", nil)
 }
 
-func (h *ChallengeHandler) GetAllChallenges(ctx *gin.Context) {
-	challenges, err := h.challengeService.GetAllChallenges()
+func (h *ChallengeHandler) ListDiscoverableChallenges(ctx *gin.Context) {
+	type discoverableParams struct {
+		Page       int  `form:"page"`
+		PageSize   int  `form:"pageSize"`
+	}
+	params := Validated[discoverableParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		userID = uint(0)
+	}
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.ListDiscoverableChallenges(userID.(uint), offset, limit)
 	if err != nil {
 		panic(err)
 	}
@@ -179,15 +195,14 @@ func (h *ChallengeHandler) GetAllChallenges(ctx *gin.Context) {
 	Response(ctx, 200, "", challenges)
 }
 
-func (h *ChallengeHandler) ListByCategory(ctx *gin.Context) {
-	type listByCategoryParams struct {
-		CategoryID uint `uri:"category_id" validate:"required"`
+func (h *ChallengeHandler) ListPublicChallenges(ctx *gin.Context) {
+	type publicParams struct {
 		Page       int  `form:"page"`
 		PageSize   int  `form:"pageSize"`
 	}
-	params := Validated[listByCategoryParams](ctx)
+	params := Validated[publicParams](ctx)
 	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
-	challenges, err := h.challengeService.ListByCategory(params.CategoryID, offset, limit)
+	challenges, err := h.challengeService.ListPublicChallenges(offset, limit)
 	if err != nil {
 		panic(err)
 	}
@@ -202,10 +217,187 @@ func (h *ChallengeHandler) ListByCreator(ctx *gin.Context) {
 		PageSize int  `form:"pageSize"`
 	}
 	params := Validated[listByCreatorParams](ctx)
-
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		userID = uint(0)
+	}
 	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.ListChallengesByCreatorID(params.UserID, userID.(uint), offset, limit)
+	if err != nil {
+		panic(err)
+	}
 
-	challenges, err := h.challengeService.ListByCreator(params.UserID, offset, limit)
+	Response(ctx, 200, "", challenges)
+}
+
+func (h *ChallengeHandler) ListByCreatorUsername(ctx *gin.Context) {
+	type listByCreatorUsernameParams struct {
+		Username string `uri:"username" validate:"required"`
+		Page     int    `form:"page"`
+		PageSize int    `form:"pageSize"`
+	}
+	params := Validated[listByCreatorUsernameParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.ListChallengesByCreatorUsername(params.Username, userID.(uint), offset, limit)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", challenges)
+}
+
+func (h *ChallengeHandler) ListByCategory(ctx *gin.Context) {
+	type listByCategoryParams struct {
+		CategoryID uint `uri:"category_id" validate:"required"`
+		Page       int  `form:"page"`
+		PageSize   int  `form:"pageSize"`
+	}
+	params := Validated[listByCategoryParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		userID = uint(0)
+	}
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.ListChallengesByCategoryID(params.CategoryID, userID.(uint), offset, limit)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", challenges)
+}
+
+func (h *ChallengeHandler) ListByCategoryName(ctx *gin.Context) {
+	type listByCategoryNameParams struct {
+		CategoryName string `uri:"category_name" validate:"required"`
+		Page         int    `form:"page"`
+		PageSize     int    `form:"pageSize"`
+	}
+	params := Validated[listByCategoryNameParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.ListChallengesByCategoryName(params.CategoryName, userID.(uint), offset, limit)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", challenges)
+}
+
+func (h *ChallengeHandler) ListByParticipantCount(ctx *gin.Context) {
+	type participantCountParams struct {
+		Page       int  `form:"page"`
+		PageSize   int  `form:"pageSize"`
+	}
+	params := Validated[participantCountParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.ListChallengesByParticipantCount(userID.(uint), offset, limit)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", challenges)
+}
+
+func (h *ChallengeHandler) ListByLikeCount(ctx *gin.Context) {
+	type likeCountParams struct {
+		Page       int  `form:"page"`
+		PageSize   int  `form:"pageSize"`
+	}
+	params := Validated[likeCountParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.ListChallengesByLikeCount(userID.(uint), offset, limit)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", challenges)
+}
+
+func (h *ChallengeHandler) ListChallengesStartingSoon(ctx *gin.Context) {
+	type startingSoonParams struct {
+		Page       int  `form:"page"`
+		PageSize   int  `form:"pageSize"`
+	}
+	params := Validated[startingSoonParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.ListChallengesStartingSoon(userID.(uint), offset, limit)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", challenges)
+}
+
+func (h *ChallengeHandler) ListTopCreatorsChallenge(ctx *gin.Context) {
+	type topCreatorsParams struct {
+		Page       int  `form:"page"`
+		PageSize   int  `form:"pageSize"`
+	}
+	params := Validated[topCreatorsParams](ctx)
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.ListTopCreatorsChallenge(offset, limit)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", challenges)
+}
+
+func (h *ChallengeHandler) GetChallengesUserIsParticipating(ctx *gin.Context) {
+	type getParticipatingChallengesParams struct {
+		Page     int `form:"page"`
+		PageSize int `form:"pageSize"`
+	}
+	params := Validated[getParticipatingChallengesParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.ListChallengesJoinedByUser(userID.(uint), offset, limit)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", challenges)
+}
+
+func (h *ChallengeHandler) SearchChallenges(ctx *gin.Context) {
+	type searchParams struct {
+		Query    string `form:"query" validate:"required,min=1"`
+		Page     int    `form:"page"`
+		PageSize int    `form:"pageSize"`
+	}
+	params := Validated[searchParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		userID = uint(0)
+	}
+	
+	var visibility []enum.ChallengeVisibility
+	//TODO implement visibility parsing from query parameters
+	
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	challenges, err := h.challengeService.SearchChallenges(params.Query, visibility, userID.(uint), offset, limit)
 	if err != nil {
 		panic(err)
 	}
@@ -235,11 +427,9 @@ func (h *ChallengeHandler) JoinPublicChallenge(ctx *gin.Context) {
 	type joinPublicChallengeParams struct {
 		ID uint `uri:"id" validate:"required"`
 	}
-	log.Println("here is fine")
 	params := Validated[joinPublicChallengeParams](ctx)
 	
 	userID,exists := ctx.Get("userID")
-	log.Println("or here")
 	if !exists {
 		panic(exception.NewMissingUserIDException())
 	}
@@ -264,7 +454,6 @@ func (h *ChallengeHandler) JoinPrivateChallenge(ctx *gin.Context) {
 
 	err := h.challengeService.JoinPrivateChallenge(userID.(uint), params.ID)
 	if err != nil {
-		log.Println("here in handler")
 		panic(err)
 	}
 
@@ -312,14 +501,16 @@ func (h *ChallengeHandler) RemoveParticipant(ctx *gin.Context) {
 func (h *ChallengeHandler) ListChallengeParticipants(ctx *gin.Context) {
 	type listParticipantsParams struct {
 		ID uint `uri:"id" validate:"required"`
+		Page       int  `form:"page"`
+		PageSize   int  `form:"pageSize"`
 	}
 	params := Validated[listParticipantsParams](ctx)
 	userID, exists := ctx.Get("userID")
 	if !exists {
 		panic(exception.NewMissingUserIDException())
 	}
-
-	participants, err := h.challengeService.ListChallengeParticipants(params.ID, userID.(uint))
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+	participants, err := h.challengeService.ListChallengeParticipants(params.ID, userID.(uint), offset, limit)
 	if err != nil {
 		panic(err)
 	}
@@ -438,7 +629,6 @@ func (h *ChallengeHandler) AddComment(ctx *gin.Context) {
 
 	Response(ctx, 200, "Comment added successfully", comment)
 }
-
 func (h *ChallengeHandler) GetAllComments(ctx *gin.Context) {
 	type getAllCommentsParams struct {
 		ID       uint `uri:"id" validate:"required"`
@@ -446,13 +636,35 @@ func (h *ChallengeHandler) GetAllComments(ctx *gin.Context) {
 		PageSize int  `form:"pageSize"`
 	}
 	params := Validated[getAllCommentsParams](ctx)
+	
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		userID = uint(0)
+	}
+
 	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
-	comments, err := h.challengeService.GetAllComments(params.ID, offset, limit)
+	comments, err := h.challengeService.GetAllComments(params.ID, userID.(uint), offset, limit)
 	if err != nil {
 		panic(err)
 	}
 
 	Response(ctx, 200, "", comments)
+}
+
+func (h *ChallengeHandler) GetComment(ctx *gin.Context) {
+    type getCommentParams struct {
+        CommentID uint `uri:"comment_id" validate:"required"`
+    }
+    params := Validated[getCommentParams](ctx)
+    userID, exists := ctx.Get("userID")
+    if !exists {
+        panic(exception.NewMissingUserIDException())
+    }
+    comment, err := h.challengeService.GetComment(params.CommentID, userID.(uint))
+    if err != nil {
+        panic(err)
+    }
+    Response(ctx, 200, "", comment)
 }
 
 func (h *ChallengeHandler) GetRequestsSentByUser(ctx *gin.Context) {
@@ -514,25 +726,6 @@ func (h *ChallengeHandler) GetRequestsSentToChallenge(ctx *gin.Context) {
 	}
 
 	Response(ctx, 200, "", requests)
-}
-
-func (h *ChallengeHandler) GetChallengesUserIsParticipating(ctx *gin.Context) {
-	type getParticipatingChallengesParams struct {
-		Page     int `form:"page"`
-		PageSize int `form:"pageSize"`
-	}
-	params := Validated[getParticipatingChallengesParams](ctx)
-	userID,exists := ctx.Get("userID")
-	if !exists {
-		panic(exception.NewMissingUserIDException())
-	}
-	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
-	challenges, err := h.challengeService.GetChallengesUserIsParticipating(userID.(uint), offset, limit)
-	if err != nil {
-		panic(err)
-	}
-
-	Response(ctx, 200, "", challenges)
 }
 
 func (h *ChallengeHandler) GetAllCategories(ctx *gin.Context) {
@@ -617,4 +810,22 @@ func (h *ChallengeHandler) GetChallengeLikeCount(ctx *gin.Context) {
     }
 
     Response(ctx, 200, "", gin.H{"like_count": count})
+}
+
+func (h *ChallengeHandler) IsUserLikedChallenge(ctx *gin.Context) {
+	type isLikedParams struct {
+		ChallengeID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[isLikedParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
+
+	isLiked, err := h.challengeService.IsUserLikedChallenge(userID.(uint), params.ChallengeID)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, 200, "", gin.H{"is_liked": isLiked})
 }

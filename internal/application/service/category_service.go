@@ -8,15 +8,15 @@ import (
 )
 
 type CategoryService struct {
-	Repo repository.CategoryRepository
+	categoryRepo repository.CategoryRepository
 }
 
 func NewCategoryService(repo repository.CategoryRepository) *CategoryService {
-	return &CategoryService{Repo: repo}
+	return &CategoryService{categoryRepo: repo}
 }
 
 func (s *CategoryService) CreateCategory(dto *dto.CreateCategoryDTO) (*model.ChallengeCategoryModel, error) {
-	existing, err := s.Repo.GetCategoryByName(dto.Name)
+	existing, err := s.categoryRepo.GetCategoryByName(dto.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -24,28 +24,28 @@ func (s *CategoryService) CreateCategory(dto *dto.CreateCategoryDTO) (*model.Cha
 		return nil, exception.NewConflictException("Category", "name", "CATEGORY_ALREADY_EXISTS")
 	}
 
-	return s.Repo.CreateCategory(&model.ChallengeCategoryModel{
+	return s.categoryRepo.CreateCategory(&model.ChallengeCategoryModel{
 		Name:        dto.Name,
 		Description: dto.Description,
 	})
 }
 
 func (s *CategoryService) GetCategoryByID(id uint) (*model.ChallengeCategoryModel, error) {
-	return s.Repo.GetCategoryByID(id)
+	return s.categoryRepo.GetCategoryByID(id)
 }
 
 func (s *CategoryService) GetAllCategories() ([]*model.ChallengeCategoryModel, error) {
-	return s.Repo.GetAllCategories()
+	return s.categoryRepo.GetAllCategories()
 }
 
 func (s *CategoryService) UpdateCategory(id uint, dto *dto.UpdateCategoryDTO) (*model.ChallengeCategoryModel, error) {
-	category, err := s.Repo.GetCategoryByID(id)
+	category, err := s.categoryRepo.GetCategoryByID(id)
 	if err != nil {
 		return nil, err
 	}
 
 	if dto.Name != nil {
-		existing, _ := s.Repo.GetCategoryByName(*dto.Name)
+		existing, _ := s.categoryRepo.GetCategoryByName(*dto.Name)
 		if existing != nil && existing.ID != id {
 			return nil, exception.NewConflictException("Category", "name", "CATEGORY_ALREADY_EXISTS")
 		}
@@ -55,9 +55,9 @@ func (s *CategoryService) UpdateCategory(id uint, dto *dto.UpdateCategoryDTO) (*
 		category.Description = *dto.Description
 	}
 
-	return s.Repo.UpdateCategory(category)
+	return s.categoryRepo.UpdateCategory(category)
 }
 
 func (s *CategoryService) DeleteCategory(id uint) error {
-	return s.Repo.DeleteCategory(id)
+	return s.categoryRepo.DeleteCategory(id)
 }

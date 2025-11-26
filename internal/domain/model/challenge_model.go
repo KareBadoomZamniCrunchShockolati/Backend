@@ -12,7 +12,6 @@ type ChallengeModel struct {
 	CategoryID      uint
 	CreatorID       uint
 	MaxParticipants uint
-	LikeCount       uint
 	Visibility      enum.ChallengeVisibility
 	ImageURL        string
 	Rule            string
@@ -23,5 +22,4 @@ type ChallengeModel struct {
 	CommentsEnabled bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
-	IsUserLiked     bool
 }

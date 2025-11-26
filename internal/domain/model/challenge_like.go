@@ -10,5 +10,4 @@ type ChallengeLike struct {
 	ChallengeID uint
 	UserID      uint
 	CreatedAt   time.Time
-	UpdatedAt   time.Time
 }
