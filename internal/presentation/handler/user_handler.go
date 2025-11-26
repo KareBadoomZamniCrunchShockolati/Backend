@@ -48,9 +48,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		if errors.As(err, &clientErr) {
 			c.Error(err)
 			return
-		}
-
-		
+		}		
 		panic(err)
 	}
 
@@ -75,9 +73,7 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 		if errors.As(err, &clientErr) {
 			c.Error(err)
 			return
-		}
-
-		
+		}		
 		panic(err)
 	}
 	var userResponses []dto.UserResponse

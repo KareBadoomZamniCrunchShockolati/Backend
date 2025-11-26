@@ -12,6 +12,8 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	_ "challenge-app/docs"
+
+	"github.com/gin-contrib/cors"
 )
 
 // SetupRouter sets up all routes, middleware, and swagger
