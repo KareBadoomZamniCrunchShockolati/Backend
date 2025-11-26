@@ -266,10 +266,10 @@ func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDeta
 			Username: username,
 		}
 	}
-	likeCount, _ := s.challengeRepo.GetLikeCount(id)
+	likeCount, _ := s.likeRepo.GetLikeCount(id)
 	isUserLiked := false
 	if userID > 0 {
-		isUserLiked, _ = s.challengeRepo.IsUserLikedChallenge(id, userID)
+		isUserLiked, _ = s.likeRepo.IsUserLikedChallenge(id, userID)
 	}
 	isUserParticipating := false
 	if userID > 0 {
@@ -874,7 +874,7 @@ func (s *ChallengeService) LikeChallenge(userID, challengeID uint) error {
 		return exception.NewForbiddenException("Only participants can like challenges", "USER_NOT_PARTICIPANT")
 	}
 
-	isLiked, err := s.challengeRepo.IsUserLikedChallenge(challengeID, userID)
+	isLiked, err := s.likeRepo.IsUserLikedChallenge(challengeID, userID)
 	if err != nil {
 		return err
 	}
@@ -887,7 +887,7 @@ func (s *ChallengeService) LikeChallenge(userID, challengeID uint) error {
 		UserID:      userID,
 	}
 
-	return s.challengeRepo.CreateLike(like)
+	return s.likeRepo.CreateLike(like)
 }
 
 func (s *ChallengeService) UnlikeChallenge(userID, challengeID uint) error {
@@ -899,7 +899,7 @@ func (s *ChallengeService) UnlikeChallenge(userID, challengeID uint) error {
 		return exception.NewForbiddenException("Only participants can unlike challenges", "USER_NOT_PARTICIPANT")
 	}
 
-	isLiked, err := s.challengeRepo.IsUserLikedChallenge(challengeID, userID)
+	isLiked, err := s.likeRepo.IsUserLikedChallenge(challengeID, userID)
 	if err != nil {
 		return err
 	}
@@ -907,15 +907,15 @@ func (s *ChallengeService) UnlikeChallenge(userID, challengeID uint) error {
 		return exception.NewBadRequestException("User has not liked this challenge", "USER_NOT_LIKED", nil)
 	}
 
-	return s.challengeRepo.DeleteLike(challengeID, userID)
+	return s.likeRepo.DeleteLike(challengeID, userID)
 }
 
 func (s *ChallengeService) IsUserLikedChallenge(userID, challengeID uint) (bool, error) {
-	return s.challengeRepo.IsUserLikedChallenge(challengeID, userID)
+	return s.likeRepo.IsUserLikedChallenge(challengeID, userID)
 }
 
 func (s *ChallengeService) GetChallengeLikeCount(challengeID uint) (uint, error) {
-	return s.challengeRepo.GetLikeCount(challengeID)
+	return s.likeRepo.GetLikeCount(challengeID)
 }
 
 // Helper
