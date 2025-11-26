@@ -16,3 +16,9 @@ type UserResponse struct {
 	Bio            string `json:"bio"`
 	ProfilePicture string `json:"profile_picture"`
 }
+
+type UserPreviewDTO struct {
+	ID       uint   `json:"id"`
+	Username string `json:"username"`
+}
+

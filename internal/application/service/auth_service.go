@@ -139,13 +139,13 @@ func (s *AuthService) VerifyEmail(email, code string) (string, error) {
 
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		return "", exception.NewRepositoryVerificationError(err)
+		return "", err
 	}
 
 	user.Verified = true
 	_, err = s.UserRepo.UpdateUser(user)
 	if err != nil {
-		return "", exception.NewRepositoryUpdateError(err)
+		return "", err
 	}
 
 	s.VerificationRepo.DeleteVerificationCode(ctx, email)
@@ -161,7 +161,7 @@ func (s *AuthService) VerifyEmail(email, code string) (string, error) {
 func (s *AuthService) ResendVerificationEmail(email string) error {
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		return exception.NewRepositoryVerificationError(err)
+		return err
 	}
 
 	if user == nil {

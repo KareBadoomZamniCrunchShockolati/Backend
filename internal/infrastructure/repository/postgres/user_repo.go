@@ -55,14 +55,10 @@ func toEntity(m *model.UserModel) *entity.UserEntity {
 func (r *UserRepository) CreateUser(user *model.UserModel) error {
 	userEntity := toEntity(user)
 	if err := r.DB.Create(userEntity).Error; err != nil {
-		return exception.NewRepositoryError("database error while creating user", err)
+		return exception.NewRepositoryError(err)
 	}
+	user.ID = userEntity.ID
 	return nil
-}
-
-func IsNotFoundError(err error) bool {
-	var nfErr *exception.NotFoundException
-	return errors.As(err, &nfErr)
 }
 
 func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) {
@@ -72,7 +68,7 @@ func (r *UserRepository) GetUserByEmail(email string) (*model.UserModel, error) 
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, exception.NewNotFoundException("User", email, "USER_NOT_FOUND_BY_EMAIL")
 		}
-		return nil, exception.NewRepositoryError(fmt.Sprintf("GetUserByEmail %s", email), result.Error)
+		return nil, exception.NewRepositoryError(result.Error)
 	}
 	return toModel(&userEntity), nil
 }
@@ -84,7 +80,7 @@ func (r *UserRepository) GetUserByName(name string)(*model.UserModel, error){
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, exception.NewNotFoundException("User", name, "USER_NOT_FOUND_BY_NAME")
 		}
-		return nil, exception.NewRepositoryError(fmt.Sprintf("GetUserByName %s", name), result.Error)
+		return nil, exception.NewRepositoryError(result.Error)
 	}
 	return toModel(&userEntity), nil
 }
@@ -94,7 +90,7 @@ func (r *UserRepository) GetAllUsers() ([]model.UserModel, error) {
 	var userEntities []entity.UserEntity
 	result := r.DB.Find(&userEntities)
 	if result.Error != nil {
-		return nil, exception.NewRepositoryError("GetAllUsers", result.Error)
+		return nil, exception.NewRepositoryError(result.Error)
 	}
 	var userModels []model.UserModel
 	if len(userEntities) == 0 {
@@ -113,7 +109,7 @@ func (r *UserRepository) GetUserByID(id uint) (*model.UserModel, error) {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", id), "USER_NOT_FOUND")
 		}
-		return nil, exception.NewRepositoryError(fmt.Sprintf("GetUserByID %d", id), result.Error)
+		return nil, exception.NewRepositoryError(result.Error)
 	}
 	return toModel(&userEntity), nil
 }
@@ -129,19 +125,19 @@ func (r *UserRepository) UpdateUser(user *model.UserModel) (*model.UserModel, er
 
 func (r *UserRepository) DeleteUser(id uint) error {
 	var userEntity entity.UserEntity
-	result := r.DB.Unscoped().First(&userEntity, id)
-	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return nil
-	}
+    result := r.DB.Unscoped().First(&userEntity, id)
+    if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+        return nil 
+    }
+    
+    if result.Error != nil {
+		return exception.NewRepositoryError(result.Error)
+    }
 
-	if result.Error != nil {
-		return exception.NewRepositoryError(fmt.Sprintf("DeleteUser lookup %d", id), result.Error)
-	}
-
-	deleteResult := r.DB.Unscoped().Delete(&entity.UserEntity{}, id)
-
-	if deleteResult.Error != nil {
-		return exception.NewRepositoryError(fmt.Sprintf("DeleteUser %d", id), deleteResult.Error)
-	}
+    deleteResult := r.DB.Unscoped().Delete(&entity.UserEntity{}, id)
+    
+    if deleteResult.Error != nil {
+		return exception.NewRepositoryError(deleteResult.Error)
+    }
 	return nil
 }

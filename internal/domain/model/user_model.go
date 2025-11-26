@@ -1,7 +1,5 @@
 package model
 
-
-// User is the core entity.
 type UserModel struct {
 	ID             uint
 	Username       string

@@ -1,4 +1,3 @@
-// internal/domain/exception/not_found.go
 package exception
 
 import (
@@ -13,15 +12,15 @@ type NotFoundException struct {
 func NewNotFoundException(item string, id string, code string) *NotFoundException {
 	msg := fmt.Sprintf("Resource '%s' with identifier '%s' not found.", item, id)
 	return &NotFoundException{
-		BaseError: &BaseError{
-			errorCode:  code,
-			message:    msg,
-			httpStatus: http.StatusNotFound, // 404
-			details: map[string]any{
+		BaseError: NewBaseError(
+			code,
+			msg,
+			http.StatusNotFound, // 404
+			map[string]any{
 				"resource_type": item,
 				"identifier":    id,
 			},
-		},
+		),
 	}
 }
 
