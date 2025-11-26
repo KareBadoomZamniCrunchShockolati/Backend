@@ -37,6 +37,8 @@ func NewAuthService(repo repository.UserRepository, verificationRepo repository.
 func (s *AuthService) RegisterUser(username, email, password, bio string) (*model.UserModel, error) {
 	existingUser, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
+		// A. If it's a NotFoundException, the user doesn't exist. Proceed.
+		// We use errors.As because IsNotFoundError uses errors.As.
 		if !postgres.IsNotFoundError(err) {
 			return nil, exception.NewRepositoryError("Failed to check existing user by email", err)
 		}
