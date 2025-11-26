@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"challenge-app/internal/domain/exception"
 )
 
 type JWTMiddleware struct {
