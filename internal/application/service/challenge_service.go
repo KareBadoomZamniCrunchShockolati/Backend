@@ -637,6 +637,9 @@ func (s *ChallengeService) AcceptInvite(inviteID, currentUserID uint) error {
 	if err != nil {
 		return err
 	}
+	if challenge == nil {
+    	return exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", invite.ChallengeID), "CHALLENGE_NOT_FOUND")
+	}
 
 	if challenge.IsStopped {
 		return exception.NewForbiddenException("Challenge is stopped", "CHALLENGE_STOPPED")

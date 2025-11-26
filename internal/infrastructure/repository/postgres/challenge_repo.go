@@ -46,21 +46,20 @@ func (r *ChallengeRepository) CreateChallenge(challenge *model.ChallengeModel) (
 }
 
 func (r *ChallengeRepository) GetChallengeByID(id uint, userID uint) (*model.ChallengeModel, error) {
-	baseQuery := r.db.Table("challenges c")
+	joinedSubQuery := r.db.Select("challenge_id").
+		Table("challenge_participants").
+		Where("user_id = ? AND status = ?", userID, uint(enum.StatusJoined))
 
-	if userID == 0 {
-		baseQuery = baseQuery.Where("c.id = ? AND c.visibility IN ? AND c.is_stopped = false", id, []string{"public", "private"})
-	} else {
-		joinedSubQuery := r.db.Select("challenge_id").
-			Table("challenge_participants").
-			Where("user_id = ? AND status = ?", userID, uint(enum.StatusJoined))
+	pendingInviteSubQuery := r.db.Select("challenge_id").
+        Table("challenge_invites").
+        Where("invitee_id = ? AND status = ?", userID, uint(enum.InvitePending))
 
-		baseQuery = baseQuery.Where(
-			r.db.Where("c.id = ? AND c.visibility IN ? AND c.is_stopped = false", id, []string{"public", "private"}).
-				Or(r.db.Where("c.id = ? AND c.visibility = ? AND c.creator_id = ? AND c.is_stopped = false", id, "invite", userID)).
-				Or(r.db.Where("c.id = ? AND c.visibility = ? AND c.id IN (?) AND c.is_stopped = false", id, "invite", joinedSubQuery)),
-		)
-	}
+	baseQuery := r.db.Table("challenges c").Where(
+		r.db.Where("c.id = ? AND c.visibility = ? AND c.is_stopped = false", id, "public").
+			Or(r.db.Where("c.id = ? AND c.visibility = ? AND c.is_stopped = false", id, "private")).
+			Or(r.db.Where("c.id = ? AND c.visibility = ? AND (c.creator_id = ? OR c.id IN (?) OR c.id IN (?)) AND c.is_stopped = false", 
+				id, "invite", userID, joinedSubQuery, pendingInviteSubQuery)),
+	)
 
 	var entity entity.ChallengeEntity
 	if err := baseQuery.First(&entity).Error; err != nil {
@@ -535,7 +534,7 @@ func toChallengeEntity(m *model.ChallengeModel) *entity.ChallengeEntity {
 		CategoryID:      m.CategoryID,
 		CreatorID:       m.CreatorID,
 		MaxParticipants: m.MaxParticipants,
-		Visibility:      string(m.Visibility),
+		Visibility:      m.Visibility,
 		Rule:            m.Rule,
 		StartTime:       &m.StartTime,
 		EndTime:         m.EndTime,

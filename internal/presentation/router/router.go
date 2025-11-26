@@ -74,7 +74,6 @@ func SetupRouter(
 
 		// Public challenge routes
 		v1.GET("/challenges", challengeHandler.ListDiscoverableChallenges)
-		v1.GET("/challenges/:id", challengeHandler.GetChallengeByID)
 		v1.GET("/challenges/public", challengeHandler.ListPublicChallenges)
 		v1.GET("/challenges/category/:category_id", challengeHandler.ListByCategory)
 		v1.GET("/challenges/creator/:user_id", challengeHandler.ListByCreator)
@@ -102,6 +101,7 @@ func SetupRouter(
 
 		// Protected challenge routes - CRUD
 		protected.POST("/challenges", challengeHandler.CreateChallenge)
+		protected.GET("/challenges/:id", challengeHandler.GetChallengeByID)
 		protected.PUT("/challenges/:id", challengeHandler.UpdateChallenge)
 		protected.DELETE("/challenges/:id", challengeHandler.DeleteChallenge)
 		protected.PUT("/challenges/:id/stop", challengeHandler.StopChallenge)

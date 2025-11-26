@@ -28,7 +28,7 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 		Description     string `json:"description" validate:"required,min=10,max=280"`
 		CategoryID      uint   `json:"category_id" validate:"required"`
 		MaxParticipants uint   `json:"max_participants" validate:"omitempty,min=0"`
-		Visibility      uint   `json:"visibility" validate:"required,oneof=1 2 3"`
+		Visibility      string   `json:"visibility" validate:"required,oneof=public private invite"`
 		Rule            string `json:"rule" validate:"required"`
 		CommentsEnabled bool   `json:"comments_enabled"`
 		StartTime       string `json:"start_time" validate:"required"`
@@ -81,9 +81,8 @@ func (h *ChallengeHandler) GetChallengeByID(ctx *gin.Context) {
 	params := Validated[getChallengeParams](ctx)
 	userID, exists := ctx.Get("userID")
 	if !exists {
-		userID = uint(0)
+		panic(exception.NewMissingUserIDException())
 	}
-
 	challenge, err := h.challengeService.GetChallengeByID(params.ID, userID.(uint))
 	if err != nil {
 		panic(err)
