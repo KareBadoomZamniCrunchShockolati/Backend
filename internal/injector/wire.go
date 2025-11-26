@@ -117,6 +117,8 @@ var RepositoryProviderSet = wire.NewSet(
 	postgres.NewChallengeParticipantRepository,
 	postgres.NewChallengeCommentRepository,
 	postgres.NewChallengeRequestRepository,
+	postgres.NewLikeRepository,
+	wire.Bind(new(repository_interface.LikeRepository), new(*postgres.LikeRepository)),
 	wire.Bind(new(repository_interface.ChallengeRequestRepository), new(*postgres.ChallengeRequestRepository)),
 	wire.Bind(new(repository_interface.ChallengeCommentRepository), new(*postgres.ChallengeCommentRepository)),
 	wire.Bind(new(repository_interface.ChallengeInviteRepository), new(*postgres.ChallengeInviteRepository)),

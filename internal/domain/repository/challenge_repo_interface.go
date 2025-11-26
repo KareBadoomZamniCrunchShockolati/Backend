@@ -33,11 +33,7 @@ type ChallengeRepository interface {
 	GetMutualFollowersInChallenge(userID, challengeID uint) ([]*model.UserModel, error)
 
 	// Like
-	CreateLike(like *model.ChallengeLike) error
-	DeleteLike(challengeID, userID uint) error
-	IsUserLikedChallenge(challengeID, userID uint) (bool, error)
-	GetLikeCount(challengeID uint) (uint, error)
-
+	
 	// Check if user is challenge creator
 	IsChallengeCreator(challengeID, userID uint) (bool, error)
 }

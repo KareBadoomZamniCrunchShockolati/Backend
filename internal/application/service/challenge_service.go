@@ -20,6 +20,7 @@ type ChallengeService struct {
 	categoryRepo    repository.CategoryRepository
 	userRepo        repository.UserRepository
 	followRepo      repository.FollowRepository
+	likeRepo        repository.LikeRepository
 }
 
 func NewChallengeService(
@@ -31,6 +32,7 @@ func NewChallengeService(
 	categoryRepo repository.CategoryRepository,
 	userRepo repository.UserRepository,
 	followRepo repository.FollowRepository,
+	likeRepo repository.LikeRepository,
 ) *ChallengeService {
 	return &ChallengeService{
 		challengeRepo:   challengeRepo,
@@ -41,6 +43,7 @@ func NewChallengeService(
 		categoryRepo:    categoryRepo,
 		userRepo:        userRepo,
 		followRepo:      followRepo,
+		likeRepo:        likeRepo,
 	}
 }
 

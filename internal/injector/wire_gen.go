@@ -58,7 +58,8 @@ func InitializeRouter(db *gorm.DB, validator2 *validator.Validate) (*gin.Engine,
 	challengeInviteRepository := postgres.NewChallengeInviteRepository(db)
 	challengeRequestRepository := postgres.NewChallengeRequestRepository(db)
 	categoryRepository := postgres.NewCategoryRepository(db)
-	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, challengeCommentRepository, challengeInviteRepository, challengeRequestRepository, categoryRepository, userRepository, followRepository)
+	likeRepository := postgres.NewLikeRepository(db)
+	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, challengeCommentRepository, challengeInviteRepository, challengeRequestRepository, categoryRepository, userRepository, followRepository, likeRepository)
 	challengeHandler := handler.NewChallengeHandler(challengeService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	errorMiddleware := middleware.NewErrorProvider()
@@ -96,7 +97,8 @@ func InitializeApplication() (*Application, error) {
 	challengeInviteRepository := postgres.NewChallengeInviteRepository(db)
 	challengeRequestRepository := postgres.NewChallengeRequestRepository(db)
 	categoryRepository := postgres.NewCategoryRepository(db)
-	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, challengeCommentRepository, challengeInviteRepository, challengeRequestRepository, categoryRepository, userRepository, followRepository)
+	likeRepository := postgres.NewLikeRepository(db)
+	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, challengeCommentRepository, challengeInviteRepository, challengeRequestRepository, categoryRepository, userRepository, followRepository, likeRepository)
 	challengeHandler := handler.NewChallengeHandler(challengeService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	errorMiddleware := middleware.NewErrorProvider()
@@ -177,7 +179,7 @@ var RedisProviderSet = wire.NewSet(
 
 var EmailProviderSet = wire.NewSet(bootstrap.LoadEnv, ProvideEmailService, wire.Bind(new(email.EmailService), new(*email.EmailServiceImpl)))
 
-var RepositoryProviderSet = wire.NewSet(postgres.NewUserRepository, postgres.NewChallengeRepository, postgres.NewCategoryRepository, postgres.NewChallengeInviteRepository, postgres.NewChallengeParticipantRepository, postgres.NewChallengeCommentRepository, postgres.NewChallengeRequestRepository, wire.Bind(new(repository.ChallengeRequestRepository), new(*postgres.ChallengeRequestRepository)), wire.Bind(new(repository.ChallengeCommentRepository), new(*postgres.ChallengeCommentRepository)), wire.Bind(new(repository.ChallengeInviteRepository), new(*postgres.ChallengeInviteRepository)), wire.Bind(new(repository.ChallengeParticipantRepository), new(*postgres.ChallengeParticipantRepository)), wire.Bind(new(repository.UserRepository), new(*postgres.UserRepository)), wire.Bind(new(repository.ChallengeRepository), new(*postgres.ChallengeRepository)), wire.Bind(new(repository.CategoryRepository), new(*postgres.CategoryRepository)))
+var RepositoryProviderSet = wire.NewSet(postgres.NewUserRepository, postgres.NewChallengeRepository, postgres.NewCategoryRepository, postgres.NewChallengeInviteRepository, postgres.NewChallengeParticipantRepository, postgres.NewChallengeCommentRepository, postgres.NewChallengeRequestRepository, postgres.NewLikeRepository, wire.Bind(new(repository.LikeRepository), new(*postgres.LikeRepository)), wire.Bind(new(repository.ChallengeRequestRepository), new(*postgres.ChallengeRequestRepository)), wire.Bind(new(repository.ChallengeCommentRepository), new(*postgres.ChallengeCommentRepository)), wire.Bind(new(repository.ChallengeInviteRepository), new(*postgres.ChallengeInviteRepository)), wire.Bind(new(repository.ChallengeParticipantRepository), new(*postgres.ChallengeParticipantRepository)), wire.Bind(new(repository.UserRepository), new(*postgres.UserRepository)), wire.Bind(new(repository.ChallengeRepository), new(*postgres.ChallengeRepository)), wire.Bind(new(repository.CategoryRepository), new(*postgres.CategoryRepository)))
 
 var ServiceProviderSet = wire.NewSet(service.NewUserService, service.NewAuthService, service.NewChallengeService, wire.Bind(new(serviceinterface.ChallengeServicer), new(*service.ChallengeService)), wire.Bind(new(serviceinterface.UserServicer), new(*service.UserService)), wire.Bind(new(serviceinterface.AuthServicer), new(*service.AuthService)))
 
