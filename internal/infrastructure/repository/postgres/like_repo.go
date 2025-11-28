@@ -5,6 +5,7 @@ import (
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -17,64 +18,62 @@ func NewLikeRepository(db *gorm.DB) *LikeRepository {
 	return &LikeRepository{db: db}
 }
 
-func (r *LikeRepository) CreateLike(like *model.ChallengeLike) error {
-	likeEntity := &entity.ChallengeLikeEntity{
-		ChallengeID: like.ChallengeID,
-		UserID:      like.UserID,
+func (r *LikeRepository) CreateLike(like *model.Like) error {
+	likeEntity := &entity.LikeEntity{
+		EntityType: string(like.EntityType),
+		EntityID:   like.EntityID,
+		UserID:     like.UserID,
 	}
+
 	result := r.db.Create(likeEntity)
 	if result.Error != nil {
-		return exception.NewRepositoryError(result.Error)
-	}
-	result = r.db.Model(&entity.ChallengeEntity{}).
-		Where("id = ?", like.ChallengeID).
-		Update("like_count", gorm.Expr("like_count + ?", 1))
-	if result.Error != nil {
+		// Check if it's a duplicate key error
+		if strings.Contains(result.Error.Error(), "duplicate key") ||
+			strings.Contains(result.Error.Error(), "unique constraint") {
+			return exception.NewConflictException("Like", "user_id", "USER_ALREADY_LIKED")
+		}
 		return exception.NewRepositoryError(result.Error)
 	}
 
 	return nil
 }
+func (r *LikeRepository) DeleteLike(entityType model.LikeType, entityID, userID uint) error {
+	result := r.db.Where("entity_type = ? AND entity_id = ? AND user_id = ?",
+		string(entityType), entityID, userID).Delete(&entity.LikeEntity{})
 
-func (r *LikeRepository) DeleteLike(challengeID, userID uint) error {
-	result := r.db.Where("challenge_id = ? AND user_id = ?", challengeID, userID).Delete(&entity.ChallengeLikeEntity{})
 	if result.Error != nil {
 		return exception.NewRepositoryError(result.Error)
 	}
 
 	if result.RowsAffected == 0 {
-		return exception.NewNotFoundException("Like", fmt.Sprintf("challenge_id:%d,user_id:%d", challengeID, userID), "LIKE_NOT_FOUND")
-	}
-
-	result = r.db.Model(&entity.ChallengeEntity{}).
-		Where("id = ?", challengeID).
-		Update("like_count", gorm.Expr("GREATEST(like_count - ?, 0)", 1))
-	if result.Error != nil {
-		return exception.NewRepositoryError(result.Error)
+		return exception.NewNotFoundException("Like",
+			fmt.Sprintf("entity_type:%s,entity_id:%d,user_id:%d", entityType, entityID, userID),
+			"LIKE_NOT_FOUND")
 	}
 
 	return nil
 }
 
-func (r *LikeRepository) IsUserLikedChallenge(challengeID, userID uint) (bool, error) {
+func (r *LikeRepository) IsUserLiked(entityType model.LikeType, entityID, userID uint) (bool, error) {
 	var count int64
-	err := r.db.Model(&entity.ChallengeLikeEntity{}).
-		Where("challenge_id = ? AND user_id = ?", challengeID, userID).
+	err := r.db.Model(&entity.LikeEntity{}).
+		Where("entity_type = ? AND entity_id = ? AND user_id = ?", string(entityType), entityID, userID).
 		Count(&count).Error
+
 	if err != nil {
 		return false, exception.NewRepositoryError(err)
 	}
 	return count > 0, nil
 }
 
-func (r *LikeRepository) GetLikeCount(challengeID uint) (uint, error) {
-	var challenge entity.ChallengeEntity
-	err := r.db.Select("like_count").Where("id = ?", challengeID).First(&challenge).Error
+func (r *LikeRepository) GetLikeCount(entityType model.LikeType, entityID uint) (uint, error) {
+	var count int64
+	err := r.db.Model(&entity.LikeEntity{}).
+		Where("entity_type = ? AND entity_id = ?", string(entityType), entityID).
+		Count(&count).Error
+
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return 0, nil
-		}
 		return 0, exception.NewRepositoryError(err)
 	}
-	return challenge.LikeCount, nil
+	return uint(count), nil
 }

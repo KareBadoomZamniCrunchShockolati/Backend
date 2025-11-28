@@ -1,4 +1,3 @@
-// internal/presentation/handler/helpers.go
 package handler
 
 import (

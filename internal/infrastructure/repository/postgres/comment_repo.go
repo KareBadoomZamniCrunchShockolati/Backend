@@ -8,102 +8,114 @@ import (
 	"gorm.io/gorm"
 )
 
-type ChallengeCommentRepository struct {
+type CommentRepository struct {
 	db *gorm.DB
 }
 
-func NewChallengeCommentRepository(db *gorm.DB) *ChallengeCommentRepository {
-	return &ChallengeCommentRepository{db: db}
+func NewCommentRepository(db *gorm.DB) *CommentRepository {
+	return &CommentRepository{db: db}
 }
 
-func (r *ChallengeCommentRepository) CreateComment(comment *model.ChallengeComment) (*model.ChallengeComment, error) {
-	entity := toChallengeCommentEntity(comment)
-	result := r.db.Create(&entity)
-	if result.Error != nil {
-		return nil, exception.NewRepositoryError(result.Error)
+func (r *CommentRepository) CreateComment(comment *model.Comment) (*model.Comment, error) {
+	commentEntity := &entity.CommentEntity{
+		EntityType: string(comment.EntityType),
+		EntityID:   comment.EntityID,
+		UserID:     comment.UserID,
+		Content:    comment.Content,
+		ParentID:   comment.ParentID,
 	}
-	return toChallengeCommentModelWithID(*entity, comment), nil
-}
 
-func (r *ChallengeCommentRepository) GetComment(commentID uint) (*model.ChallengeComment, error) {
-	var entity entity.ChallengeCommentEntity
-	result := r.db.First(&entity, commentID)
-	return handleGetEntity(result.Error, func() *model.ChallengeComment {
-		return toChallengeCommentModel(&entity)
-	})
-}
-func (r *ChallengeCommentRepository) GetChallengeComments(challengeID uint, offset, limit int) ([]*model.ChallengeComment, error) {
-
-	var entities []entity.ChallengeCommentEntity
-	result := r.db.Where("challenge_id = ?", challengeID).Order("created_at DESC").Offset(int(offset)).Limit(int(limit)).Find(&entities)
-	if result.Error != nil {
-		return nil, exception.NewRepositoryError(result.Error)
-	}
-	comments := make([]*model.ChallengeComment, len(entities))
-	for i, e := range entities {
-		comments[i] = toChallengeCommentModel(&e)
-	}
-	return comments, nil
-}
-
-func (r *ChallengeCommentRepository) UpdateComment(comment *model.ChallengeComment) (*model.ChallengeComment, error) {
-	entity := toChallengeCommentEntity(comment)
-	entity.ID = comment.ID
-
-	result := r.db.Save(&entity)
+	result := r.db.Create(commentEntity)
 	if result.Error != nil {
 		return nil, exception.NewRepositoryError(result.Error)
 	}
 
-	comment.UpdatedAt = entity.UpdatedAt
-	return comment, nil
+	return toCommentModel(commentEntity), nil
 }
 
-func (r *ChallengeCommentRepository) DeleteComment(commentID uint) error {
-	result := r.db.Delete(&entity.ChallengeCommentEntity{}, commentID)
-	return handleDeleteResult(result.Error, "Comment", commentID)
-}
+func (r *CommentRepository) GetComment(commentID uint) (*model.Comment, error) {
+	var commentEntity entity.CommentEntity
+	result := r.db.First(&commentEntity, commentID)
 
-// Helpers
-func toChallengeCommentEntity(m *model.ChallengeComment) *entity.ChallengeCommentEntity {
-	return &entity.ChallengeCommentEntity{
-		ChallengeID: m.ChallengeID,
-		UserID:      m.UserID,
-		Content:     m.Content,
-	}
-}
-
-func toChallengeCommentModel(e *entity.ChallengeCommentEntity) *model.ChallengeComment {
-	return &model.ChallengeComment{
-		ID:          e.ID,
-		ChallengeID: e.ChallengeID,
-		UserID:      e.UserID,
-		Content:     e.Content,
-		CreatedAt:   e.CreatedAt,
-		UpdatedAt:   e.UpdatedAt,
-	}
-}
-
-func toChallengeCommentModelWithID(e entity.ChallengeCommentEntity, original *model.ChallengeComment) *model.ChallengeComment {
-	original.ID = e.ID
-	original.CreatedAt = e.CreatedAt
-	original.UpdatedAt = e.UpdatedAt
-	return original
-}
-
-func handleGetEntity(err error, modelFunc func() *model.ChallengeComment) (*model.ChallengeComment, error) {
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
-		return nil, exception.NewRepositoryError(err)
+		return nil, exception.NewRepositoryError(result.Error)
 	}
-	return modelFunc(), nil
+
+	return toCommentModel(&commentEntity), nil
 }
 
-func handleDeleteResult(err error, entityType string, entityID uint) error {
-	if err != nil {
-		return exception.NewRepositoryError(err)
+func (r *CommentRepository) GetComments(entityType model.CommentType, entityID uint, offset, limit int) ([]*model.Comment, error) {
+	var entities []entity.CommentEntity
+	result := r.db.Where("entity_type = ? AND entity_id = ?", string(entityType), entityID).
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&entities)
+
+	if result.Error != nil {
+		return nil, exception.NewRepositoryError(result.Error)
+	}
+
+	return toCommentModels(entities), nil
+}
+
+func (r *CommentRepository) UpdateComment(comment *model.Comment) (*model.Comment, error) {
+	var commentEntity entity.CommentEntity
+	result := r.db.First(&commentEntity, comment.ID)
+	if result.Error != nil {
+		return nil, exception.NewRepositoryError(result.Error)
+	}
+
+	commentEntity.Content = comment.Content
+
+	result = r.db.Save(&commentEntity)
+	if result.Error != nil {
+		return nil, exception.NewRepositoryError(result.Error)
+	}
+
+	return toCommentModel(&commentEntity), nil
+}
+
+func (r *CommentRepository) DeleteComment(commentID uint) error {
+	result := r.db.Delete(&entity.CommentEntity{}, commentID)
+	if result.Error != nil {
+		return exception.NewRepositoryError(result.Error)
 	}
 	return nil
+}
+
+func (r *CommentRepository) GetCommentCount(entityType model.CommentType, entityID uint) (uint, error) {
+	var count int64
+	result := r.db.Model(&entity.CommentEntity{}).
+		Where("entity_type = ? AND entity_id = ?", string(entityType), entityID).
+		Count(&count)
+	if result.Error != nil {
+		return 0, exception.NewRepositoryError(result.Error)
+	}
+	return uint(count), nil
+}
+
+// Helper functions
+func toCommentModel(e *entity.CommentEntity) *model.Comment {
+	return &model.Comment{
+		ID:         e.ID,
+		EntityType: model.CommentType(e.EntityType),
+		EntityID:   e.EntityID,
+		UserID:     e.UserID,
+		Content:    e.Content,
+		ParentID:   e.ParentID,
+		CreatedAt:  e.CreatedAt,
+		UpdatedAt:  e.UpdatedAt,
+	}
+}
+
+func toCommentModels(entities []entity.CommentEntity) []*model.Comment {
+	comments := make([]*model.Comment, len(entities))
+	for i, e := range entities {
+		comments[i] = toCommentModel(&e)
+	}
+	return comments
 }
