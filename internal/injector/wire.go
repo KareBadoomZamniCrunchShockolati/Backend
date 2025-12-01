@@ -113,17 +113,16 @@ var RepositoryProviderSet = wire.NewSet(
 	postgres.NewUserRepository,
 	postgres.NewChallengeRepository,
 	postgres.NewCategoryRepository,
-	postgres.NewChallengeInviteRepository,
+	postgres.NewChallengeParticipationRepo,
 	postgres.NewChallengeParticipantRepository,
 	postgres.NewCommentRepository, // CHANGED: from NewChallengeCommentRepository
-	postgres.NewChallengeRequestRepository,
 	postgres.NewLikeRepository,
 	postgres.NewFollowRepository,
 	postgres.NewPostRepository, // ADDED: for new post feature
 	wire.Bind(new(repository_interface.LikeRepository), new(*postgres.LikeRepository)),
+	wire.Bind(new(repository_interface.ChallengeInviteRepository), new(*postgres.ChallengeParticipationRepo)),
+	wire.Bind(new(repository_interface.ChallengeJoinRequestRepository), new(*postgres.ChallengeParticipationRepo)),
 	wire.Bind(new(repository_interface.CommentRepository), new(*postgres.CommentRepository)), // CHANGED: from ChallengeCommentRepository
-	wire.Bind(new(repository_interface.ChallengeRequestRepository), new(*postgres.ChallengeRequestRepository)),
-	wire.Bind(new(repository_interface.ChallengeInviteRepository), new(*postgres.ChallengeInviteRepository)),
 	wire.Bind(new(repository_interface.ChallengeParticipantRepository), new(*postgres.ChallengeParticipantRepository)),
 	wire.Bind(new(repository_interface.UserRepository), new(*postgres.UserRepository)),
 	wire.Bind(new(repository_interface.ChallengeRepository), new(*postgres.ChallengeRepository)),

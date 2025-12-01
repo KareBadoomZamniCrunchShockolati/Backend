@@ -71,7 +71,7 @@ func (r *ChallengeParticipantRepository) DeleteParticipant(challengeID, userID u
 func (r *ChallengeParticipantRepository) GetParticipantCount(challengeID uint) (int, error) {
 	var count int64
 	err := r.db.Model(&entity.ChallengeParticipantEntity{}).
-		Where("challenge_id = ? AND status IN ?", challengeID, []uint{uint(enum.StatusJoined), uint(enum.StatusPending)}).
+		Where("challenge_id = ? AND status IN ?", challengeID, []string{string(enum.StatusJoined), string(enum.StatusPending)}).
 		Count(&count).Error
 	if err != nil {
 		return 0, exception.NewRepositoryError(err)
@@ -82,7 +82,7 @@ func (r *ChallengeParticipantRepository) GetParticipantCount(challengeID uint) (
 func (r *ChallengeParticipantRepository) IsUserParticipant(challengeID, userID uint) (bool, error) {
 	var count int64
 	err := r.db.Model(&entity.ChallengeParticipantEntity{}).
-		Where("challenge_id = ? AND user_id = ? AND status IN ?", challengeID, userID, []uint{uint(enum.StatusJoined), uint(enum.StatusPending)}).
+		Where("challenge_id = ? AND user_id = ? AND status IN ?", challengeID, userID, []string{string(enum.StatusJoined), string(enum.StatusPending)}).
 		Count(&count).Error
 	if err != nil {
 		return false, exception.NewRepositoryError(err)
@@ -95,7 +95,7 @@ func toChallengeParticipantEntity(m *model.ChallengeParticipant) *entity.Challen
 	return &entity.ChallengeParticipantEntity{
 		ChallengeID: m.ChallengeID,
 		UserID:      m.UserID,
-		Status:      uint(m.Status),
+		Status:      string(m.Status),
 	}
 }
 

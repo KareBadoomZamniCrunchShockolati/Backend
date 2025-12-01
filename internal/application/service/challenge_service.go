@@ -12,15 +12,15 @@ import (
 )
 
 type ChallengeService struct {
-	challengeRepo   repository.ChallengeRepository
-	participantRepo repository.ChallengeParticipantRepository
-	commentRepo     repository.CommentRepository
-	inviteRepo      repository.ChallengeInviteRepository
-	joinRequestRepo repository.ChallengeRequestRepository
-	categoryRepo    repository.CategoryRepository
-	userRepo        repository.UserRepository
-	followRepo      repository.FollowRepository
-	likeRepo        repository.LikeRepository
+	challengeRepo            repository.ChallengeRepository
+	participantRepo          repository.ChallengeParticipantRepository
+	commentRepo              repository.ChallengeCommentRepository
+	inviteRepo               repository.ChallengeInviteRepository
+	joinRequestRepo          repository.ChallengeJoinRequestRepository
+	categoryRepo             repository.CategoryRepository
+	userRepo                 repository.UserRepository
+	followRepo               repository.FollowRepository
+	likeRepo                 repository.LikeRepository
 }
 
 func NewChallengeService(
@@ -28,7 +28,7 @@ func NewChallengeService(
 	participantRepo repository.ChallengeParticipantRepository,
 	commentRepo repository.CommentRepository,
 	inviteRepo repository.ChallengeInviteRepository,
-	joinRequestRepo repository.ChallengeRequestRepository,
+	joinRequestRepo repository.ChallengeJoinRequestRepository,
 	categoryRepo repository.CategoryRepository,
 	userRepo repository.UserRepository,
 	followRepo repository.FollowRepository,
@@ -473,22 +473,22 @@ func (s *ChallengeService) JoinPrivateChallenge(userID, challengeID uint) error 
 		return exception.NewConflictException("Participant", "user_id", "USER_ALREADY_PARTICIPANT")
 	}
 
-	requests, err := s.joinRequestRepo.GetUserJoinRequests(userID)
+	requests, err := s.joinRequestRepo.GetRequestsSentByUser(userID)
 	if err != nil {
 		return exception.NewRepositoryError(err)
 	}
 	for _, req := range requests {
-		if req.ChallengeID == challengeID && req.Status == enum.RequestPending {
+		if req.ChallengeID == challengeID && req.Status == enum.RequestStatusPending {
 			return exception.NewConflictException("JoinRequest", "challenge_id", "JOIN_REQUEST_ALREADY_EXISTS")
 		}
 	}
 
-	request := &model.ChallengeRequest{
-		ChallengeID: challengeID,
-		RequesterID: userID,
-		Status:      enum.RequestPending,
-	}
-	_, err = s.joinRequestRepo.CreateJoinRequest(request)
+	// request := &model.ChallengeRequest{
+	// 	ChallengeID: challengeID,
+	// 	RequesterID: userID,
+	// 	Status:      enum.StatusPending,
+	// }
+	_, err = s.joinRequestRepo.CreateRequest(userID, challengeID)
 	return err
 }
 
@@ -517,23 +517,23 @@ func (s *ChallengeService) InviteUserToChallenge(inviterID, challengeID, invitee
 		return nil, exception.NewConflictException("Participant", "user_id", "USER_ALREADY_PARTICIPANT")
 	}
 
-	invites, err := s.inviteRepo.GetUserInvites(inviteeID)
+	invites, err := s.inviteRepo.GetInvitesSentToUser(inviteeID)
 	if err != nil {
 		return nil, exception.NewRepositoryError(err)
 	}
 	for _, invite := range invites {
-		if invite.ChallengeID == challengeID && invite.Status == enum.InvitePending {
+		if invite.ChallengeID == challengeID && invite.Status == enum.RequestStatusPending {
 			return nil, exception.NewConflictException("Invite", "challenge_id", "USER_ALREADY_INVITED")
 		}
 	}
 
-	invite := &model.ChallengeInvite{
-		ChallengeID: challengeID,
-		InviterID:   inviterID,
-		InviteeID:   inviteeID,
-		Status:      enum.InvitePending,
-	}
-	createdInvite, err := s.inviteRepo.CreateInvite(invite)
+	// invite := &model.ChallengeInvite{
+	// 	ChallengeID: challengeID,
+	// 	InviterID:   inviterID,
+	// 	InviteeID:   inviteeID,
+	// 	Status:      enum.StatusInvited,
+	// }
+	createdInvite, err := s.inviteRepo.CreateInvite(inviterID, challengeID, inviteeID)
 	if err != nil {
 		return nil, exception.NewRepositoryError(err)
 	}
@@ -588,7 +588,7 @@ func (s *ChallengeService) ListChallengeParticipants(challengeID uint, userID ui
 }
 
 func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) error {
-	request, err := s.joinRequestRepo.GetJoinRequest(requestID)
+	request, err := s.joinRequestRepo.GetRequest(requestID)
 	if err != nil {
 		return err
 	}
@@ -596,7 +596,7 @@ func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) erro
 		return exception.NewNotFoundException("Join request", fmt.Sprintf("%d", requestID), "JOIN_REQUEST_NOT_FOUND")
 	}
 
-	if request.Status != enum.RequestPending {
+	if request.Status != enum.RequestStatusPending {
 		return exception.NewBadRequestException("Join request is not pending", "JOIN_REQUEST_NOT_PENDING", nil)
 	}
 
@@ -615,8 +615,8 @@ func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) erro
 	if err := s.checkParticipantLimit(request.ChallengeID, challenge.MaxParticipants); err != nil {
 		return err
 	}
-	request.Status = enum.RequestAccepted
-	_, err = s.joinRequestRepo.UpdateJoinRequest(request)
+	request.Status = enum.RequestStatusAccepted
+	_, err = s.joinRequestRepo.UpdateRequest(request)
 	if err != nil {
 		return err
 	}
@@ -630,7 +630,7 @@ func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) erro
 	if err != nil {
 		return err
 	}
-	err = s.joinRequestRepo.DeleteJoinRequest(requestID)
+	err = s.joinRequestRepo.DeleteRequest(requestID)
 	if err != nil {
 		return err
 	}
@@ -638,7 +638,7 @@ func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) erro
 }
 
 func (s *ChallengeService) DeclineJoinRequest(requestID, currentUserID uint) error {
-	request, err := s.joinRequestRepo.GetJoinRequest(requestID)
+	request, err := s.joinRequestRepo.GetRequest(requestID)
 	if err != nil {
 		return err
 	}
@@ -646,7 +646,7 @@ func (s *ChallengeService) DeclineJoinRequest(requestID, currentUserID uint) err
 		return exception.NewNotFoundException("Join request", fmt.Sprintf("%d", requestID), "JOIN_REQUEST_NOT_FOUND")
 	}
 
-	if request.Status != enum.RequestPending {
+	if request.Status != enum.RequestStatusPending {
 		return exception.NewBadRequestException("Join request is not pending", "JOIN_REQUEST_NOT_PENDING", nil)
 	}
 	challenge, err := s.challengeRepo.GetChallengeByID(request.ChallengeID, currentUserID)
@@ -657,12 +657,12 @@ func (s *ChallengeService) DeclineJoinRequest(requestID, currentUserID uint) err
 	if challenge.CreatorID != currentUserID {
 		return exception.NewUnauthorizedException("Only the challenge creator can decline join requests", "JOIN_REQUEST_NOT_AUTHORIZED")
 	}
-	request.Status = enum.RequestRejected
-	_, err = s.joinRequestRepo.UpdateJoinRequest(request)
+	request.Status = enum.RequestStatusRejected
+	_, err = s.joinRequestRepo.UpdateRequest(request)
 	if err != nil {
 		return err
 	}
-	err = s.joinRequestRepo.DeleteJoinRequest(requestID)
+	err = s.joinRequestRepo.DeleteRequest(requestID)
 	if err != nil {
 		return err
 	}
@@ -677,7 +677,7 @@ func (s *ChallengeService) AcceptInvite(inviteID, currentUserID uint) error {
 	if invite == nil {
 		return exception.NewNotFoundException("Invite", fmt.Sprintf("%d", inviteID), "INVITE_NOT_FOUND")
 	}
-	if invite.Status != enum.InvitePending {
+	if invite.Status != enum.RequestStatusPending {
 		return exception.NewBadRequestException("Invite is not pending", "INVITE_NOT_PENDING", nil)
 	}
 
@@ -701,17 +701,11 @@ func (s *ChallengeService) AcceptInvite(inviteID, currentUserID uint) error {
 		return err
 	}
 
-	invite.Status = enum.InviteAccepted
+	invite.Status = enum.RequestStatusAccepted
 	_, err = s.inviteRepo.UpdateInvite(invite)
 	if err != nil {
 		return err
 	}
-
-	err = s.inviteRepo.DeleteInvite(inviteID)
-	if err != nil {
-		return err
-	}
-
 	participant := &model.ChallengeParticipant{
 		ChallengeID: invite.ChallengeID,
 		UserID:      currentUserID,
@@ -732,13 +726,13 @@ func (s *ChallengeService) DeclineInvite(inviteID, currentUserID uint) error {
 	if invite == nil {
 		return exception.NewNotFoundException("Invite", fmt.Sprintf("%d", inviteID), "INVITE_NOT_FOUND")
 	}
-	if invite.Status != enum.InvitePending {
+	if invite.Status != enum.RequestStatusPending {
 		return exception.NewBadRequestException("Invite is not pending", "INVITE_NOT_PENDING", nil)
 	}
 	if invite.InviteeID != currentUserID {
 		return exception.NewUnauthorizedException("You are not authorized to decline this invite", "INVITE_NOT_AUTHORIZED")
 	}
-	invite.Status = enum.InviteDeclined
+	invite.Status = enum.RequestStatusRejected
 	_, err = s.inviteRepo.UpdateInvite(invite)
 	if err != nil {
 		return err
@@ -906,7 +900,6 @@ func (s *ChallengeService) GetComment(commentID, userID uint) (*dto.CommentRespo
 	if challenge == nil {
 		return nil, exception.NewUnauthorizedException("You don't have permission to view this comment", "COMMENT_ACCESS_DENIED")
 	}
-
 	username := ""
 	if comment.UserID > 0 {
 		user, err := s.userRepo.GetUserByID(comment.UserID)
@@ -938,11 +931,11 @@ func (s *ChallengeService) GetAllCategories() ([]*model.ChallengeCategoryModel, 
 }
 
 func (s *ChallengeService) GetRequestsSentByUser(userID uint) ([]*model.ChallengeRequest, error) {
-	return s.joinRequestRepo.GetUserJoinRequests(userID)
+	return s.joinRequestRepo.GetRequestsSentByUser(userID)
 }
 
 func (s *ChallengeService) GetInvitesSentToUser(userID uint) ([]*model.ChallengeInvite, error) {
-	return s.inviteRepo.GetUserInvites(userID)
+	return s.inviteRepo.GetInvitesSentToUser(userID)
 }
 
 func (s *ChallengeService) GetInvitesSentFromChallenge(challengeID uint, creatorID uint) ([]*model.ChallengeInvite, error) {
@@ -956,7 +949,7 @@ func (s *ChallengeService) GetInvitesSentFromChallenge(challengeID uint, creator
 	if challenge.CreatorID != creatorID {
 		return nil, exception.NewUnauthorizedException("Only the challenge creator can view invites", "INVITES_ACCESS_DENIED")
 	}
-	return s.inviteRepo.GetChallengeInvites(challengeID)
+	return s.inviteRepo.GetInvitesSentFromChallenge(challengeID)
 }
 
 func (s *ChallengeService) GetRequestsSentToChallenge(challengeID uint, creatorID uint) ([]*model.ChallengeRequest, error) {
@@ -971,7 +964,7 @@ func (s *ChallengeService) GetRequestsSentToChallenge(challengeID uint, creatorI
 		return nil, exception.NewUnauthorizedException("Only the challenge creator can view join requests", "REQUESTS_ACCESS_DENIED")
 	}
 
-	return s.joinRequestRepo.GetChallengeRequests(challengeID)
+	return s.joinRequestRepo.GetRequestsSentToChallenge(challengeID)
 }
 
 func (s *ChallengeService) IsUserParticipant(challengeID, userID uint) (bool, error) {
