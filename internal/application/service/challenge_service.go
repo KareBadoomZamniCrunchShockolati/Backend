@@ -14,7 +14,7 @@ import (
 type ChallengeService struct {
 	challengeRepo            repository.ChallengeRepository
 	participantRepo          repository.ChallengeParticipantRepository
-	commentRepo              repository.ChallengeCommentRepository
+	commentRepo              repository.CommentRepository
 	inviteRepo               repository.ChallengeInviteRepository
 	joinRequestRepo          repository.ChallengeJoinRequestRepository
 	categoryRepo             repository.CategoryRepository
