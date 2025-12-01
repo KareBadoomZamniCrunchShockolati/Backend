@@ -40,8 +40,8 @@ type ChallengeServicer interface {
 
 	LeaveChallenge(userID, challengeID uint) error
 
-	AddComment(userID uint, input *dto.AddCommentDTO) (*model.ChallengeComment, error)
-	GetAllComments(challengeID, userID uint, offset, limit int) ([]*model.ChallengeComment, error)
+	AddComment(userID uint, input *dto.CommentRequestDTO) (*model.Comment, error)
+	GetAllComments(challengeID, userID uint, offset, limit int) ([]*dto.CommentResponseDTO, error)
 	GetComment(commentID, userID uint) (*dto.CommentResponseDTO, error)
 
 	GetAllCategories() ([]*model.ChallengeCategoryModel, error)

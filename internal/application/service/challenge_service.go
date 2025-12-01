@@ -14,7 +14,7 @@ import (
 type ChallengeService struct {
 	challengeRepo   repository.ChallengeRepository
 	participantRepo repository.ChallengeParticipantRepository
-	commentRepo     repository.ChallengeCommentRepository
+	commentRepo     repository.CommentRepository
 	inviteRepo      repository.ChallengeInviteRepository
 	joinRequestRepo repository.ChallengeRequestRepository
 	categoryRepo    repository.CategoryRepository
@@ -26,7 +26,7 @@ type ChallengeService struct {
 func NewChallengeService(
 	challengeRepo repository.ChallengeRepository,
 	participantRepo repository.ChallengeParticipantRepository,
-	commentRepo repository.ChallengeCommentRepository,
+	commentRepo repository.CommentRepository,
 	inviteRepo repository.ChallengeInviteRepository,
 	joinRequestRepo repository.ChallengeRequestRepository,
 	categoryRepo repository.CategoryRepository,
@@ -228,26 +228,16 @@ func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDeta
 			}
 		}
 	}
-	comments, err := s.commentRepo.GetChallengeComments(id, 0, 20)
+
+	// using polymorphic comments with nested structure
+	comments, err := s.commentRepo.GetComments(model.CommentTypeChallenge, id, 0, 20)
 	if err != nil {
 		return nil, err
 	}
-	commentDTOs := make([]dto.CommentResponseDTO, len(comments))
-	for i, c := range comments {
-		username := ""
-		if c.UserID > 0 {
-			user, err := s.userRepo.GetUserByID(c.UserID)
-			if err == nil && user != nil {
-				username = user.Username
-			}
-		}
-		commentDTOs[i] = dto.CommentResponseDTO{
-			ID:       c.ID,
-			UserID:   c.UserID,
-			Username: username,
-			Content:  c.Content,
-		}
-	}	
+
+	// Build nested comment structure
+	commentDTOs := s.buildNestedComments(comments, userID)
+
 	participants, err := s.participantRepo.GetParticipantsByChallenge(id, 0, 20)
 	if err != nil {
 		return nil, err
@@ -266,11 +256,14 @@ func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDeta
 			Username: username,
 		}
 	}
-	likeCount, _ := s.likeRepo.GetLikeCount(id)
+
+	// Use polymorphic likes
+	likeCount, _ := s.likeRepo.GetLikeCount(model.LikeTypeChallenge, id)
 	isUserLiked := false
 	if userID > 0 {
-		isUserLiked, _ = s.likeRepo.IsUserLikedChallenge(id, userID)
+		isUserLiked, _ = s.likeRepo.IsUserLiked(model.LikeTypeChallenge, id, userID)
 	}
+
 	isUserParticipating := false
 	if userID > 0 {
 		isUserParticipating, err = s.participantRepo.IsUserParticipant(id, userID)
@@ -278,6 +271,7 @@ func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDeta
 			return nil, err
 		}
 	}
+
 	previewDTO := dto.ChallengePreviewDTO{
 		ID:                  challenge.ID,
 		Title:               challenge.Title,
@@ -291,7 +285,7 @@ func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDeta
 		MaxParticipants:     challenge.MaxParticipants,
 		CurrentParticipants: int(totalParticipants),
 		LikeCount:           likeCount,
-		CommentCount:        uint(len(comments)),
+		CommentCount:        uint(len(comments)), //includes all comments (even nested replies)
 		StartTime:           challenge.StartTime,
 		EndTime:             challenge.EndTime,
 		Timezone:            challenge.Timezone,
@@ -306,6 +300,62 @@ func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDeta
 		Participants:        participantDTOs,
 		Comments:            commentDTOs,
 	}, nil
+}
+
+// Helper function to build nested comments
+func (s *ChallengeService) buildNestedComments(comments []*model.Comment, userID uint) []dto.CommentResponseDTO {
+	commentMap := make(map[uint]*dto.CommentResponseDTO)
+	var rootComments []*dto.CommentResponseDTO
+
+	// First pass: create all comment DTOs
+	for _, comment := range comments {
+		username := ""
+		if comment.UserID > 0 {
+			user, err := s.userRepo.GetUserByID(comment.UserID)
+			if err == nil && user != nil {
+				username = user.Username
+			}
+		}
+
+		likeCount, _ := s.likeRepo.GetLikeCount(model.LikeTypeComment, comment.ID)
+		isLiked, _ := s.likeRepo.IsUserLiked(model.LikeTypeComment, comment.ID, userID)
+
+		commentDTO := &dto.CommentResponseDTO{
+			ID:         comment.ID,
+			EntityType: string(comment.EntityType),
+			EntityID:   comment.EntityID,
+			UserID:     comment.UserID,
+			Username:   username,
+			Content:    comment.Content,
+			ParentID:   comment.ParentID,
+			LikeCount:  likeCount,
+			IsLiked:    isLiked,
+			CreatedAt:  comment.CreatedAt,
+			Replies:    []*dto.CommentResponseDTO{},
+		}
+		commentMap[comment.ID] = commentDTO
+
+		// If no parent or parent is 0, it's a root comment
+		if comment.ParentID == nil || *comment.ParentID == 0 {
+			rootComments = append(rootComments, commentDTO)
+		}
+	}
+
+	// Second pass: build the tree structure
+	for _, comment := range comments {
+		if comment.ParentID != nil && *comment.ParentID != 0 {
+			if parent, exists := commentMap[*comment.ParentID]; exists {
+				parent.Replies = append(parent.Replies, commentMap[comment.ID])
+			}
+		}
+	}
+
+	// Convert to non-pointer slice to match DTO definition
+	result := make([]dto.CommentResponseDTO, len(rootComments))
+	for i, comment := range rootComments {
+		result[i] = *comment
+	}
+	return result
 }
 
 func (s *ChallengeService) GetAllChallenges(userID, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
@@ -359,7 +409,6 @@ func (s *ChallengeService) ListChallengesJoinedByUser(currentUserID uint, offset
 func (s *ChallengeService) SearchChallenges(query string, visibility []enum.ChallengeVisibility, currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
 	return s.challengeRepo.SearchChallenges(query, visibility, currentUserID, offset, limit)
 }
-
 
 func (s *ChallengeService) JoinPublicChallenge(userID, challengeID uint) error {
 	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
@@ -641,7 +690,7 @@ func (s *ChallengeService) AcceptInvite(inviteID, currentUserID uint) error {
 		return err
 	}
 	if challenge == nil {
-    	return exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", invite.ChallengeID), "CHALLENGE_NOT_FOUND")
+		return exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", invite.ChallengeID), "CHALLENGE_NOT_FOUND")
 	}
 
 	if challenge.IsStopped {
@@ -721,21 +770,31 @@ func (s *ChallengeService) LeaveChallenge(userID, challengeID uint) error {
 	return s.participantRepo.DeleteParticipant(challengeID, userID)
 }
 
-func (s *ChallengeService) AddComment(userID uint, input *dto.AddCommentDTO) (*model.ChallengeComment, error) {
+func (s *ChallengeService) AddComment(userID uint, input *dto.CommentRequestDTO) (*model.Comment, error) {
+	return s.AddCommentToChallenge(userID, input)
+}
+
+func (s *ChallengeService) AddCommentToChallenge(userID uint, input *dto.CommentRequestDTO) (*model.Comment, error) {
 	if input == nil {
 		return nil, exception.NewBadRequestException("Input cannot be nil", "COMMENT_ADD_BAD_INPUT", nil)
 	}
-	challenge, err := s.challengeRepo.GetChallengeByID(input.ChallengeID, userID)
+
+	// Validate it's for a challenge
+	if input.EntityType != "challenge" {
+		return nil, exception.NewBadRequestException("Entity type must be 'challenge'", "INVALID_ENTITY_TYPE", nil)
+	}
+
+	challenge, err := s.challengeRepo.GetChallengeByID(input.EntityID, userID)
 	if err != nil {
 		return nil, err
 	}
 	if challenge == nil {
-		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", input.ChallengeID), "CHALLENGE_NOT_FOUND")
+		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", input.EntityID), "CHALLENGE_NOT_FOUND")
 	}
 	if !challenge.CommentsEnabled {
 		return nil, exception.NewForbiddenException("Comments are disabled for this challenge", "COMMENTS_DISABLED")
 	}
-	isParticipant, err := s.participantRepo.IsUserParticipant(input.ChallengeID, userID)
+	isParticipant, err := s.participantRepo.IsUserParticipant(input.EntityID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -743,16 +802,18 @@ func (s *ChallengeService) AddComment(userID uint, input *dto.AddCommentDTO) (*m
 		return nil, exception.NewForbiddenException("Only participants can comment", "USER_NOT_PARTICIPANT")
 	}
 
-	comment := &model.ChallengeComment{
-		ChallengeID: input.ChallengeID,
-		UserID:      userID,
-		Content:     input.Content,
+	comment := &model.Comment{
+		EntityType: model.CommentTypeChallenge,
+		EntityID:   input.EntityID,
+		UserID:     userID,
+		Content:    input.Content,
+		ParentID:   input.ParentID, // it is stored to implement and use nested comments
 	}
 	createdComment, err := s.commentRepo.CreateComment(comment)
 	return createdComment, err
 }
 
-func (s *ChallengeService) GetAllComments(challengeID, userID uint, offset, limit int) ([]*model.ChallengeComment, error) {
+func (s *ChallengeService) GetAllComments(challengeID, userID uint, offset, limit int) ([]*dto.CommentResponseDTO, error) {
 	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
 	if err != nil {
 		return nil, err
@@ -765,39 +826,113 @@ func (s *ChallengeService) GetAllComments(challengeID, userID uint, offset, limi
 		return nil, exception.NewForbiddenException("Comments are disabled for this challenge", "COMMENTS_DISABLED")
 	}
 
-	return s.commentRepo.GetChallengeComments(challengeID, offset, limit)
+	comments, err := s.commentRepo.GetComments(model.CommentTypeChallenge, challengeID, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	nestedComments := s.buildNestedCommentsForInterface(comments, userID)
+	return nestedComments, nil
 }
 
-func (s *ChallengeService) GetComment(commentID, userID uint) (*dto.CommentResponseDTO, error) {
-    comment, err := s.commentRepo.GetComment(commentID)
-    if err != nil {
-        return nil, err
-    }
-    if comment == nil {
-        return nil, exception.NewNotFoundException("Comment", fmt.Sprintf("%d", commentID), "COMMENT_NOT_FOUND")
-    }
-    challenge, err := s.challengeRepo.GetChallengeByID(comment.ChallengeID, userID)
-    if err != nil {
-        return nil, err
-    }
-    if challenge == nil {
-        return nil, exception.NewUnauthorizedException("You don't have permission to view this comment", "COMMENT_ACCESS_DENIED")
-    }
-    username := ""
-    if comment.UserID > 0 {
-        user, err := s.userRepo.GetUserByID(comment.UserID)
-        if err == nil && user != nil {
-            username = user.Username
-        }
-    }
-    return &dto.CommentResponseDTO{
-        ID:       comment.ID,
-        UserID:   comment.UserID,
-        Username: username,
-        Content:  comment.Content,
-        CreatedAt: comment.CreatedAt,
-    }, nil
+func (s *ChallengeService) buildNestedCommentsForInterface(comments []*model.Comment, userID uint) []*dto.CommentResponseDTO {
+	commentMap := make(map[uint]*dto.CommentResponseDTO)
+	var rootComments []*dto.CommentResponseDTO
+
+	for _, comment := range comments {
+		username := ""
+		if comment.UserID > 0 {
+			user, err := s.userRepo.GetUserByID(comment.UserID)
+			if err == nil && user != nil {
+				username = user.Username
+			}
+		}
+
+		likeCount, _ := s.likeRepo.GetLikeCount(model.LikeTypeComment, comment.ID)
+		isLiked, _ := s.likeRepo.IsUserLiked(model.LikeTypeComment, comment.ID, userID)
+
+		commentDTO := &dto.CommentResponseDTO{
+			ID:         comment.ID,
+			EntityType: string(comment.EntityType),
+			EntityID:   comment.EntityID,
+			UserID:     comment.UserID,
+			Username:   username,
+			Content:    comment.Content,
+			ParentID:   comment.ParentID,
+			LikeCount:  likeCount,
+			IsLiked:    isLiked,
+			CreatedAt:  comment.CreatedAt,
+			Replies:    []*dto.CommentResponseDTO{},
+		}
+		commentMap[comment.ID] = commentDTO
+
+		// If no parent or parent is 0, it's a root comment
+		if comment.ParentID == nil || *comment.ParentID == 0 {
+			rootComments = append(rootComments, commentDTO)
+		}
+	}
+
+	// Second pass: build the tree structure
+	for _, comment := range comments {
+		if comment.ParentID != nil && *comment.ParentID != 0 {
+			if parent, exists := commentMap[*comment.ParentID]; exists {
+				parent.Replies = append(parent.Replies, commentMap[comment.ID])
+			}
+		}
+	}
+
+	return rootComments
 }
+
+// GetComment - UPDATED: Use polymorphic comments
+func (s *ChallengeService) GetComment(commentID, userID uint) (*dto.CommentResponseDTO, error) {
+	comment, err := s.commentRepo.GetComment(commentID)
+	if err != nil {
+		return nil, err
+	}
+	if comment == nil {
+		return nil, exception.NewNotFoundException("Comment", fmt.Sprintf("%d", commentID), "COMMENT_NOT_FOUND")
+	}
+
+	// Check if the comment belongs to a challenge the user can access
+	if comment.EntityType != model.CommentTypeChallenge {
+		return nil, exception.NewUnauthorizedException("Comment does not belong to a challenge", "COMMENT_ACCESS_DENIED")
+	}
+
+	challenge, err := s.challengeRepo.GetChallengeByID(comment.EntityID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if challenge == nil {
+		return nil, exception.NewUnauthorizedException("You don't have permission to view this comment", "COMMENT_ACCESS_DENIED")
+	}
+
+	username := ""
+	if comment.UserID > 0 {
+		user, err := s.userRepo.GetUserByID(comment.UserID)
+		if err == nil && user != nil {
+			username = user.Username
+		}
+	}
+
+	// Get like count for the comment
+	likeCount, _ := s.likeRepo.GetLikeCount(model.LikeTypeComment, comment.ID)
+	isLiked, _ := s.likeRepo.IsUserLiked(model.LikeTypeComment, comment.ID, userID)
+
+	return &dto.CommentResponseDTO{
+		ID:         comment.ID,
+		EntityType: string(comment.EntityType),
+		EntityID:   comment.EntityID,
+		UserID:     comment.UserID,
+		Username:   username,
+		Content:    comment.Content,
+		ParentID:   comment.ParentID,
+		LikeCount:  likeCount,
+		IsLiked:    isLiked,
+		CreatedAt:  comment.CreatedAt,
+	}, nil
+}
+
 func (s *ChallengeService) GetAllCategories() ([]*model.ChallengeCategoryModel, error) {
 	return s.categoryRepo.GetAllCategories()
 }
@@ -854,6 +989,7 @@ func (s *ChallengeService) GetChallengeParticipantCount(challengeID uint) (int, 
 func (s *ChallengeService) GetChallengesUserIsParticipating(userID uint, offset, limit int) ([]*model.ChallengeModel, error) {
 	return s.challengeRepo.ListChallengesByParticipant(userID, offset, limit)
 }
+
 func (s *ChallengeService) GetMutualFollowersInChallenge(userID, challengeID uint) ([]*model.UserModel, error) {
 	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
 	if err != nil {
@@ -874,7 +1010,7 @@ func (s *ChallengeService) LikeChallenge(userID, challengeID uint) error {
 		return exception.NewForbiddenException("Only participants can like challenges", "USER_NOT_PARTICIPANT")
 	}
 
-	isLiked, err := s.likeRepo.IsUserLikedChallenge(challengeID, userID)
+	isLiked, err := s.likeRepo.IsUserLiked(model.LikeTypeChallenge, challengeID, userID)
 	if err != nil {
 		return err
 	}
@@ -882,9 +1018,10 @@ func (s *ChallengeService) LikeChallenge(userID, challengeID uint) error {
 		return exception.NewConflictException("Like", "user_id", "USER_ALREADY_LIKED")
 	}
 
-	like := &model.ChallengeLike{
-		ChallengeID: challengeID,
-		UserID:      userID,
+	like := &model.Like{
+		EntityType: model.LikeTypeChallenge,
+		EntityID:   challengeID,
+		UserID:     userID,
 	}
 
 	return s.likeRepo.CreateLike(like)
@@ -899,7 +1036,7 @@ func (s *ChallengeService) UnlikeChallenge(userID, challengeID uint) error {
 		return exception.NewForbiddenException("Only participants can unlike challenges", "USER_NOT_PARTICIPANT")
 	}
 
-	isLiked, err := s.likeRepo.IsUserLikedChallenge(challengeID, userID)
+	isLiked, err := s.likeRepo.IsUserLiked(model.LikeTypeChallenge, challengeID, userID)
 	if err != nil {
 		return err
 	}
@@ -907,15 +1044,15 @@ func (s *ChallengeService) UnlikeChallenge(userID, challengeID uint) error {
 		return exception.NewBadRequestException("User has not liked this challenge", "USER_NOT_LIKED", nil)
 	}
 
-	return s.likeRepo.DeleteLike(challengeID, userID)
+	return s.likeRepo.DeleteLike(model.LikeTypeChallenge, challengeID, userID)
 }
 
 func (s *ChallengeService) IsUserLikedChallenge(userID, challengeID uint) (bool, error) {
-	return s.likeRepo.IsUserLikedChallenge(challengeID, userID)
+	return s.likeRepo.IsUserLiked(model.LikeTypeChallenge, challengeID, userID)
 }
 
 func (s *ChallengeService) GetChallengeLikeCount(challengeID uint) (uint, error) {
-	return s.likeRepo.GetLikeCount(challengeID)
+	return s.likeRepo.GetLikeCount(model.LikeTypeChallenge, challengeID)
 }
 
 // Helper

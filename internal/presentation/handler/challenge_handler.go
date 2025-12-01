@@ -28,7 +28,7 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 		Description     string `json:"description" validate:"required,min=10,max=280"`
 		CategoryID      uint   `json:"category_id" validate:"required"`
 		MaxParticipants uint   `json:"max_participants" validate:"omitempty,min=0"`
-		Visibility      string   `json:"visibility" validate:"required,oneof=public private invite"`
+		Visibility      string `json:"visibility" validate:"required,oneof=public private invite"`
 		Rule            string `json:"rule" validate:"required"`
 		CommentsEnabled bool   `json:"comments_enabled"`
 		StartTime       string `json:"start_time" validate:"required"`
@@ -108,7 +108,7 @@ func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
 		Timezone        *string `json:"timezone"`
 	}
 	params := Validated[updateChallengeParams](ctx)
-	userID,exists := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
 	if !exists {
 		panic(exception.NewMissingUserIDException())
 	}
@@ -177,8 +177,8 @@ func (h *ChallengeHandler) DeleteChallenge(ctx *gin.Context) {
 
 func (h *ChallengeHandler) ListDiscoverableChallenges(ctx *gin.Context) {
 	type discoverableParams struct {
-		Page       int  `form:"page"`
-		PageSize   int  `form:"pageSize"`
+		Page     int `form:"page"`
+		PageSize int `form:"pageSize"`
 	}
 	params := Validated[discoverableParams](ctx)
 	userID, exists := ctx.Get("userID")
@@ -196,8 +196,8 @@ func (h *ChallengeHandler) ListDiscoverableChallenges(ctx *gin.Context) {
 
 func (h *ChallengeHandler) ListPublicChallenges(ctx *gin.Context) {
 	type publicParams struct {
-		Page       int  `form:"page"`
-		PageSize   int  `form:"pageSize"`
+		Page     int `form:"page"`
+		PageSize int `form:"pageSize"`
 	}
 	params := Validated[publicParams](ctx)
 	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
@@ -291,8 +291,8 @@ func (h *ChallengeHandler) ListByCategoryName(ctx *gin.Context) {
 
 func (h *ChallengeHandler) ListByParticipantCount(ctx *gin.Context) {
 	type participantCountParams struct {
-		Page       int  `form:"page"`
-		PageSize   int  `form:"pageSize"`
+		Page     int `form:"page"`
+		PageSize int `form:"pageSize"`
 	}
 	params := Validated[participantCountParams](ctx)
 	userID, exists := ctx.Get("userID")
@@ -310,8 +310,8 @@ func (h *ChallengeHandler) ListByParticipantCount(ctx *gin.Context) {
 
 func (h *ChallengeHandler) ListByLikeCount(ctx *gin.Context) {
 	type likeCountParams struct {
-		Page       int  `form:"page"`
-		PageSize   int  `form:"pageSize"`
+		Page     int `form:"page"`
+		PageSize int `form:"pageSize"`
 	}
 	params := Validated[likeCountParams](ctx)
 	userID, exists := ctx.Get("userID")
@@ -329,8 +329,8 @@ func (h *ChallengeHandler) ListByLikeCount(ctx *gin.Context) {
 
 func (h *ChallengeHandler) ListChallengesStartingSoon(ctx *gin.Context) {
 	type startingSoonParams struct {
-		Page       int  `form:"page"`
-		PageSize   int  `form:"pageSize"`
+		Page     int `form:"page"`
+		PageSize int `form:"pageSize"`
 	}
 	params := Validated[startingSoonParams](ctx)
 	userID, exists := ctx.Get("userID")
@@ -348,8 +348,8 @@ func (h *ChallengeHandler) ListChallengesStartingSoon(ctx *gin.Context) {
 
 func (h *ChallengeHandler) ListTopCreatorsChallenge(ctx *gin.Context) {
 	type topCreatorsParams struct {
-		Page       int  `form:"page"`
-		PageSize   int  `form:"pageSize"`
+		Page     int `form:"page"`
+		PageSize int `form:"pageSize"`
 	}
 	params := Validated[topCreatorsParams](ctx)
 	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
@@ -391,10 +391,10 @@ func (h *ChallengeHandler) SearchChallenges(ctx *gin.Context) {
 	if !exists {
 		userID = uint(0)
 	}
-	
+
 	var visibility []enum.ChallengeVisibility
 	//TODO implement visibility parsing from query parameters
-	
+
 	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
 	challenges, err := h.challengeService.SearchChallenges(params.Query, visibility, userID.(uint), offset, limit)
 	if err != nil {
@@ -409,7 +409,7 @@ func (h *ChallengeHandler) StopChallenge(ctx *gin.Context) {
 		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[stopChallengeParams](ctx)
-	userID,exists := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
 	if !exists {
 		panic(exception.NewMissingUserIDException())
 	}
@@ -427,8 +427,8 @@ func (h *ChallengeHandler) JoinPublicChallenge(ctx *gin.Context) {
 		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[joinPublicChallengeParams](ctx)
-	
-	userID,exists := ctx.Get("userID")
+
+	userID, exists := ctx.Get("userID")
 	if !exists {
 		panic(exception.NewMissingUserIDException())
 	}
@@ -499,9 +499,9 @@ func (h *ChallengeHandler) RemoveParticipant(ctx *gin.Context) {
 
 func (h *ChallengeHandler) ListChallengeParticipants(ctx *gin.Context) {
 	type listParticipantsParams struct {
-		ID uint `uri:"id" validate:"required"`
-		Page       int  `form:"page"`
-		PageSize   int  `form:"pageSize"`
+		ID       uint `uri:"id" validate:"required"`
+		Page     int  `form:"page"`
+		PageSize int  `form:"pageSize"`
 	}
 	params := Validated[listParticipantsParams](ctx)
 	userID, exists := ctx.Get("userID")
@@ -594,7 +594,7 @@ func (h *ChallengeHandler) LeaveChallenge(ctx *gin.Context) {
 		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[leaveChallengeParams](ctx)
-	userID,exists := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
 	if !exists {
 		panic(exception.NewMissingUserIDException())
 	}
@@ -617,9 +617,13 @@ func (h *ChallengeHandler) AddComment(ctx *gin.Context) {
 	if !exists {
 		panic(exception.NewMissingUserIDException())
 	}
-	addCommentDTO := &dto.AddCommentDTO{
-		ChallengeID: params.ID,
-		Content:     params.Content,
+
+	// FIXED: Use CommentRequestDTO instead of AddCommentDTO
+	addCommentDTO := &dto.CommentRequestDTO{
+		EntityType: "challenge", // Set entity type to challenge
+		EntityID:   params.ID,   // Use the challenge ID from URL
+		Content:    params.Content,
+		ParentID:   nil, // You can add parent_id support if needed
 	}
 	comment, err := h.challengeService.AddComment(userID.(uint), addCommentDTO)
 	if err != nil {
@@ -635,7 +639,7 @@ func (h *ChallengeHandler) GetAllComments(ctx *gin.Context) {
 		PageSize int  `form:"pageSize"`
 	}
 	params := Validated[getAllCommentsParams](ctx)
-	
+
 	userID, exists := ctx.Get("userID")
 	if !exists {
 		userID = uint(0)
@@ -651,19 +655,19 @@ func (h *ChallengeHandler) GetAllComments(ctx *gin.Context) {
 }
 
 func (h *ChallengeHandler) GetComment(ctx *gin.Context) {
-    type getCommentParams struct {
-        CommentID uint `uri:"comment_id" validate:"required"`
-    }
-    params := Validated[getCommentParams](ctx)
-    userID, exists := ctx.Get("userID")
-    if !exists {
-        panic(exception.NewMissingUserIDException())
-    }
-    comment, err := h.challengeService.GetComment(params.CommentID, userID.(uint))
-    if err != nil {
-        panic(err)
-    }
-    Response(ctx, 200, "", comment)
+	type getCommentParams struct {
+		CommentID uint `uri:"comment_id" validate:"required"`
+	}
+	params := Validated[getCommentParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
+	comment, err := h.challengeService.GetComment(params.CommentID, userID.(uint))
+	if err != nil {
+		panic(err)
+	}
+	Response(ctx, 200, "", comment)
 }
 
 func (h *ChallengeHandler) GetRequestsSentByUser(ctx *gin.Context) {
@@ -681,7 +685,7 @@ func (h *ChallengeHandler) GetRequestsSentByUser(ctx *gin.Context) {
 }
 
 func (h *ChallengeHandler) GetInvitesSentToUser(ctx *gin.Context) {
-	userID,exists := ctx.Get("userID")
+	userID, exists := ctx.Get("userID")
 	if !exists {
 		panic(exception.NewMissingUserIDException())
 	}
@@ -728,87 +732,87 @@ func (h *ChallengeHandler) GetRequestsSentToChallenge(ctx *gin.Context) {
 }
 
 func (h *ChallengeHandler) GetAllCategories(ctx *gin.Context) {
-    categories, err := h.challengeService.GetAllCategories()
-    if err != nil {
-        panic(err)
-    }
+	categories, err := h.challengeService.GetAllCategories()
+	if err != nil {
+		panic(err)
+	}
 
-    Response(ctx, 200, "", categories)
+	Response(ctx, 200, "", categories)
 }
 
 func (h *ChallengeHandler) GetMutualFollowersInChallenge(ctx *gin.Context) {
-    type getMutualFollowersParams struct {
-        ChallengeID uint `uri:"id" validate:"required"`
-    }
-    params := Validated[getMutualFollowersParams](ctx)
-    userID, exists := ctx.Get("userID")
-    if !exists {
-        panic(exception.NewMissingUserIDException())
-    }
-    mutualFollowers, err := h.challengeService.GetMutualFollowersInChallenge(userID.(uint), params.ChallengeID)
-    if err != nil {
-        panic(err)
-    }
+	type getMutualFollowersParams struct {
+		ChallengeID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[getMutualFollowersParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
+	mutualFollowers, err := h.challengeService.GetMutualFollowersInChallenge(userID.(uint), params.ChallengeID)
+	if err != nil {
+		panic(err)
+	}
 
-    Response(ctx, 200, "", mutualFollowers)
+	Response(ctx, 200, "", mutualFollowers)
 }
 
 func (h *ChallengeHandler) LikeChallenge(ctx *gin.Context) {
-    type likeChallengeParams struct {
-        ChallengeID uint `uri:"id" validate:"required"`
-    }
-    params := Validated[likeChallengeParams](ctx)
-    userIDInterface, exists := ctx.Get("userID")
-    if !exists {
-        panic("User not authenticated")
-    }
-    userID, ok := userIDInterface.(uint)
-    if !ok || userID == 0 {
-        panic("Invalid user ID in context")
-    }
+	type likeChallengeParams struct {
+		ChallengeID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[likeChallengeParams](ctx)
+	userIDInterface, exists := ctx.Get("userID")
+	if !exists {
+		panic("User not authenticated")
+	}
+	userID, ok := userIDInterface.(uint)
+	if !ok || userID == 0 {
+		panic("Invalid user ID in context")
+	}
 
-    err := h.challengeService.LikeChallenge(userID, params.ChallengeID)
-    if err != nil {
-        panic(err)
-    }
+	err := h.challengeService.LikeChallenge(userID, params.ChallengeID)
+	if err != nil {
+		panic(err)
+	}
 
-    Response(ctx, 200, "Challenge liked successfully", nil)
+	Response(ctx, 200, "Challenge liked successfully", nil)
 }
 
 func (h *ChallengeHandler) UnlikeChallenge(ctx *gin.Context) {
-    type unlikeChallengeParams struct {
-        ChallengeID uint `uri:"id" validate:"required"`
-    }
-    params := Validated[unlikeChallengeParams](ctx)
-    userIDInterface, exists := ctx.Get("userID")
-    if !exists {
-        panic("User not authenticated")
-    }
-    userID, ok := userIDInterface.(uint)
-    if !ok || userID == 0 {
-        panic("Invalid user ID in context")
-    }
+	type unlikeChallengeParams struct {
+		ChallengeID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[unlikeChallengeParams](ctx)
+	userIDInterface, exists := ctx.Get("userID")
+	if !exists {
+		panic("User not authenticated")
+	}
+	userID, ok := userIDInterface.(uint)
+	if !ok || userID == 0 {
+		panic("Invalid user ID in context")
+	}
 
-    err := h.challengeService.UnlikeChallenge(userID, params.ChallengeID)
-    if err != nil {
-        panic(err)
-    }
+	err := h.challengeService.UnlikeChallenge(userID, params.ChallengeID)
+	if err != nil {
+		panic(err)
+	}
 
-    Response(ctx, 200, "Challenge unliked successfully", nil)
+	Response(ctx, 200, "Challenge unliked successfully", nil)
 }
 
 func (h *ChallengeHandler) GetChallengeLikeCount(ctx *gin.Context) {
-    type getLikeCountParams struct {
-        ChallengeID uint `uri:"id" validate:"required"`
-    }
-    params := Validated[getLikeCountParams](ctx)
+	type getLikeCountParams struct {
+		ChallengeID uint `uri:"id" validate:"required"`
+	}
+	params := Validated[getLikeCountParams](ctx)
 
-    count, err := h.challengeService.GetChallengeLikeCount(params.ChallengeID)
-    if err != nil {
-        panic(err)
-    }
+	count, err := h.challengeService.GetChallengeLikeCount(params.ChallengeID)
+	if err != nil {
+		panic(err)
+	}
 
-    Response(ctx, 200, "", gin.H{"like_count": count})
+	Response(ctx, 200, "", gin.H{"like_count": count})
 }
 
 func (h *ChallengeHandler) IsUserLikedChallenge(ctx *gin.Context) {

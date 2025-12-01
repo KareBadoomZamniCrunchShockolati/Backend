@@ -62,7 +62,10 @@ func (r *ChallengeParticipantRepository) UpdateParticipant(participant *model.Ch
 
 func (r *ChallengeParticipantRepository) DeleteParticipant(challengeID, userID uint) error {
 	result := r.db.Where("challenge_id = ? AND user_id = ?", challengeID, userID).Delete(&entity.ChallengeParticipantEntity{})
-	return handleDeleteResult(result.Error, "Participant", 0)
+	if result.Error != nil {
+		return exception.NewRepositoryError(result.Error)
+	}
+	return nil
 }
 
 func (r *ChallengeParticipantRepository) GetParticipantCount(challengeID uint) (int, error) {
