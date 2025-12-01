@@ -12,15 +12,15 @@ import (
 )
 
 type ChallengeService struct {
-	challengeRepo            repository.ChallengeRepository
-	participantRepo          repository.ChallengeParticipantRepository
-	commentRepo              repository.CommentRepository
-	inviteRepo               repository.ChallengeInviteRepository
-	joinRequestRepo          repository.ChallengeJoinRequestRepository
-	categoryRepo             repository.CategoryRepository
-	userRepo                 repository.UserRepository
-	followRepo               repository.FollowRepository
-	likeRepo                 repository.LikeRepository
+	challengeRepo   repository.ChallengeRepository
+	participantRepo repository.ChallengeParticipantRepository
+	commentRepo     repository.CommentRepository
+	inviteRepo      repository.ChallengeInviteRepository
+	joinRequestRepo repository.ChallengeJoinRequestRepository
+	categoryRepo    repository.CategoryRepository
+	userRepo        repository.UserRepository
+	followRepo      repository.FollowRepository
+	likeRepo        repository.LikeRepository
 }
 
 func NewChallengeService(
@@ -73,6 +73,8 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 		CreatorID:       input.CreatorID,
 		MaxParticipants: input.MaxParticipants,
 		Visibility:      input.Visibility,
+		Location:        input.Location,
+		Goal:            input.Goal,
 		Rule:            input.Rule,
 		StartTime:       input.StartTime,
 		EndTime:         &input.EndTime,
@@ -107,6 +109,11 @@ func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *d
 		}
 		challenge.StartTime = *input.StartTime
 	}
+	if !challenge.StartTime.Before(time.Now()) {
+		if input.Goal != nil {
+			challenge.Goal = *input.Goal
+		}
+	}
 
 	if input.Title != nil {
 		challenge.Title = *input.Title
@@ -129,6 +136,9 @@ func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *d
 	}
 	if input.Visibility != nil {
 		challenge.Visibility = *input.Visibility
+	}
+	if input.Location != nil {
+		challenge.Location = *input.Location
 	}
 	if input.Rule != nil {
 		challenge.Rule = *input.Rule
@@ -281,6 +291,8 @@ func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDeta
 		CreatorUsername:     creatorUsername,
 		CreatorID:           challenge.CreatorID,
 		Visibility:          challenge.Visibility,
+		Location:            challenge.Location,
+		Goal:                challenge.Goal,
 		ImageURL:            challenge.ImageURL,
 		MaxParticipants:     challenge.MaxParticipants,
 		CurrentParticipants: int(totalParticipants),

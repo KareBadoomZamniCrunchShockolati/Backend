@@ -12,6 +12,8 @@ type CreateChallengeDTO struct {
 	CategoryID      uint                     `json:"category_id" validate:"required"`
 	MaxParticipants uint                     `json:"max_participants" validate:"omitempty,min=0"`
 	Visibility      enum.ChallengeVisibility `json:"visibility" validate:"required,oneof=public private invite"`
+	Location        string                   `json:"location" validate:"required"`
+	Goal            int                      `json:"goal" validate:"required,default=1"`
 	Rule            string                   `json:"rule" validate:"required"`
 	CommentsEnabled bool                     `json:"comments_enabled"`
 	StartTime       time.Time                `json:"start_time"`
@@ -30,6 +32,8 @@ type UpdateChallengeDTO struct {
 	MaxParticipants *uint                     `json:"max_participants,omitempty"`
 	Rule            *string                   `json:"rule,omitempty"`
 	Visibility      *enum.ChallengeVisibility `json:"visibility,omitempty"`
+	Location        *string                   `json:"location,omitempty"`
+	Goal            *int                      `json:"goal,omitempty"`
 	EndTime         *time.Time                `json:"end_time,omitempty"`
 	ImageURL        *string                   `json:"image_url,omitempty"`
 	StartTime       *time.Time                `json:"start_time,omitempty"`
@@ -45,6 +49,8 @@ type ChallengePreviewDTO struct {
 	CreatorUsername     string                   `json:"creator_username"`
 	CreatorID           uint                     `json:"creator_id"`
 	Visibility          enum.ChallengeVisibility `json:"visibility"`
+	Location            string                   `json:"location"`
+	Goal                int                      `json:"goal"`
 	ImageURL            string                   `json:"image_url"`
 	MaxParticipants     uint                     `json:"max_participants"`
 	CurrentParticipants int                      `json:"current_participants"`

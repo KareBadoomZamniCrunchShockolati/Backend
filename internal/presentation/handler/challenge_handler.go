@@ -29,6 +29,8 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 		CategoryID      uint   `json:"category_id" validate:"required"`
 		MaxParticipants uint   `json:"max_participants" validate:"omitempty,min=0"`
 		Visibility      string `json:"visibility" validate:"required,oneof=public private invite"`
+		Location        string `json:"location"`
+		Goal            int    `json:"goal" validate:"required,default=1"`
 		Rule            string `json:"rule" validate:"required"`
 		CommentsEnabled bool   `json:"comments_enabled"`
 		StartTime       string `json:"start_time" validate:"required"`
@@ -59,6 +61,8 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 		CategoryID:      params.CategoryID,
 		MaxParticipants: params.MaxParticipants,
 		Visibility:      enum.ChallengeVisibility(params.Visibility),
+		Location:        params.Location,
+		Goal:            params.Goal,
 		Rule:            params.Rule,
 		CommentsEnabled: params.CommentsEnabled,
 		StartTime:       startTime,
@@ -99,6 +103,8 @@ func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
 		CategoryID      *uint   `json:"category_id"`
 		MaxParticipants *uint   `json:"max_participants"`
 		Visibility      *uint   `json:"visibility"`
+		Location        *string `json:"location"`
+		Goal            *int    `json:"goal"`
 		Rule            *string `json:"rule"`
 		CommentsEnabled *bool   `json:"comments_enabled"`
 		IsStopped       *bool   `json:"is_stopped"`
@@ -140,6 +146,8 @@ func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
 		CategoryID:      params.CategoryID,
 		MaxParticipants: params.MaxParticipants,
 		Visibility:      visibility,
+		Location:        params.Location,
+		Goal:            params.Goal,
 		Rule:            params.Rule,
 		CommentsEnabled: params.CommentsEnabled,
 		IsStopped:       params.IsStopped,
