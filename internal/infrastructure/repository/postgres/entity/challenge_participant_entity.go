@@ -4,9 +4,9 @@ import "gorm.io/gorm"
 
 type ChallengeParticipantEntity struct {
 	gorm.Model
-	ChallengeID uint `gorm:"not null;index"`
-	UserID      uint `gorm:"not null;index"`
-	Status      uint `gorm:"not null;default:1"`
+	ChallengeID uint   `gorm:"not null;index"`
+	UserID      uint   `gorm:"not null;index"`
+	Status      string `gorm:"not null;default:"`
 
 	Challenge ChallengeEntity `gorm:"foreignKey:ChallengeID"`
 	User      UserEntity      `gorm:"foreignKey:UserID"`

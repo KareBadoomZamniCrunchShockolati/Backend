@@ -32,7 +32,7 @@ func (r *ChallengeRepository) CreateChallenge(challenge *model.ChallengeModel) (
 	participant := &entity.ChallengeParticipantEntity{
 		ChallengeID: chEntity.ID,
 		UserID:      chEntity.CreatorID,
-		Status:      1,
+		Status:      string(enum.StatusJoined),
 	}
 	if err := tx.Create(participant).Error; err != nil {
 		tx.Rollback()
@@ -47,11 +47,12 @@ func (r *ChallengeRepository) CreateChallenge(challenge *model.ChallengeModel) (
 func (r *ChallengeRepository) GetChallengeByID(id uint, userID uint) (*model.ChallengeModel, error) {
 	joinedSubQuery := r.db.Select("challenge_id").
 		Table("challenge_participants").
-		Where("user_id = ? AND status = ?", userID, uint(enum.StatusJoined))
+		Where("user_id = ? AND status = ?", userID, string(enum.StatusJoined))
 
 	pendingInviteSubQuery := r.db.Select("challenge_id").
-        Table("challenge_invites").
-        Where("invitee_id = ? AND status = ?", userID, uint(enum.InvitePending))
+		Table("challenge_participation_requests").
+		Where("to_user_id = ? AND type = ? AND status = ?",
+			userID, enum.RequestTypeInvite, enum.RequestStatusPending) 
 
 	baseQuery := r.db.Table("challenges c").Where(
 		r.db.Where("c.id = ? AND c.visibility = ? AND c.is_stopped = false", id, "public").
@@ -125,7 +126,7 @@ func (r *ChallengeRepository) getBaseDiscoverableQuery(userID uint) *gorm.DB {
 
 	joinedSubQuery := r.db.Select("challenge_id").
 		Table("challenge_participants").
-		Where("user_id = ? AND status = ?", userID, uint(enum.StatusJoined))
+		Where("user_id = ? AND status = ?", userID, enum.StatusJoined)
 	return db.Where(
 		r.db.Where("c.visibility IN ?", []string{"public", "private"}).
 			Or(r.db.Where("c.visibility = ? AND c.creator_id = ?", "invite", userID)).
@@ -164,7 +165,7 @@ func (r *ChallengeRepository) ListChallengesByCategoryName(name string, userID u
 func (r *ChallengeRepository) ListChallengesByParticipant(userID uint, offset, limit int) ([]*model.ChallengeModel, error) {
 	var chEntities []entity.ChallengeEntity
 	result := r.db.Joins("JOIN challenge_participants cp ON cp.challenge_id = challenges.id").
-		Where("cp.user_id = ? AND cp.status IN ?", userID, []uint{uint(enum.StatusJoined)}).
+		Where("cp.user_id = ? AND cp.status IN ?", userID, []string{string(enum.StatusJoined)}).
 		Offset(offset).Limit(limit).Find(&chEntities)
 	if result.Error != nil {
 		return nil, exception.NewRepositoryError(result.Error)
@@ -208,7 +209,7 @@ func (r *ChallengeRepository) ListChallengesJoinedByUser(userID uint, offset, li
 	}
 	query := r.db.Table("challenges c").
 		Joins("JOIN challenge_participants cp ON cp.challenge_id = c.id").
-		Where("cp.user_id = ? AND cp.status = ? AND c.is_stopped = false", userID, uint(enum.StatusJoined))
+		Where("cp.user_id = ? AND cp.status = ? AND c.is_stopped = false", userID, string(enum.StatusJoined))
 	return r.executeQuery(query, userID, offset, limit)
 }
 
@@ -391,7 +392,7 @@ func (r *ChallengeRepository) batchGetParticipantCounts(challengeIDs []uint) map
 	}
 	r.db.Table("challenge_participants").
 		Select("challenge_id, COUNT(*) as count").
-		Where("challenge_id IN ? AND status = ?", challengeIDs, uint(enum.StatusJoined)).
+		Where("challenge_id IN ? AND status = ?", challengeIDs, string(enum.StatusJoined)).
 		Group("challenge_id").
 		Find(&results)
 	for _, r := range results {
@@ -412,7 +413,7 @@ func (r *ChallengeRepository) batchGetUserParticipation(challengeIDs []uint, use
 	participation := make(map[uint]bool)
 	var participantIDs []uint
 	r.db.Table("challenge_participants").
-		Where("user_id = ? AND challenge_id IN ? AND status = ?", userID, challengeIDs, uint(enum.StatusJoined)).
+		Where("user_id = ? AND challenge_id IN ? AND status = ?", userID, challengeIDs, string(enum.StatusJoined)).
 		Pluck("challenge_id", &participantIDs)
 	for _, id := range participantIDs {
 		participation[id] = true
@@ -441,7 +442,7 @@ func (r *ChallengeRepository) GetMutualFollowersInChallenge(userID, challengeID 
 		Where("cp.challenge_id = ? AND f.follower_id = ? AND cp.status IN ? AND f.status = ?",
 			challengeID,
 			userID,
-			[]uint{uint(enum.StatusJoined), uint(enum.StatusPending)},
+			[]string{string(enum.StatusJoined), string(enum.StatusPending)},
 			"active").
 		Select("u.id, u.username, u.email, u.bio, u.verified").
 		Find(&userEntities).Error

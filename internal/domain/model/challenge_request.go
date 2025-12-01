@@ -6,10 +6,11 @@ import (
 )
 
 type ChallengeRequest struct {
-	ID          uint
-	ChallengeID uint
-	RequesterID uint
-	Status      enum.RequestStatus
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID           uint
+	ChallengeID  uint
+	RequesterID  uint
+	OwnerID      uint
+	Status       enum.RequestStatus
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }

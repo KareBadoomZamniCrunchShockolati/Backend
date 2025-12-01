@@ -10,7 +10,7 @@ type ChallengeInvite struct {
 	ChallengeID uint
 	InviterID   uint
 	InviteeID   uint
-	Status      enum.InviteStatus
+	Status      enum.RequestStatus
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
