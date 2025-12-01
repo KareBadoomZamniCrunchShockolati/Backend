@@ -57,7 +57,7 @@ func (r *ChallengeRepository) GetChallengeByID(id uint, userID uint) (*model.Cha
 	baseQuery := r.db.Table("challenges c").Where(
 		r.db.Where("c.id = ? AND c.visibility = ? AND c.is_stopped = false", id, "public").
 			Or(r.db.Where("c.id = ? AND c.visibility = ? AND c.is_stopped = false", id, "private")).
-			Or(r.db.Where("c.id = ? AND c.visibility = ? AND (c.creator_id = ? OR c.id IN (?) OR c.id IN (?)) AND c.is_stopped = false", 
+			Or(r.db.Where("c.id = ? AND c.visibility = ? AND (c.creator_id = ? OR c.id IN (?) OR c.id IN (?)) AND c.is_stopped = false",
 				id, "invite", userID, joinedSubQuery, pendingInviteSubQuery)),
 	)
 
@@ -114,7 +114,7 @@ func (r *ChallengeRepository) ListPublicChallenges(offset, limit int) ([]*dto.Ch
 	query := r.db.Table("challenges c").
 		Where("c.visibility = ? AND c.is_stopped = false", string(enum.VisibilityPublic)).
 		Order("c.created_at DESC")
-	return r.executeQuery(query, 0, offset, limit) 
+	return r.executeQuery(query, 0, offset, limit)
 }
 
 func (r *ChallengeRepository) getBaseDiscoverableQuery(userID uint) *gorm.DB {
@@ -228,7 +228,6 @@ func (r *ChallengeRepository) SearchChallenges(query string, visibility []enum.C
 	return r.executeQuery(searchQuery, userID, offset, limit)
 }
 
-
 func (r *ChallengeRepository) executeQuery(query *gorm.DB, userID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
 	var results []struct {
 		ID              uint
@@ -297,7 +296,6 @@ func (r *ChallengeRepository) executeQuery(query *gorm.DB, userID uint, offset, 
 	}
 	return dtos, nil
 }
-
 
 func (r *ChallengeRepository) batchGetCategoryNames(ids []uint) map[uint]string {
 	names := make(map[uint]string)
@@ -439,7 +437,7 @@ func (r *ChallengeRepository) GetMutualFollowersInChallenge(userID, challengeID 
 	err := r.db.Table("users u").
 		Joins("INNER JOIN challenge_participants cp ON u.id = cp.user_id").
 		Joins("INNER JOIN follows f ON u.id = f.following_id").
-		Where("cp.challenge_id = ? AND f.follower_id = ? AND cp.status IN ? AND f.status = ?",
+		Where("cp.challenge_id = ? AND f.follower_id = ? AND cp.status IN ?",
 			challengeID,
 			userID,
 			[]string{string(enum.StatusJoined), string(enum.StatusPending)},
@@ -460,7 +458,6 @@ func (r *ChallengeRepository) GetMutualFollowersInChallenge(userID, challengeID 
 			Verified: u.Verified,
 		}
 	}
-
 	return userModels, nil
 }
 

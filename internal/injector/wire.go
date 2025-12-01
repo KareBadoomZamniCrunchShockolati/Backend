@@ -115,34 +115,46 @@ var RepositoryProviderSet = wire.NewSet(
 	postgres.NewCategoryRepository,
 	postgres.NewChallengeParticipationRepo,
 	postgres.NewChallengeParticipantRepository,
-	postgres.NewChallengeCommentRepository,
+	postgres.NewCommentRepository, // CHANGED: from NewChallengeCommentRepository
 	postgres.NewLikeRepository,
+	postgres.NewFollowRepository,
+	postgres.NewPostRepository, // ADDED: for new post feature
 	wire.Bind(new(repository_interface.LikeRepository), new(*postgres.LikeRepository)),
-	wire.Bind(new(repository_interface.ChallengeCommentRepository), new(*postgres.ChallengeCommentRepository)),
 	wire.Bind(new(repository_interface.ChallengeInviteRepository), new(*postgres.ChallengeParticipationRepo)),
 	wire.Bind(new(repository_interface.ChallengeJoinRequestRepository), new(*postgres.ChallengeParticipationRepo)),
+	wire.Bind(new(repository_interface.CommentRepository), new(*postgres.CommentRepository)), // CHANGED: from ChallengeCommentRepository
 	wire.Bind(new(repository_interface.ChallengeParticipantRepository), new(*postgres.ChallengeParticipantRepository)),
 	wire.Bind(new(repository_interface.UserRepository), new(*postgres.UserRepository)),
 	wire.Bind(new(repository_interface.ChallengeRepository), new(*postgres.ChallengeRepository)),
-	wire.Bind(new(repository_interface.CategoryRepository), new(*postgres.CategoryRepository)), 
+	wire.Bind(new(repository_interface.CategoryRepository), new(*postgres.CategoryRepository)),
+	wire.Bind(new(repository_interface.FollowRepository), new(*postgres.FollowRepository)),
+	wire.Bind(new(repository_interface.PostRepository), new(*postgres.PostRepository)), // ADDED: for new post feature
 )
 
 var ServiceProviderSet = wire.NewSet(
 	service.NewUserService,
 	service.NewAuthService,
 	service.NewChallengeService,
+	service.NewFollowService,
+	service.NewPostService, // ADDED: for new post feature
 	wire.Bind(new(service_interface.ChallengeServicer), new(*service.ChallengeService)),
 	wire.Bind(new(service_interface.UserServicer), new(*service.UserService)),
 	wire.Bind(new(service_interface.AuthServicer), new(*service.AuthService)),
+	wire.Bind(new(service_interface.FollowServicer), new(*service.FollowService)),
+	wire.Bind(new(service_interface.PostServicer), new(*service.PostService)), // ADDED: for new post feature
 )
 
 var HandlerProviderSet = wire.NewSet(
 	handler.NewUserHandler,
 	handler.NewAuthHandler,
 	handler.NewChallengeHandler,
+	handler.NewFollowHandler,
+	handler.NewPostHandler, // ADDED: for new post feature
 	wire.Bind(new(handler_interface.UserHandler), new(*handler.UserHandler)),
 	wire.Bind(new(handler_interface.AuthHandler), new(*handler.AuthHandler)),
 	wire.Bind(new(handler_interface.ChallengeHandler), new(*handler.ChallengeHandler)),
+	wire.Bind(new(handler_interface.FollowHandler), new(*handler.FollowHandlerImpl)),
+	wire.Bind(new(handler_interface.PostHandler), new(*handler.PostHandler)), // ADDED: for new post feature
 )
 
 var MiddlewareProviderSet = wire.NewSet(
@@ -150,14 +162,6 @@ var MiddlewareProviderSet = wire.NewSet(
 	middleware.NewErrorProvider,
 	wire.Bind(new(middleware_interface.ErrorMiddleware), new(*middleware.ErrorMiddleware)),
 	wire.Bind(new(middleware_interface.JWTMiddleware), new(*middleware.JWTMiddleware)),
-)
-var FollowProviderSet = wire.NewSet(
-	postgres.NewFollowRepository,
-	service.NewFollowService,
-	handler.NewFollowHandler,
-	wire.Bind(new(repository_interface.FollowRepository), new(*postgres.FollowRepository)),
-	wire.Bind(new(service_interface.FollowServicer), new(*service.FollowService)),
-	wire.Bind(new(handler_interface.FollowHandler), new(*handler.FollowHandlerImpl)), // Updated this line
 )
 
 // --- Application ---
@@ -182,7 +186,6 @@ func InitializeRouter(db *gorm.DB, validator *validator.Validate) (*gin.Engine, 
 		EmailProviderSet,
 		ServiceProviderSet,
 		HandlerProviderSet,
-		FollowProviderSet, // ADD THIS LINE
 		MiddlewareProviderSet,
 		router.SetupRouter,
 	)
@@ -199,7 +202,6 @@ func InitializeApplication() (*Application, error) {
 		EmailProviderSet,
 		ServiceProviderSet,
 		HandlerProviderSet,
-		FollowProviderSet, // ADD THIS LINE
 		MiddlewareProviderSet,
 		router.SetupRouter,
 		NewApplication,
