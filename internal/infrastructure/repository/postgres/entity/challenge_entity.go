@@ -18,6 +18,8 @@ type ChallengeEntity struct {
 	ImageURL         string                   `gorm:"type:text"`
 	Rule             string                   `gorm:"size:255;not null"`
 	Timezone         string                   `gorm:"size:50"`
+	Location         string                   `gorm:"type:varchar(100)"`
+	Goal             int                      `gorm:"not null"`
 	StartTime        *time.Time               `gorm:"index"`
 	EndTime          *time.Time
 	IsStopped        bool `gorm:"default:false"`

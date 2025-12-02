@@ -8,15 +8,15 @@ import (
 	"gorm.io/gorm"
 )
 
-type ChallengeParticipationRepo struct {
+type ChallengeParticipationRepository struct {
 	db *gorm.DB
 }
 
-func NewChallengeParticipationRepo(db *gorm.DB) *ChallengeParticipationRepo {
-	return &ChallengeParticipationRepo{db: db}
+func NewChallengeParticipationRepository(db *gorm.DB) *ChallengeParticipationRepository {
+	return &ChallengeParticipationRepository{db: db}
 }
 
-func (r *ChallengeParticipationRepo) CreateInvite(inviterID, challengeID, inviteeID uint) (*model.ChallengeInvite, error) {
+func (r *ChallengeParticipationRepository) CreateInvite(inviterID, challengeID, inviteeID uint) (*model.ChallengeInvite, error) {
 	ent := &entity.ChallengeParticipationRequestEntity{
 		ChallengeID: challengeID,
 		FromUserID:  inviterID,
@@ -38,7 +38,7 @@ func (r *ChallengeParticipationRepo) CreateInvite(inviterID, challengeID, invite
 	}, nil
 }
 
-func (r *ChallengeParticipationRepo) GetInvite(inviteID uint) (*model.ChallengeInvite, error) {
+func (r *ChallengeParticipationRepository) GetInvite(inviteID uint) (*model.ChallengeInvite, error) {
 	var ent entity.ChallengeParticipationRequestEntity
 	if err := r.db.
 		Where("id = ? AND type = ?", inviteID, enum.RequestTypeInvite).
@@ -56,7 +56,7 @@ func (r *ChallengeParticipationRepo) GetInvite(inviteID uint) (*model.ChallengeI
 	}, nil
 }
 
-func (r *ChallengeParticipationRepo) GetInvitesSentToUser(userID uint) ([]*model.ChallengeInvite, error) {
+func (r *ChallengeParticipationRepository) GetInvitesSentToUser(userID uint) ([]*model.ChallengeInvite, error) {
 	var ents []entity.ChallengeParticipationRequestEntity
 	if err := r.db.
 		Where("to_user_id = ? AND type = ?", userID, enum.RequestTypeInvite).
@@ -79,7 +79,7 @@ func (r *ChallengeParticipationRepo) GetInvitesSentToUser(userID uint) ([]*model
 	return invites, nil
 }
 
-func (r *ChallengeParticipationRepo) GetInvitesSentFromChallenge(challengeID uint) ([]*model.ChallengeInvite, error) {
+func (r *ChallengeParticipationRepository) GetInvitesSentFromChallenge(challengeID uint) ([]*model.ChallengeInvite, error) {
 	var ents []entity.ChallengeParticipationRequestEntity
 	if err := r.db.
 		Where("challenge_id = ? AND type = ?", challengeID, enum.RequestTypeInvite).
@@ -102,7 +102,7 @@ func (r *ChallengeParticipationRepo) GetInvitesSentFromChallenge(challengeID uin
 	return invites, nil
 }
 
-func (r *ChallengeParticipationRepo) UpdateInvite(invite *model.ChallengeInvite) (*model.ChallengeInvite, error) {
+func (r *ChallengeParticipationRepository) UpdateInvite(invite *model.ChallengeInvite) (*model.ChallengeInvite, error) {
 	ent := &entity.ChallengeParticipationRequestEntity{
 		ChallengeID: invite.ChallengeID,
 		FromUserID:  invite.InviterID,
@@ -116,13 +116,13 @@ func (r *ChallengeParticipationRepo) UpdateInvite(invite *model.ChallengeInvite)
 	return invite, nil
 }
 
-func (r *ChallengeParticipationRepo) DeleteInvite(inviteID uint) error {
+func (r *ChallengeParticipationRepository) DeleteInvite(inviteID uint) error {
 	return r.db.
 		Where("id = ? AND type = ?", inviteID, enum.RequestTypeInvite).
 		Delete(&entity.ChallengeParticipationRequestEntity{}).Error
 }
 
-func (r *ChallengeParticipationRepo) CreateRequest(requesterID, challengeID uint) (*model.ChallengeRequest, error) {
+func (r *ChallengeParticipationRepository) CreateRequest(requesterID, challengeID uint) (*model.ChallengeRequest, error) {
 	var challenge entity.ChallengeEntity
 	if err := r.db.Where("id = ?", challengeID).First(&challenge).Error; err != nil {
 		return nil, err
@@ -148,7 +148,7 @@ func (r *ChallengeParticipationRepo) CreateRequest(requesterID, challengeID uint
 	}, nil
 }
 
-func (r *ChallengeParticipationRepo) GetRequest(requestID uint) (*model.ChallengeRequest, error) {
+func (r *ChallengeParticipationRepository) GetRequest(requestID uint) (*model.ChallengeRequest, error) {
 	var ent entity.ChallengeParticipationRequestEntity
 	if err := r.db.
 		Where("id = ? AND type = ?", requestID, enum.RequestTypeRequest).
@@ -166,7 +166,7 @@ func (r *ChallengeParticipationRepo) GetRequest(requestID uint) (*model.Challeng
 	}, nil
 }
 
-func (r *ChallengeParticipationRepo) GetRequestsSentByUser(userID uint) ([]*model.ChallengeRequest, error) {
+func (r *ChallengeParticipationRepository) GetRequestsSentByUser(userID uint) ([]*model.ChallengeRequest, error) {
 	var ents []entity.ChallengeParticipationRequestEntity
 	if err := r.db.
 		Where("from_user_id = ? AND type = ?", userID, enum.RequestTypeRequest).
@@ -189,7 +189,7 @@ func (r *ChallengeParticipationRepo) GetRequestsSentByUser(userID uint) ([]*mode
 	return requests, nil
 }
 
-func (r *ChallengeParticipationRepo) GetRequestsSentToChallenge(challengeID uint) ([]*model.ChallengeRequest, error) {
+func (r *ChallengeParticipationRepository) GetRequestsSentToChallenge(challengeID uint) ([]*model.ChallengeRequest, error) {
 	var ents []entity.ChallengeParticipationRequestEntity
 	if err := r.db.
 		Where("challenge_id = ? AND type = ?", challengeID, enum.RequestTypeRequest).
@@ -212,7 +212,7 @@ func (r *ChallengeParticipationRepo) GetRequestsSentToChallenge(challengeID uint
 	return requests, nil
 }
 
-func (r *ChallengeParticipationRepo) UpdateRequest(request *model.ChallengeRequest) (*model.ChallengeRequest, error) {
+func (r *ChallengeParticipationRepository) UpdateRequest(request *model.ChallengeRequest) (*model.ChallengeRequest, error) {
 	ent := &entity.ChallengeParticipationRequestEntity{
 		ChallengeID:  request.ChallengeID,
 		FromUserID:   request.RequesterID,
@@ -226,7 +226,7 @@ func (r *ChallengeParticipationRepo) UpdateRequest(request *model.ChallengeReque
 	return request, nil
 }
 
-func (r *ChallengeParticipationRepo) DeleteRequest(requestID uint) error {
+func (r *ChallengeParticipationRepository) DeleteRequest(requestID uint) error {
 	return r.db.
 		Where("id = ? AND type = ?", requestID, enum.RequestTypeRequest).
 		Delete(&entity.ChallengeParticipationRequestEntity{}).Error

@@ -16,6 +16,8 @@ type ChallengeModel struct {
 	ImageURL        string
 	Rule            string
 	Timezone        string
+	Location        string
+	Goal            int
 	StartTime       time.Time
 	EndTime         *time.Time
 	IsStopped       bool

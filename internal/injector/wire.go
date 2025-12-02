@@ -113,15 +113,17 @@ var RepositoryProviderSet = wire.NewSet(
 	postgres.NewUserRepository,
 	postgres.NewChallengeRepository,
 	postgres.NewCategoryRepository,
-	postgres.NewChallengeParticipationRepo,
+	postgres.NewChallengeParticipationRepository,
 	postgres.NewChallengeParticipantRepository,
 	postgres.NewCommentRepository, // CHANGED: from NewChallengeCommentRepository
 	postgres.NewLikeRepository,
+	postgres.NewUserDayRepository, 
 	postgres.NewFollowRepository,
 	postgres.NewPostRepository, // ADDED: for new post feature
 	wire.Bind(new(repository_interface.LikeRepository), new(*postgres.LikeRepository)),
-	wire.Bind(new(repository_interface.ChallengeInviteRepository), new(*postgres.ChallengeParticipationRepo)),
-	wire.Bind(new(repository_interface.ChallengeJoinRequestRepository), new(*postgres.ChallengeParticipationRepo)),
+	wire.Bind(new(repository_interface.UserDayRepository), new(*postgres.UserDayRepository)),
+	wire.Bind(new(repository_interface.ChallengeInviteRepository), new(*postgres.ChallengeParticipationRepository)),
+	wire.Bind(new(repository_interface.ChallengeJoinRequestRepository), new(*postgres.ChallengeParticipationRepository)),
 	wire.Bind(new(repository_interface.CommentRepository), new(*postgres.CommentRepository)), // CHANGED: from ChallengeCommentRepository
 	wire.Bind(new(repository_interface.ChallengeParticipantRepository), new(*postgres.ChallengeParticipantRepository)),
 	wire.Bind(new(repository_interface.UserRepository), new(*postgres.UserRepository)),
@@ -137,11 +139,13 @@ var ServiceProviderSet = wire.NewSet(
 	service.NewChallengeService,
 	service.NewFollowService,
 	service.NewPostService, // ADDED: for new post feature
+	service.NewUserDayService,
 	wire.Bind(new(service_interface.ChallengeServicer), new(*service.ChallengeService)),
 	wire.Bind(new(service_interface.UserServicer), new(*service.UserService)),
 	wire.Bind(new(service_interface.AuthServicer), new(*service.AuthService)),
 	wire.Bind(new(service_interface.FollowServicer), new(*service.FollowService)),
 	wire.Bind(new(service_interface.PostServicer), new(*service.PostService)), // ADDED: for new post feature
+	wire.Bind(new(service_interface.UserDayServicer), new(*service.UserDayService)),
 )
 
 var HandlerProviderSet = wire.NewSet(
@@ -150,11 +154,13 @@ var HandlerProviderSet = wire.NewSet(
 	handler.NewChallengeHandler,
 	handler.NewFollowHandler,
 	handler.NewPostHandler, // ADDED: for new post feature
+	handler.NewUserDayHandler,
 	wire.Bind(new(handler_interface.UserHandler), new(*handler.UserHandler)),
 	wire.Bind(new(handler_interface.AuthHandler), new(*handler.AuthHandler)),
 	wire.Bind(new(handler_interface.ChallengeHandler), new(*handler.ChallengeHandler)),
 	wire.Bind(new(handler_interface.FollowHandler), new(*handler.FollowHandlerImpl)),
 	wire.Bind(new(handler_interface.PostHandler), new(*handler.PostHandler)), // ADDED: for new post feature
+	wire.Bind(new(handler_interface.UserDayHandler), new(*handler.UserDayHandler)),
 )
 
 var MiddlewareProviderSet = wire.NewSet(
