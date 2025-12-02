@@ -66,6 +66,14 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", input.CreatorID), "USER_NOT_FOUND")
 	}
 
+	goal := 1
+	if input.Goal != nil {
+		if *input.Goal < 1 {
+			return nil, exception.NewBadRequestException("Goal must be at least 1", "INVALID_GOAL", nil)
+		}
+		goal = *input.Goal
+	}
+
 	challenge := &model.ChallengeModel{
 		Title:           input.Title,
 		Description:     input.Description,
@@ -74,7 +82,7 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 		MaxParticipants: input.MaxParticipants,
 		Visibility:      input.Visibility,
 		Location:        input.Location,
-		Goal:            input.Goal,
+		Goal:            goal,
 		Rule:            input.Rule,
 		StartTime:       input.StartTime,
 		EndTime:         &input.EndTime,

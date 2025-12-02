@@ -30,7 +30,7 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 		MaxParticipants uint   `json:"max_participants" validate:"omitempty,min=0"`
 		Visibility      string `json:"visibility" validate:"required,oneof=public private invite"`
 		Location        string `json:"location"`
-		Goal            int    `json:"goal" validate:"required,default=1"`
+		Goal            *int    `json:"goal"`
 		Rule            string `json:"rule" validate:"required"`
 		CommentsEnabled bool   `json:"comments_enabled"`
 		StartTime       string `json:"start_time" validate:"required"`

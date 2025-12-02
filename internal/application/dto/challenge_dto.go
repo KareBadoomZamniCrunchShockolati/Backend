@@ -12,8 +12,8 @@ type CreateChallengeDTO struct {
 	CategoryID      uint                     `json:"category_id" validate:"required"`
 	MaxParticipants uint                     `json:"max_participants" validate:"omitempty,min=0"`
 	Visibility      enum.ChallengeVisibility `json:"visibility" validate:"required,oneof=public private invite"`
-	Location        string                   `json:"location" validate:"required"`
-	Goal            int                      `json:"goal" validate:"required,default=1"`
+	Location        string                   `json:"location" validate:"omitempty"`
+	Goal            *int                      `json:"goal"`
 	Rule            string                   `json:"rule" validate:"required"`
 	CommentsEnabled bool                     `json:"comments_enabled"`
 	StartTime       time.Time                `json:"start_time"`

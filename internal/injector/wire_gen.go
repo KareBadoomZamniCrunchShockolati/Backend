@@ -55,17 +55,20 @@ func InitializeRouter(db *gorm.DB, validator2 *validator.Validate) (*gin.Engine,
 	challengeRepository := postgres.NewChallengeRepository(db)
 	challengeParticipantRepository := postgres.NewChallengeParticipantRepository(db)
 	commentRepository := postgres.NewCommentRepository(db)
-	challengeParticipationRepo := postgres.NewChallengeParticipationRepo(db)
+	challengeParticipationRepository := postgres.NewChallengeParticipationRepository(db)
 	categoryRepository := postgres.NewCategoryRepository(db)
 	likeRepository := postgres.NewLikeRepository(db)
-	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, commentRepository, challengeParticipationRepo, challengeParticipationRepo, categoryRepository, userRepository, followRepository, likeRepository)
+	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, commentRepository, challengeParticipationRepository, challengeParticipationRepository, categoryRepository, userRepository, followRepository, likeRepository)
 	challengeHandler := handler.NewChallengeHandler(challengeService)
+	userDayRepository := postgres.NewUserDayRepository(db)
+	userDayService := service.NewUserDayService(userDayRepository)
+	userDayHandler := handler.NewUserDayHandler(userDayService)
 	postRepository := postgres.NewPostRepository(db)
 	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository)
 	postHandler := handler.NewPostHandler(postService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	errorMiddleware := middleware.NewErrorProvider()
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, postHandler, jwtMiddleware, errorMiddleware)
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, jwtMiddleware, errorMiddleware)
 	return engine, nil
 }
 
@@ -96,17 +99,20 @@ func InitializeApplication() (*Application, error) {
 	challengeRepository := postgres.NewChallengeRepository(db)
 	challengeParticipantRepository := postgres.NewChallengeParticipantRepository(db)
 	commentRepository := postgres.NewCommentRepository(db)
-	challengeParticipationRepo := postgres.NewChallengeParticipationRepo(db)
+	challengeParticipationRepository := postgres.NewChallengeParticipationRepository(db)
 	categoryRepository := postgres.NewCategoryRepository(db)
 	likeRepository := postgres.NewLikeRepository(db)
-	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, commentRepository, challengeParticipationRepo, challengeParticipationRepo, categoryRepository, userRepository, followRepository, likeRepository)
+	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, commentRepository, challengeParticipationRepository, challengeParticipationRepository, categoryRepository, userRepository, followRepository, likeRepository)
 	challengeHandler := handler.NewChallengeHandler(challengeService)
+	userDayRepository := postgres.NewUserDayRepository(db)
+	userDayService := service.NewUserDayService(userDayRepository)
+	userDayHandler := handler.NewUserDayHandler(userDayService)
 	postRepository := postgres.NewPostRepository(db)
 	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository)
 	postHandler := handler.NewPostHandler(postService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	errorMiddleware := middleware.NewErrorProvider()
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, postHandler, jwtMiddleware, errorMiddleware)
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, jwtMiddleware, errorMiddleware)
 	application := NewApplication(db, engine)
 	return application, nil
 }
@@ -183,11 +189,11 @@ var RedisProviderSet = wire.NewSet(
 
 var EmailProviderSet = wire.NewSet(bootstrap.LoadEnv, ProvideEmailService, wire.Bind(new(email.EmailService), new(*email.EmailServiceImpl)))
 
-var RepositoryProviderSet = wire.NewSet(postgres.NewUserRepository, postgres.NewChallengeRepository, postgres.NewCategoryRepository, postgres.NewChallengeParticipationRepo, postgres.NewChallengeParticipantRepository, postgres.NewCommentRepository, postgres.NewLikeRepository, postgres.NewFollowRepository, postgres.NewPostRepository, wire.Bind(new(repository.LikeRepository), new(*postgres.LikeRepository)), wire.Bind(new(repository.ChallengeInviteRepository), new(*postgres.ChallengeParticipationRepo)), wire.Bind(new(repository.ChallengeJoinRequestRepository), new(*postgres.ChallengeParticipationRepo)), wire.Bind(new(repository.CommentRepository), new(*postgres.CommentRepository)), wire.Bind(new(repository.ChallengeParticipantRepository), new(*postgres.ChallengeParticipantRepository)), wire.Bind(new(repository.UserRepository), new(*postgres.UserRepository)), wire.Bind(new(repository.ChallengeRepository), new(*postgres.ChallengeRepository)), wire.Bind(new(repository.CategoryRepository), new(*postgres.CategoryRepository)), wire.Bind(new(repository.FollowRepository), new(*postgres.FollowRepository)), wire.Bind(new(repository.PostRepository), new(*postgres.PostRepository)))
+var RepositoryProviderSet = wire.NewSet(postgres.NewUserRepository, postgres.NewChallengeRepository, postgres.NewCategoryRepository, postgres.NewChallengeParticipationRepository, postgres.NewChallengeParticipantRepository, postgres.NewCommentRepository, postgres.NewLikeRepository, postgres.NewUserDayRepository, postgres.NewFollowRepository, postgres.NewPostRepository, wire.Bind(new(repository.LikeRepository), new(*postgres.LikeRepository)), wire.Bind(new(repository.UserDayRepository), new(*postgres.UserDayRepository)), wire.Bind(new(repository.ChallengeInviteRepository), new(*postgres.ChallengeParticipationRepository)), wire.Bind(new(repository.ChallengeJoinRequestRepository), new(*postgres.ChallengeParticipationRepository)), wire.Bind(new(repository.CommentRepository), new(*postgres.CommentRepository)), wire.Bind(new(repository.ChallengeParticipantRepository), new(*postgres.ChallengeParticipantRepository)), wire.Bind(new(repository.UserRepository), new(*postgres.UserRepository)), wire.Bind(new(repository.ChallengeRepository), new(*postgres.ChallengeRepository)), wire.Bind(new(repository.CategoryRepository), new(*postgres.CategoryRepository)), wire.Bind(new(repository.FollowRepository), new(*postgres.FollowRepository)), wire.Bind(new(repository.PostRepository), new(*postgres.PostRepository)))
 
-var ServiceProviderSet = wire.NewSet(service.NewUserService, service.NewAuthService, service.NewChallengeService, service.NewFollowService, service.NewPostService, wire.Bind(new(serviceinterface.ChallengeServicer), new(*service.ChallengeService)), wire.Bind(new(serviceinterface.UserServicer), new(*service.UserService)), wire.Bind(new(serviceinterface.AuthServicer), new(*service.AuthService)), wire.Bind(new(serviceinterface.FollowServicer), new(*service.FollowService)), wire.Bind(new(serviceinterface.PostServicer), new(*service.PostService)))
+var ServiceProviderSet = wire.NewSet(service.NewUserService, service.NewAuthService, service.NewChallengeService, service.NewFollowService, service.NewPostService, service.NewUserDayService, wire.Bind(new(serviceinterface.ChallengeServicer), new(*service.ChallengeService)), wire.Bind(new(serviceinterface.UserServicer), new(*service.UserService)), wire.Bind(new(serviceinterface.AuthServicer), new(*service.AuthService)), wire.Bind(new(serviceinterface.FollowServicer), new(*service.FollowService)), wire.Bind(new(serviceinterface.PostServicer), new(*service.PostService)), wire.Bind(new(serviceinterface.UserDayServicer), new(*service.UserDayService)))
 
-var HandlerProviderSet = wire.NewSet(handler.NewUserHandler, handler.NewAuthHandler, handler.NewChallengeHandler, handler.NewFollowHandler, handler.NewPostHandler, wire.Bind(new(handler2.UserHandler), new(*handler.UserHandler)), wire.Bind(new(handler2.AuthHandler), new(*handler.AuthHandler)), wire.Bind(new(handler2.ChallengeHandler), new(*handler.ChallengeHandler)), wire.Bind(new(handler2.FollowHandler), new(*handler.FollowHandlerImpl)), wire.Bind(new(handler2.PostHandler), new(*handler.PostHandler)))
+var HandlerProviderSet = wire.NewSet(handler.NewUserHandler, handler.NewAuthHandler, handler.NewChallengeHandler, handler.NewFollowHandler, handler.NewPostHandler, handler.NewUserDayHandler, wire.Bind(new(handler2.UserHandler), new(*handler.UserHandler)), wire.Bind(new(handler2.AuthHandler), new(*handler.AuthHandler)), wire.Bind(new(handler2.ChallengeHandler), new(*handler.ChallengeHandler)), wire.Bind(new(handler2.FollowHandler), new(*handler.FollowHandlerImpl)), wire.Bind(new(handler2.PostHandler), new(*handler.PostHandler)), wire.Bind(new(handler2.UserDayHandler), new(*handler.UserDayHandler)))
 
 var MiddlewareProviderSet = wire.NewSet(middleware.NewJWTMiddleware, middleware.NewErrorProvider, wire.Bind(new(middleware2.ErrorMiddleware), new(*middleware.ErrorMiddleware)), wire.Bind(new(middleware2.JWTMiddleware), new(*middleware.JWTMiddleware)))
 

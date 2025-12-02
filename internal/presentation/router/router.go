@@ -19,6 +19,7 @@ func SetupRouter(
 	authHandler handler.AuthHandler,
 	followHandler handler.FollowHandler,
 	challengeHandler handler.ChallengeHandler,
+	userDayHandler handler.UserDayHandler,
 	postHandler handler.PostHandler, // ADDED: Post handler
 	jwtMiddleware middleware.JWTMiddleware,
 	errorMiddleware middleware.ErrorMiddleware,
@@ -150,6 +151,13 @@ func SetupRouter(
 		protected.DELETE("/challenges/:id/like", challengeHandler.UnlikeChallenge)
 		protected.GET("/challenges/:id/likes", challengeHandler.GetChallengeLikeCount)
 
+		// use day routes
+		protected.POST("/challenges/:id/days", userDayHandler.SaveDayData)          
+		protected.PUT("/challenges/:id/days", userDayHandler.UpdateDayData) 
+		protected.GET("/challenges/:id/days/:date", userDayHandler.GetDayData)     
+		protected.DELETE("/challenges/:id/days/:date", userDayHandler.DeleteDayData) 
+		protected.GET("/challenges/:id/progress", userDayHandler.GetGoalProgressChart) // ?start=YYYY-MM-DD&end=YYYY-MM-DD
+		protected.GET("/challenges/:id/feelings", userDayHandler.GetFeelingCounts)
 		// ========== NEW POST ROUTES ==========
 		// Post CRUD operations
 		protected.POST("/posts", postHandler.CreatePost)
