@@ -148,6 +148,27 @@ func (h *PostHandler) GetFeedPosts(c *gin.Context) {
 	c.JSON(http.StatusOK, posts)
 }
 
+func (h *PostHandler) GetPostsByChallenge(c *gin.Context) {
+	userID, _ := c.Get("userID")
+
+	challengeID, err := strconv.ParseUint(c.Param("challenge_id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid challenge ID", "INVALID_CHALLENGE_ID", nil))
+		return
+	}
+
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	posts, err := h.postService.GetPostsByChallenge(uint(challengeID), userID.(uint), offset, limit)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, posts)
+}
+
 func (h *PostHandler) AddComment(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {

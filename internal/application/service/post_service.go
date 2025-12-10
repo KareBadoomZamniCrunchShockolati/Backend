@@ -383,6 +383,25 @@ func (s *PostService) UnlikeEntity(userID uint, input *dto.LikeRequestDTO) error
 	return s.likeRepo.DeleteLike(model.LikeType(input.EntityType), input.EntityID, userID)
 }
 
+func (s *PostService) GetPostsByChallenge(challengeID, userID uint, offset, limit int) ([]*dto.PostResponseDTO, error) {
+	// Verify challenge exists
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if challenge == nil {
+		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", challengeID), "CHALLENGE_NOT_FOUND")
+	}
+
+	// Get posts for this challenge
+	posts, err := s.postRepo.GetPostsByChallenge(challengeID, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.enrichPostsWithDetails(posts, userID)
+}
+
 // Helper method
 func (s *PostService) enrichPostsWithDetails(posts []*model.Post, userID uint) ([]*dto.PostResponseDTO, error) {
 	postDTOs := make([]*dto.PostResponseDTO, len(posts))

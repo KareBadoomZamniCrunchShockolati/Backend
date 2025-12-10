@@ -152,10 +152,10 @@ func SetupRouter(
 		protected.GET("/challenges/:id/likes", challengeHandler.GetChallengeLikeCount)
 
 		// use day routes
-		protected.POST("/challenges/:id/days", userDayHandler.SaveDayData)          
-		protected.PUT("/challenges/:id/days", userDayHandler.UpdateDayData) 
-		protected.GET("/challenges/:id/days/:date", userDayHandler.GetDayData)     
-		protected.DELETE("/challenges/:id/days/:date", userDayHandler.DeleteDayData) 
+		protected.POST("/challenges/:id/days", userDayHandler.SaveDayData)
+		protected.PUT("/challenges/:id/days", userDayHandler.UpdateDayData)
+		protected.GET("/challenges/:id/days/:date", userDayHandler.GetDayData)
+		protected.DELETE("/challenges/:id/days/:date", userDayHandler.DeleteDayData)
 		protected.GET("/challenges/:id/progress", userDayHandler.GetGoalProgressChart) // ?start=YYYY-MM-DD&end=YYYY-MM-DD
 		protected.GET("/challenges/:id/feelings", userDayHandler.GetFeelingCounts)
 		// ========== NEW POST ROUTES ==========
@@ -167,7 +167,9 @@ func SetupRouter(
 
 		// Post feed and user posts
 		protected.GET("/posts/feed", postHandler.GetFeedPosts)
+		// In the protected routes section, add:
 		protected.GET("/posts/user/:user_id", postHandler.GetUserPosts)
+		protected.GET("/posts/challenge/:challenge_id", postHandler.GetPostsByChallenge)
 
 		// ========== POLYMORPHIC COMMENT ROUTES ==========
 		// These work for both challenges AND posts
