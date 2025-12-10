@@ -5,6 +5,7 @@ import (
 	serviceinterface "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/domain/enum"
 	"challenge-app/internal/domain/exception"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,7 +31,7 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 		MaxParticipants uint   `json:"max_participants" validate:"omitempty,min=0"`
 		Visibility      string `json:"visibility" validate:"required,oneof=public private invite"`
 		Location        string `json:"location"`
-		Goal            *int    `json:"goal"`
+		Goal            *int   `json:"goal"`
 		Rule            string `json:"rule" validate:"required"`
 		CommentsEnabled bool   `json:"comments_enabled"`
 		StartTime       string `json:"start_time" validate:"required"`
@@ -46,12 +47,11 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 
 	startTime, err := time.Parse(time.RFC3339, params.StartTime)
 	if err != nil {
-		panic("Invalid start time format: " + err.Error())
+		panic(exception.NewBadRequestException("Invalid start time format", "INVALID_TIME_FORMAT", nil))
 	}
-
 	endTime, err := time.Parse(time.RFC3339, params.EndTime)
 	if err != nil {
-		panic("Invalid end time format: " + err.Error())
+		panic(exception.NewBadRequestException("Invalid end time format", "INVALID_TIME_FORMAT", nil))
 	}
 
 	createChallengeDTO := &dto.CreateChallengeDTO{
@@ -75,7 +75,7 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Challenge created successfully", challenge)
+	Response(ctx, http.StatusOK, "Challenge created successfully", challenge)
 }
 
 func (h *ChallengeHandler) GetChallengeByID(ctx *gin.Context) {
@@ -92,7 +92,7 @@ func (h *ChallengeHandler) GetChallengeByID(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenge)
+	Response(ctx, http.StatusOK, "", challenge)
 }
 
 func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
@@ -118,20 +118,19 @@ func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
 	if !exists {
 		panic(exception.NewMissingUserIDException())
 	}
-
 	var startTime *time.Time
 	var endTime *time.Time
 	if params.StartTime != nil {
 		parsedTime, err := time.Parse(time.RFC3339, *params.StartTime)
 		if err != nil {
-			panic("Invalid start time format: " + err.Error())
+			panic(exception.NewBadRequestException("Invalid start time format", "INVALID_TIME_FORMAT", nil))
 		}
 		startTime = &parsedTime
 	}
 	if params.EndTime != nil {
 		parsedTime, err := time.Parse(time.RFC3339, *params.EndTime)
 		if err != nil {
-			panic("Invalid end time format: " + err.Error())
+			panic(exception.NewBadRequestException("Invalid end time format", "INVALID_TIME_FORMAT", nil))
 		}
 		endTime = &parsedTime
 	}
@@ -161,8 +160,7 @@ func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
 	if err != nil {
 		panic(err)
 	}
-
-	Response(ctx, 200, "Challenge updated successfully", updatedChallenge)
+	Response(ctx, http.StatusOK, "Challenge updated successfully", updatedChallenge)
 }
 
 func (h *ChallengeHandler) DeleteChallenge(ctx *gin.Context) {
@@ -175,12 +173,11 @@ func (h *ChallengeHandler) DeleteChallenge(ctx *gin.Context) {
 		panic(exception.NewMissingUserIDException())
 	}
 
-	err := h.challengeService.DeleteChallenge(params.ID, userID.(uint))
-	if err != nil {
+	if err := h.challengeService.DeleteChallenge(params.ID, userID.(uint)); err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Challenge deleted successfully", nil)
+	Response(ctx, http.StatusOK, "Challenge deleted successfully", nil)
 }
 
 func (h *ChallengeHandler) ListDiscoverableChallenges(ctx *gin.Context) {
@@ -199,7 +196,7 @@ func (h *ChallengeHandler) ListDiscoverableChallenges(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenges)
+	Response(ctx, http.StatusOK, "", challenges)
 }
 
 func (h *ChallengeHandler) ListPublicChallenges(ctx *gin.Context) {
@@ -214,7 +211,7 @@ func (h *ChallengeHandler) ListPublicChallenges(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenges)
+	Response(ctx, http.StatusOK, "", challenges)
 }
 
 func (h *ChallengeHandler) ListByCreator(ctx *gin.Context) {
@@ -234,7 +231,7 @@ func (h *ChallengeHandler) ListByCreator(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenges)
+	Response(ctx, http.StatusOK, "", challenges)
 }
 
 func (h *ChallengeHandler) ListByCreatorUsername(ctx *gin.Context) {
@@ -254,7 +251,7 @@ func (h *ChallengeHandler) ListByCreatorUsername(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenges)
+	Response(ctx, http.StatusOK, "", challenges)
 }
 
 func (h *ChallengeHandler) ListByCategory(ctx *gin.Context) {
@@ -274,7 +271,7 @@ func (h *ChallengeHandler) ListByCategory(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenges)
+	Response(ctx, http.StatusOK, "", challenges)
 }
 
 func (h *ChallengeHandler) ListByCategoryName(ctx *gin.Context) {
@@ -294,7 +291,7 @@ func (h *ChallengeHandler) ListByCategoryName(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenges)
+	Response(ctx, http.StatusOK, "", challenges)
 }
 
 func (h *ChallengeHandler) ListByParticipantCount(ctx *gin.Context) {
@@ -313,7 +310,7 @@ func (h *ChallengeHandler) ListByParticipantCount(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenges)
+	Response(ctx, http.StatusOK, "", challenges)
 }
 
 func (h *ChallengeHandler) ListByLikeCount(ctx *gin.Context) {
@@ -332,7 +329,7 @@ func (h *ChallengeHandler) ListByLikeCount(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenges)
+	Response(ctx, http.StatusOK, "", challenges)
 }
 
 func (h *ChallengeHandler) ListChallengesStartingSoon(ctx *gin.Context) {
@@ -351,7 +348,7 @@ func (h *ChallengeHandler) ListChallengesStartingSoon(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenges)
+	Response(ctx, http.StatusOK, "", challenges)
 }
 
 func (h *ChallengeHandler) ListTopCreatorsChallenge(ctx *gin.Context) {
@@ -366,7 +363,22 @@ func (h *ChallengeHandler) ListTopCreatorsChallenge(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenges)
+	Response(ctx, http.StatusOK, "", challenges)
+}
+
+func (h *ChallengeHandler) ListTopCreators(ctx *gin.Context) {
+	type topCreatorsParams struct {
+		Page     int `form:"page"`
+		PageSize int `form:"pageSize"`
+	}
+	params := Validated[topCreatorsParams](ctx)
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 20)
+	creators, err := h.challengeService.ListTopCreators(offset, limit)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, http.StatusOK, "", creators)
 }
 
 func (h *ChallengeHandler) GetChallengesUserIsParticipating(ctx *gin.Context) {
@@ -385,7 +397,7 @@ func (h *ChallengeHandler) GetChallengesUserIsParticipating(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenges)
+	Response(ctx, http.StatusOK, "", challenges)
 }
 
 func (h *ChallengeHandler) SearchChallenges(ctx *gin.Context) {
@@ -399,9 +411,8 @@ func (h *ChallengeHandler) SearchChallenges(ctx *gin.Context) {
 	if !exists {
 		userID = uint(0)
 	}
-
 	var visibility []enum.ChallengeVisibility
-	//TODO implement visibility parsing from query parameters
+	// TODO: implement visibility parsing
 
 	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
 	challenges, err := h.challengeService.SearchChallenges(params.Query, visibility, userID.(uint), offset, limit)
@@ -409,7 +420,34 @@ func (h *ChallengeHandler) SearchChallenges(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", challenges)
+	Response(ctx, http.StatusOK, "", challenges)
+}
+
+func (h *ChallengeHandler) SearchChallengesUserIsParticipating(ctx *gin.Context) {
+	type searchParams struct {
+		Query    string `form:"query" validate:"required,min=1"`
+		Page     int    `form:"page"`
+		PageSize int    `form:"pageSize"`
+	}
+	params := Validated[searchParams](ctx)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
+
+	offset, limit := GetOffsetLimit(params.Page, params.PageSize, 1, 10)
+
+	challenges, err := h.challengeService.SearchChallengesUserIsParticipating(
+		userID.(uint),
+		params.Query,
+		offset,
+		limit,
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(ctx, http.StatusOK, "", challenges)
 }
 
 func (h *ChallengeHandler) StopChallenge(ctx *gin.Context) {
@@ -422,12 +460,11 @@ func (h *ChallengeHandler) StopChallenge(ctx *gin.Context) {
 		panic(exception.NewMissingUserIDException())
 	}
 
-	err := h.challengeService.StopChallenge(params.ID, userID.(uint))
-	if err != nil {
+	if err := h.challengeService.StopChallenge(params.ID, userID.(uint)); err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Challenge stopped successfully", nil)
+	Response(ctx, http.StatusOK, "Challenge stopped successfully", nil)
 }
 
 func (h *ChallengeHandler) JoinPublicChallenge(ctx *gin.Context) {
@@ -441,12 +478,11 @@ func (h *ChallengeHandler) JoinPublicChallenge(ctx *gin.Context) {
 		panic(exception.NewMissingUserIDException())
 	}
 
-	err := h.challengeService.JoinPublicChallenge(userID.(uint), params.ID)
-	if err != nil {
+	if err := h.challengeService.JoinPublicChallenge(userID.(uint), params.ID); err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Successfully joined challenge", nil)
+	Response(ctx, http.StatusOK, "Successfully joined challenge", nil)
 }
 
 func (h *ChallengeHandler) JoinPrivateChallenge(ctx *gin.Context) {
@@ -459,12 +495,11 @@ func (h *ChallengeHandler) JoinPrivateChallenge(ctx *gin.Context) {
 		panic(exception.NewMissingUserIDException())
 	}
 
-	err := h.challengeService.JoinPrivateChallenge(userID.(uint), params.ID)
-	if err != nil {
+	if err := h.challengeService.JoinPrivateChallenge(userID.(uint), params.ID); err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Join request sent successfully", nil)
+	Response(ctx, http.StatusOK, "Join request sent successfully", nil)
 }
 
 func (h *ChallengeHandler) InviteUserToChallenge(ctx *gin.Context) {
@@ -483,7 +518,7 @@ func (h *ChallengeHandler) InviteUserToChallenge(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "User invited successfully", createdInvite)
+	Response(ctx, http.StatusOK, "User invited successfully", createdInvite)
 }
 
 func (h *ChallengeHandler) RemoveParticipant(ctx *gin.Context) {
@@ -497,12 +532,11 @@ func (h *ChallengeHandler) RemoveParticipant(ctx *gin.Context) {
 		panic(exception.NewMissingUserIDException())
 	}
 
-	err := h.challengeService.RemoveParticipant(params.ID, userID.(uint), params.ParticipantID)
-	if err != nil {
+	if err := h.challengeService.RemoveParticipant(params.ID, userID.(uint), params.ParticipantID); err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Participant removed successfully", nil)
+	Response(ctx, http.StatusOK, "Participant removed successfully", nil)
 }
 
 func (h *ChallengeHandler) ListChallengeParticipants(ctx *gin.Context) {
@@ -522,7 +556,7 @@ func (h *ChallengeHandler) ListChallengeParticipants(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", participants)
+	Response(ctx, http.StatusOK, "", participants)
 }
 
 func (h *ChallengeHandler) AcceptJoinRequest(ctx *gin.Context) {
@@ -535,12 +569,11 @@ func (h *ChallengeHandler) AcceptJoinRequest(ctx *gin.Context) {
 		panic(exception.NewMissingUserIDException())
 	}
 
-	err := h.challengeService.AcceptJoinRequest(params.RequestID, userID.(uint))
-	if err != nil {
+	if err := h.challengeService.AcceptJoinRequest(params.RequestID, userID.(uint)); err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Join request accepted successfully", nil)
+	Response(ctx, http.StatusOK, "Join request accepted successfully", nil)
 }
 
 func (h *ChallengeHandler) DeclineJoinRequest(ctx *gin.Context) {
@@ -553,12 +586,11 @@ func (h *ChallengeHandler) DeclineJoinRequest(ctx *gin.Context) {
 		panic(exception.NewMissingUserIDException())
 	}
 
-	err := h.challengeService.DeclineJoinRequest(params.RequestID, userID.(uint))
-	if err != nil {
+	if err := h.challengeService.DeclineJoinRequest(params.RequestID, userID.(uint)); err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Join request declined successfully", nil)
+	Response(ctx, http.StatusOK, "Join request declined successfully", nil)
 }
 
 func (h *ChallengeHandler) AcceptInvite(ctx *gin.Context) {
@@ -571,12 +603,11 @@ func (h *ChallengeHandler) AcceptInvite(ctx *gin.Context) {
 		panic(exception.NewMissingUserIDException())
 	}
 
-	err := h.challengeService.AcceptInvite(params.InviteID, userID.(uint))
-	if err != nil {
+	if err := h.challengeService.AcceptInvite(params.InviteID, userID.(uint)); err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Invite accepted successfully", nil)
+	Response(ctx, http.StatusOK, "Invite accepted successfully", nil)
 }
 
 func (h *ChallengeHandler) DeclineInvite(ctx *gin.Context) {
@@ -589,12 +620,11 @@ func (h *ChallengeHandler) DeclineInvite(ctx *gin.Context) {
 		panic(exception.NewMissingUserIDException())
 	}
 
-	err := h.challengeService.DeclineInvite(params.InviteID, userID.(uint))
-	if err != nil {
+	if err := h.challengeService.DeclineInvite(params.InviteID, userID.(uint)); err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Invite declined successfully", nil)
+	Response(ctx, http.StatusOK, "Invite declined successfully", nil)
 }
 
 func (h *ChallengeHandler) LeaveChallenge(ctx *gin.Context) {
@@ -607,12 +637,11 @@ func (h *ChallengeHandler) LeaveChallenge(ctx *gin.Context) {
 		panic(exception.NewMissingUserIDException())
 	}
 
-	err := h.challengeService.LeaveChallenge(userID.(uint), params.ID)
-	if err != nil {
+	if err := h.challengeService.LeaveChallenge(userID.(uint), params.ID); err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Successfully left challenge", nil)
+	Response(ctx, http.StatusOK, "Successfully left challenge", nil)
 }
 
 func (h *ChallengeHandler) AddComment(ctx *gin.Context) {
@@ -626,20 +655,20 @@ func (h *ChallengeHandler) AddComment(ctx *gin.Context) {
 		panic(exception.NewMissingUserIDException())
 	}
 
-	// FIXED: Use CommentRequestDTO instead of AddCommentDTO
 	addCommentDTO := &dto.CommentRequestDTO{
-		EntityType: "challenge", // Set entity type to challenge
-		EntityID:   params.ID,   // Use the challenge ID from URL
+		EntityType: "challenge",
+		EntityID:   params.ID,
 		Content:    params.Content,
-		ParentID:   nil, // You can add parent_id support if needed
+		ParentID:   nil,
 	}
 	comment, err := h.challengeService.AddComment(userID.(uint), addCommentDTO)
 	if err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Comment added successfully", comment)
+	Response(ctx, http.StatusOK, "Comment added successfully", comment)
 }
+
 func (h *ChallengeHandler) GetAllComments(ctx *gin.Context) {
 	type getAllCommentsParams struct {
 		ID       uint `uri:"id" validate:"required"`
@@ -659,7 +688,7 @@ func (h *ChallengeHandler) GetAllComments(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", comments)
+	Response(ctx, http.StatusOK, "", comments)
 }
 
 func (h *ChallengeHandler) GetComment(ctx *gin.Context) {
@@ -675,21 +704,21 @@ func (h *ChallengeHandler) GetComment(ctx *gin.Context) {
 	if err != nil {
 		panic(err)
 	}
-	Response(ctx, 200, "", comment)
+
+	Response(ctx, http.StatusOK, "", comment)
 }
 
 func (h *ChallengeHandler) GetRequestsSentByUser(ctx *gin.Context) {
 	userID, exists := ctx.Get("userID")
 	if !exists {
-		ctx.Error(exception.NewMissingUserIDException())
-		return
+		panic(exception.NewMissingUserIDException())
 	}
 	requests, err := h.challengeService.GetRequestsSentByUser(userID.(uint))
 	if err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", requests)
+	Response(ctx, http.StatusOK, "", requests)
 }
 
 func (h *ChallengeHandler) GetInvitesSentToUser(ctx *gin.Context) {
@@ -702,7 +731,7 @@ func (h *ChallengeHandler) GetInvitesSentToUser(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", invites)
+	Response(ctx, http.StatusOK, "", invites)
 }
 
 func (h *ChallengeHandler) GetInvitesSentFromChallenge(ctx *gin.Context) {
@@ -719,7 +748,7 @@ func (h *ChallengeHandler) GetInvitesSentFromChallenge(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", invites)
+	Response(ctx, http.StatusOK, "", invites)
 }
 
 func (h *ChallengeHandler) GetRequestsSentToChallenge(ctx *gin.Context) {
@@ -736,7 +765,7 @@ func (h *ChallengeHandler) GetRequestsSentToChallenge(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", requests)
+	Response(ctx, http.StatusOK, "", requests)
 }
 
 func (h *ChallengeHandler) GetAllCategories(ctx *gin.Context) {
@@ -745,7 +774,7 @@ func (h *ChallengeHandler) GetAllCategories(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", categories)
+	Response(ctx, http.StatusOK, "", categories)
 }
 
 func (h *ChallengeHandler) GetMutualFollowersInChallenge(ctx *gin.Context) {
@@ -762,7 +791,7 @@ func (h *ChallengeHandler) GetMutualFollowersInChallenge(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", mutualFollowers)
+	Response(ctx, http.StatusOK, "", mutualFollowers)
 }
 
 func (h *ChallengeHandler) LikeChallenge(ctx *gin.Context) {
@@ -772,19 +801,22 @@ func (h *ChallengeHandler) LikeChallenge(ctx *gin.Context) {
 	params := Validated[likeChallengeParams](ctx)
 	userIDInterface, exists := ctx.Get("userID")
 	if !exists {
-		panic("User not authenticated")
+		panic(exception.NewMissingUserIDException())
 	}
 	userID, ok := userIDInterface.(uint)
 	if !ok || userID == 0 {
-		panic("Invalid user ID in context")
+		panic(exception.NewInternalServerException(
+			exception.ErrorTypeContextCastFail,
+			"Invalid user ID type",
+			nil,
+		))
 	}
 
-	err := h.challengeService.LikeChallenge(userID, params.ChallengeID)
-	if err != nil {
+	if err := h.challengeService.LikeChallenge(userID, params.ChallengeID); err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Challenge liked successfully", nil)
+	Response(ctx, http.StatusOK, "Challenge liked successfully", nil)
 }
 
 func (h *ChallengeHandler) UnlikeChallenge(ctx *gin.Context) {
@@ -794,19 +826,22 @@ func (h *ChallengeHandler) UnlikeChallenge(ctx *gin.Context) {
 	params := Validated[unlikeChallengeParams](ctx)
 	userIDInterface, exists := ctx.Get("userID")
 	if !exists {
-		panic("User not authenticated")
+		panic(exception.NewMissingUserIDException())
 	}
 	userID, ok := userIDInterface.(uint)
 	if !ok || userID == 0 {
-		panic("Invalid user ID in context")
+		panic(exception.NewInternalServerException(
+			exception.ErrorTypeContextCastFail,
+			"Invalid user ID type",
+			nil,
+		))
 	}
 
-	err := h.challengeService.UnlikeChallenge(userID, params.ChallengeID)
-	if err != nil {
+	if err := h.challengeService.UnlikeChallenge(userID, params.ChallengeID); err != nil {
 		panic(err)
 	}
 
-	Response(ctx, 200, "Challenge unliked successfully", nil)
+	Response(ctx, http.StatusOK, "Challenge unliked successfully", nil)
 }
 
 func (h *ChallengeHandler) GetChallengeLikeCount(ctx *gin.Context) {
@@ -820,7 +855,7 @@ func (h *ChallengeHandler) GetChallengeLikeCount(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", gin.H{"like_count": count})
+	Response(ctx, http.StatusOK, "", gin.H{"like_count": count})
 }
 
 func (h *ChallengeHandler) IsUserLikedChallenge(ctx *gin.Context) {
@@ -838,5 +873,5 @@ func (h *ChallengeHandler) IsUserLikedChallenge(ctx *gin.Context) {
 		panic(err)
 	}
 
-	Response(ctx, 200, "", gin.H{"is_liked": isLiked})
+	Response(ctx, http.StatusOK, "", gin.H{"is_liked": isLiked})
 }

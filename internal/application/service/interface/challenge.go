@@ -25,7 +25,9 @@ type ChallengeServicer interface {
 	ListChallengesStartingSoon(currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error)
 	ListTopCreatorsChallenge(offset, limit int) ([]*dto.ChallengePreviewDTO, error)
 	ListChallengesJoinedByUser(currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error)
+	ListTopCreators(offset, limit int) ([]*dto.TopCreatorDTO, error)
 	SearchChallenges(query string, visibility []enum.ChallengeVisibility, currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error)
+	SearchChallengesUserIsParticipating(userID uint, query string, offset, limit int) ([]*dto.ChallengePreviewDTO, error)
 
 	JoinPublicChallenge(userID, challengeID uint) error
 	JoinPrivateChallenge(userID, challengeID uint) error

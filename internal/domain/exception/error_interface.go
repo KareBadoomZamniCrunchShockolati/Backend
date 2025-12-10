@@ -7,7 +7,6 @@ type Error interface {
 	Code() string
 	HTTPStatus() int
 	Details() map[string]any
-	Wrap(err error) Error
 	Unwrap() error
 }
 

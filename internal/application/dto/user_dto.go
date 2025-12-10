@@ -22,3 +22,10 @@ type UserPreviewDTO struct {
 	Username string `json:"username"`
 }
 
+type TopCreatorDTO struct {
+	ID               uint   `json:"id"`
+	Username         string `json:"username"`
+	PublicChallengeCount int    `json:"challenge_count"`
+	TotalLikes       int    `json:"total_likes"`
+	TotalParticipants int   `json:"total_participants"`
+}

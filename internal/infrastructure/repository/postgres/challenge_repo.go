@@ -203,6 +203,44 @@ func (r *ChallengeRepository) ListTopCreatorsChallenge(offset, limit int) ([]*dt
 	return r.executeQuery(query, 0, offset, limit)
 }
 
+func (r *ChallengeRepository) ListTopCreators(offset, limit int) ([]*dto.TopCreatorDTO, error) {
+	query := `
+		SELECT 
+			u.id,
+			u.username,
+			COUNT(c.id) as public_challenge_count,
+			COALESCE(SUM(c.like_count), 0) as total_likes,
+			COALESCE(SUM(c.participant_count), 0) as total_participants
+		FROM users u
+		INNER JOIN challenges c 
+			ON u.id = c.creator_id 
+			AND c.visibility = 'public' 
+			AND c.is_stopped = false
+		GROUP BY u.id, u.username
+		ORDER BY (COALESCE(SUM(c.like_count), 0) + COALESCE(SUM(c.participant_count), 0)) DESC
+		LIMIT ? OFFSET ?
+	`
+	var results []*dto.TopCreatorDTO
+	err := r.db.Raw(query, limit, offset).Scan(&results).Error
+	if err != nil {
+		return nil, exception.NewRepositoryError(err)
+	}
+	return results, nil
+}
+
+func (r *ChallengeRepository) SearchChallengesUserIsParticipating(userID uint, query string, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	if userID == 0 {
+		return []*dto.ChallengePreviewDTO{}, nil
+	}
+	participantSubQuery := r.db.Select("challenge_id").
+		Table("challenge_participants").
+		Where("user_id = ? AND status = ?", userID, enum.StatusJoined)
+	baseQuery := r.db.Table("challenges c").
+		Where("c.id IN (?)", participantSubQuery)
+	searchQuery := baseQuery.Where("c.title ILIKE ? OR c.description ILIKE ?", "%"+query+"%", "%"+query+"%")
+	return r.executeQuery(searchQuery, userID, offset, limit)
+}
+
 func (r *ChallengeRepository) ListChallengesJoinedByUser(userID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
 	if userID == 0 {
 		return []*dto.ChallengePreviewDTO{}, nil
@@ -212,6 +250,7 @@ func (r *ChallengeRepository) ListChallengesJoinedByUser(userID uint, offset, li
 		Where("cp.user_id = ? AND cp.status = ? AND c.is_stopped = false", userID, string(enum.StatusJoined))
 	return r.executeQuery(query, userID, offset, limit)
 }
+
 
 func (r *ChallengeRepository) SearchChallenges(query string, visibility []enum.ChallengeVisibility, userID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
 	visStrings := make([]string, len(visibility))
