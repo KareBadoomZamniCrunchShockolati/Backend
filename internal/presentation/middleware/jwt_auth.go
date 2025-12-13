@@ -20,10 +20,7 @@ func (m *JWTMiddleware) Handler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.Error(exception.NewUnauthorizedException(
-				"Missing Authorization header. Token is required.",
-				"AUTH_HEADER_MISSING",
-			))
+			c.Error(exception.NewMissingUserIDException())
 			c.Abort()
 			return
 		}

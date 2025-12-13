@@ -422,12 +422,20 @@ func (s *ChallengeService) ListTopCreatorsChallenge(offset, limit int) ([]*dto.C
 	return s.challengeRepo.ListTopCreatorsChallenge(offset, limit)
 }
 
+func (s *ChallengeService) ListTopCreators(offset, limit int) ([]*dto.TopCreatorDTO, error) {
+	return s.challengeRepo.ListTopCreators(offset, limit)
+}
+
 func (s *ChallengeService) ListChallengesJoinedByUser(currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
 	return s.challengeRepo.ListChallengesJoinedByUser(currentUserID, offset, limit)
 }
 
 func (s *ChallengeService) SearchChallenges(query string, visibility []enum.ChallengeVisibility, currentUserID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
 	return s.challengeRepo.SearchChallenges(query, visibility, currentUserID, offset, limit)
+}
+
+func (s *ChallengeService) SearchChallengesUserIsParticipating(userID uint, query string, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
+	return s.challengeRepo.SearchChallengesUserIsParticipating(userID, query, offset, limit)
 }
 
 func (s *ChallengeService) JoinPublicChallenge(userID, challengeID uint) error {

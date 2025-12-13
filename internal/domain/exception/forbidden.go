@@ -19,3 +19,5 @@ func NewForbiddenException(msg string, code string) *ForbiddenException {
 		),
 	}
 }
+
+func (e *ForbiddenException) ClientError() {}

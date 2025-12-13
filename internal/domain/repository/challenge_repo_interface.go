@@ -27,13 +27,12 @@ type ChallengeRepository interface {
 	ListChallengesByLikeCount(userID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error)
 	ListChallengesStartingSoon(userID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error)
 	ListTopCreatorsChallenge(offset, limit int) ([]*dto.ChallengePreviewDTO, error)
+	ListTopCreators(offset, limit int) ([]*dto.TopCreatorDTO, error)
 	ListChallengesJoinedByUser(userID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error)
+	SearchChallengesUserIsParticipating(userID uint, query string, offset, limit int) ([]*dto.ChallengePreviewDTO, error)
 	SearchChallenges(query string, visibility []enum.ChallengeVisibility, userID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error)
 
 	GetMutualFollowersInChallenge(userID, challengeID uint) ([]*model.UserModel, error)
-
-	// Like
-	
 	// Check if user is challenge creator
 	IsChallengeCreator(challengeID, userID uint) (bool, error)
 }

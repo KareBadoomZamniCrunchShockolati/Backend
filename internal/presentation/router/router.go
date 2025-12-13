@@ -143,7 +143,9 @@ func SetupRouter(
 		protected.GET("/challenges/like-count", challengeHandler.ListByLikeCount)
 		protected.GET("/challenges/starting-soon", challengeHandler.ListChallengesStartingSoon)
 		protected.GET("/challenges/top-creators", challengeHandler.ListTopCreatorsChallenge)
+		protected.GET("/creators/top", challengeHandler.ListTopCreators)
 		protected.GET("/challenges/search", challengeHandler.SearchChallenges)
+		protected.GET("/challenges/my/search", challengeHandler.SearchChallengesUserIsParticipating)
 
 		protected.GET("/challenges/:id/mutual-followers", challengeHandler.GetMutualFollowersInChallenge)
 
