@@ -43,7 +43,13 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 }
 
 func (h *PostHandler) GetPost(c *gin.Context) {
-	userID, _ := c.Get("userID")
+	// Get userID from context, but handle nil case
+	var userID uint = 0
+	if userIDVal, exists := c.Get("userID"); exists {
+		if id, ok := userIDVal.(uint); ok {
+			userID = id
+		}
+	}
 
 	postID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -51,7 +57,7 @@ func (h *PostHandler) GetPost(c *gin.Context) {
 		return
 	}
 
-	post, err := h.postService.GetPost(uint(postID), userID.(uint))
+	post, err := h.postService.GetPost(uint(postID), userID)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -169,20 +175,36 @@ func (h *PostHandler) GetPostsByChallenge(c *gin.Context) {
 	c.JSON(http.StatusOK, posts)
 }
 
-func (h *PostHandler) AddComment(c *gin.Context) {
+func (h *PostHandler) AddPostComment(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, exception.NewUnauthorizedException("User not authenticated", "UNAUTHORIZED"))
 		return
 	}
 
-	var input dto.CommentRequestDTO
+	postID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid post ID", "INVALID_POST_ID", nil))
+		return
+	}
+
+	var input struct {
+		Content  string `json:"content" validate:"required,min=1,max=1000"`
+		ParentID *uint  `json:"parent_id"`
+	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid input", "INVALID_INPUT", nil))
 		return
 	}
 
-	comment, err := h.postService.AddComment(userID.(uint), &input)
+	commentDTO := &dto.CommentRequestDTO{
+		EntityType: "post",
+		EntityID:   uint(postID),
+		Content:    input.Content,
+		ParentID:   input.ParentID,
+	}
+
+	comment, err := h.postService.AddComment(userID.(uint), commentDTO)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -191,20 +213,25 @@ func (h *PostHandler) AddComment(c *gin.Context) {
 	c.JSON(http.StatusCreated, comment)
 }
 
-func (h *PostHandler) GetComments(c *gin.Context) {
-	userID, _ := c.Get("userID")
+func (h *PostHandler) GetPostComments(c *gin.Context) {
+	// Get userID from context, but handle nil case
+	var userID uint = 0
+	if userIDVal, exists := c.Get("userID"); exists {
+		if id, ok := userIDVal.(uint); ok {
+			userID = id
+		}
+	}
 
-	entityType := c.Query("entity_type")
-	entityID, err := strconv.ParseUint(c.Query("entity_id"), 10, 32)
+	postID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid entity ID", "INVALID_ENTITY_ID", nil))
+		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid post ID", "INVALID_POST_ID", nil))
 		return
 	}
 
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	comments, err := h.postService.GetComments(entityType, uint(entityID), userID.(uint), offset, limit)
+	comments, err := h.postService.GetComments("post", uint(postID), userID, offset, limit)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -213,20 +240,25 @@ func (h *PostHandler) GetComments(c *gin.Context) {
 	c.JSON(http.StatusOK, comments)
 }
 
-func (h *PostHandler) LikeEntity(c *gin.Context) {
+func (h *PostHandler) LikePost(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, exception.NewUnauthorizedException("User not authenticated", "UNAUTHORIZED"))
 		return
 	}
 
-	var input dto.LikeRequestDTO
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid input", "INVALID_INPUT", nil))
+	postID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid post ID", "INVALID_POST_ID", nil))
 		return
 	}
 
-	err := h.postService.LikeEntity(userID.(uint), &input)
+	likeDTO := &dto.LikeRequestDTO{
+		EntityType: "post",
+		EntityID:   uint(postID),
+	}
+
+	err = h.postService.LikeEntity(userID.(uint), likeDTO)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -235,20 +267,25 @@ func (h *PostHandler) LikeEntity(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (h *PostHandler) UnlikeEntity(c *gin.Context) {
+func (h *PostHandler) UnlikePost(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, exception.NewUnauthorizedException("User not authenticated", "UNAUTHORIZED"))
 		return
 	}
 
-	var input dto.LikeRequestDTO
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid input", "INVALID_INPUT", nil))
+	postID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid post ID", "INVALID_POST_ID", nil))
 		return
 	}
 
-	err := h.postService.UnlikeEntity(userID.(uint), &input)
+	likeDTO := &dto.LikeRequestDTO{
+		EntityType: "post",
+		EntityID:   uint(postID),
+	}
+
+	err = h.postService.UnlikeEntity(userID.(uint), likeDTO)
 	if err != nil {
 		handleError(c, err)
 		return

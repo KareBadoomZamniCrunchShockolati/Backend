@@ -30,7 +30,7 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 		MaxParticipants uint   `json:"max_participants" validate:"omitempty,min=0"`
 		Visibility      string `json:"visibility" validate:"required,oneof=public private invite"`
 		Location        string `json:"location"`
-		Goal            *int    `json:"goal"`
+		Goal            *int   `json:"goal"`
 		Rule            string `json:"rule" validate:"required"`
 		CommentsEnabled bool   `json:"comments_enabled"`
 		StartTime       string `json:"start_time" validate:"required"`
@@ -429,12 +429,27 @@ func (h *ChallengeHandler) StopChallenge(ctx *gin.Context) {
 
 	Response(ctx, 200, "Challenge stopped successfully", nil)
 }
-
 func (h *ChallengeHandler) JoinPublicChallenge(ctx *gin.Context) {
 	type joinPublicChallengeParams struct {
 		ID uint `uri:"id" validate:"required"`
 	}
-	params := Validated[joinPublicChallengeParams](ctx)
+
+	// Manually bind and validate without using Validated
+	var params joinPublicChallengeParams
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		panic(exception.NewBadRequestException(
+			err.Error(),
+			exception.ErrorTypeInvalidJSONFormat,
+			nil,
+		))
+	}
+
+	// Manually validate
+	if err := validate.Struct(params); err != nil {
+		validationErrors := make(map[string]any)
+		validationErrors["details"] = err.Error()
+		panic(exception.NewValidationFailedException(validationErrors))
+	}
 
 	userID, exists := ctx.Get("userID")
 	if !exists {
@@ -448,7 +463,6 @@ func (h *ChallengeHandler) JoinPublicChallenge(ctx *gin.Context) {
 
 	Response(ctx, 200, "Successfully joined challenge", nil)
 }
-
 func (h *ChallengeHandler) JoinPrivateChallenge(ctx *gin.Context) {
 	type joinPrivateChallengeParams struct {
 		ID uint `uri:"id" validate:"required"`
