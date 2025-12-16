@@ -120,17 +120,10 @@ func (r *PostRepository) DeletePost(postID uint) error {
 func (r *PostRepository) GetPostsByFollowedUsers(userID uint, offset, limit int) ([]*model.Post, error) {
 	var postEntities []entity.PostEntity
 
-	// Create a subquery for followed users
-	followingSubQuery := r.db.Select("following_id").
-		Table("follows").
-		Where("follower_id = ? AND deleted_at IS NULL", userID)
-
-	// Use EXISTS to ensure we only get results if user follows someone
-	// AND get posts from those followed users (excluding self)
 	query := r.db.
-		Where("EXISTS (?) AND user_id IN (?) AND user_id != ?",
-			followingSubQuery, followingSubQuery, userID).
-		Order("created_at DESC").
+		Joins("JOIN follows ON posts.user_id = follows.following_id").
+		Where("follows.follower_id = ? AND follows.deleted_at IS NULL AND posts.user_id != ?", userID, userID).
+		Order("posts.created_at DESC").
 		Offset(offset).
 		Limit(limit)
 

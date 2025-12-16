@@ -117,7 +117,7 @@ func (s *PostService) GetPost(postID uint, userID uint) (*dto.PostResponseDTO, e
 		Pictures:     post.Pictures,
 		LikeCount:    likeCount,
 		CommentCount: commentCount,
-		IsLiked:      isLiked, // This should now work correctly!
+		IsLiked:      isLiked,
 		CreatedAt:    post.CreatedAt,
 		UpdatedAt:    post.UpdatedAt,
 	}
