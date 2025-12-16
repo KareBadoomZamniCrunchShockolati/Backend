@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"challenge-app/internal/domain/exception"
+
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
@@ -23,27 +25,38 @@ func Response(ctx *gin.Context, statusCode int, message string, data interface{}
 }
 
 func Validated[T any](ctx *gin.Context) T {
-	var params T
-	if err := ctx.ShouldBindUri(&params); err != nil {
-		panic("Validation failed: " + err.Error())
+	var req T
+
+	// Always try to bind URI params first
+	if err := ctx.ShouldBindUri(&req); err != nil {
+		panic(exception.NewBadRequestException(
+			err.Error(),
+			exception.ErrorTypeInvalidJSONFormat,
+			nil,
+		))
 	}
 
-	if ctx.Request.Method == "POST" || ctx.Request.Method == "PUT" || ctx.Request.Method == "PATCH" {
-		if err := ctx.ShouldBind(&params); err != nil {
-			panic("Validation failed: " + err.Error())
+	// Check content type before trying to bind JSON
+	contentType := ctx.GetHeader("Content-Type")
+	if contentType == "application/json" && ctx.Request.ContentLength > 0 {
+		if err := ctx.ShouldBindJSON(&req); err != nil {
+			panic(exception.NewBadRequestException(
+				err.Error(),
+				exception.ErrorTypeInvalidJSONFormat,
+				nil,
+			))
 		}
-	} else {
-		if err := ctx.ShouldBindQuery(&params); err != nil {
-			panic("Validation failed: " + err.Error())
-		}
-	}
-	if err := validate.Struct(params); err != nil {
-		panic("Validation failed: " + err.Error())
 	}
 
-	return params
+	// Validate the struct
+	if err := validate.Struct(req); err != nil {
+		validationErrors := make(map[string]any)
+		validationErrors["details"] = err.Error()
+		panic(exception.NewValidationFailedException(validationErrors))
+	}
+
+	return req
 }
-
 func GetOffsetLimit(page, pageSize, defaultPage, defaultPageSize int) (int, int) {
 	if page <= 0 {
 		page = defaultPage
