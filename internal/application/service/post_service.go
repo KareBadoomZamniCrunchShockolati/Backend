@@ -2,18 +2,28 @@ package service
 
 import (
 	"challenge-app/internal/application/dto"
+	"challenge-app/internal/bootstrap"
 	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
+	"challenge-app/internal/infrastructure/storage"
+	"context"
 	"fmt"
+	"path"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type PostService struct {
-	postRepo      repository.PostRepository
-	commentRepo   repository.CommentRepository
-	likeRepo      repository.LikeRepository
-	userRepo      repository.UserRepository
-	challengeRepo repository.ChallengeRepository
+	postRepo       repository.PostRepository
+	commentRepo    repository.CommentRepository
+	likeRepo       repository.LikeRepository
+	userRepo       repository.UserRepository
+	challengeRepo  repository.ChallengeRepository
+	objectStorage  storage.ObjectStorage
+	tempUploadRepo repository.TempUploadRepository
 }
 
 func NewPostService(
@@ -22,17 +32,20 @@ func NewPostService(
 	likeRepo repository.LikeRepository,
 	userRepo repository.UserRepository,
 	challengeRepo repository.ChallengeRepository,
+	objectStorage storage.ObjectStorage,
+	tempUploadRepo repository.TempUploadRepository,
 ) *PostService {
 	return &PostService{
-		postRepo:      postRepo,
-		commentRepo:   commentRepo,
-		likeRepo:      likeRepo,
-		userRepo:      userRepo,
-		challengeRepo: challengeRepo,
+		postRepo:       postRepo,
+		commentRepo:    commentRepo,
+		likeRepo:       likeRepo,
+		userRepo:       userRepo,
+		challengeRepo:  challengeRepo,
+		objectStorage:  objectStorage,
+		tempUploadRepo: tempUploadRepo,
 	}
 }
-
-func (s *PostService) CreatePost(userID uint, input *dto.CreatePostDTO) (*model.Post, error) {
+func (s *PostService) CreatePost(ctx context.Context, userID uint, input *dto.CreatePostDTO) (*model.Post, error) {
 	if input == nil {
 		return nil, exception.NewBadRequestException("Input cannot be nil", "POST_CREATE_BAD_INPUT", nil)
 	}
@@ -55,18 +68,48 @@ func (s *PostService) CreatePost(userID uint, input *dto.CreatePostDTO) (*model.
 		}
 	}
 
-	if len(input.Pictures) > 5 {
-		return nil, exception.NewBadRequestException("Maximum 5 pictures allowed", "POST_TOO_MANY_PICTURES", nil)
+	// ✅ NEW RULE: post can have up to 10 images, and images come from TempKeys
+	if len(input.TempKeys) > 10 {
+		return nil, exception.NewBadRequestException("Maximum 10 pictures allowed", "POST_TOO_MANY_PICTURES", nil)
 	}
 
+	// ✅ Create post WITHOUT pictures first
 	post := &model.Post{
 		UserID:      userID,
 		Description: input.Description,
 		ChallengeID: input.ChallengeID,
-		Pictures:    input.Pictures,
+		Pictures:    []string{}, // will be filled after commit
 	}
 
-	return s.postRepo.CreatePost(post)
+	created, err := s.postRepo.CreatePost(post)
+	if err != nil {
+		return nil, err
+	}
+
+	// ✅ If no images, return immediately
+	if len(input.TempKeys) == 0 {
+		return created, nil
+	}
+
+	urls, err := s.CommitPostImages(ctx, userID, created.ID, input.TempKeys)
+	if err != nil {
+		// Best-effort cleanup: if commit failed, try to remove any remaining temp keys
+		for _, k := range input.TempKeys {
+			_ = s.objectStorage.Delete(ctx, k)
+			if s.tempUploadRepo != nil {
+				_ = s.tempUploadRepo.Untrack(ctx, k)
+			}
+		}
+		return nil, err
+	}
+
+	created.Pictures = urls
+	updated, err := s.postRepo.UpdatePost(created)
+	if err != nil {
+		return nil, err
+	}
+
+	return updated, nil
 }
 
 func (s *PostService) GetPost(postID, userID uint) (*dto.PostResponseDTO, error) {
@@ -122,13 +165,6 @@ func (s *PostService) UpdatePost(postID, userID uint, input *dto.UpdatePostDTO) 
 	if input.Description != nil {
 		post.Description = *input.Description
 	}
-	if input.Pictures != nil {
-		if len(*input.Pictures) > 5 {
-			return nil, exception.NewBadRequestException("Maximum 5 pictures allowed", "POST_TOO_MANY_PICTURES", nil)
-		}
-		post.Pictures = *input.Pictures
-	}
-
 	return s.postRepo.UpdatePost(post)
 }
 
@@ -417,4 +453,86 @@ func (s *PostService) enrichPostsWithDetails(posts []*model.Post, userID uint) (
 	}
 
 	return postDTOs, nil
+}
+
+
+func (s *PostService) PresignPostImages(ctx context.Context, userID uint, req dto.PresignPostImagesRequest) (*dto.PresignPostImagesResponse, error) {
+	count := req.Count
+	if count < 0 {
+		return nil, exception.NewBadRequestException("count must be >= 0", "INVALID_COUNT", nil)
+	}
+	if count > bootstrap.MaxPostImages {
+		return nil, exception.NewBadRequestException("maximum 10 images allowed", "POST_TOO_MANY_IMAGES", nil)
+	}
+	ct := strings.ToLower(strings.TrimSpace(req.ContentType))
+	if ct == "" {
+		ct = "image/jpeg"
+	}
+	if ct != "image/jpeg" && ct != "image/png" {
+		return nil, exception.NewBadRequestException("unsupported content_type (only image/jpeg,image/png)", "INVALID_CONTENT_TYPE", nil)
+	}
+	uploads := make([]dto.PresignedUploadDTO, 0, count)
+	for i := 0; i < count; i++ {
+		ext := ".jpg"
+		if ct == "image/png" {
+			ext = ".png"
+		}
+		key := fmt.Sprintf("tmp/posts/%d/%s%s", userID, uuid.NewString(), ext)
+		up, err := s.objectStorage.PresignPut(ctx, key, ct, bootstrap.PostImagesTTL)
+		if err != nil {
+			return nil, exception.NewInternalServerException("failed to presign upload", "PRESIGN_FAILED", err)
+		}
+		if s.tempUploadRepo != nil {
+			_ = s.tempUploadRepo.Track(ctx, key, userID, up.ExpiresAt)
+		}
+		uploads = append(uploads, dto.PresignedUploadDTO{
+			Key:           up.Key,
+			UploadURL:     up.UploadURL,
+			Headers:       up.Headers,
+			TempPublicURL: s.objectStorage.PublicURL(up.Key),
+			ExpiresAt:     up.ExpiresAt.UTC().Format(time.RFC3339),
+		})
+	}
+	return &dto.PresignPostImagesResponse{Uploads: uploads}, nil
+}
+
+func (s *PostService) CommitPostImages(ctx context.Context, userID uint, postID uint, tempKeys []string) ([]string, error) {
+	if len(tempKeys) == 0 {
+		return []string{}, nil
+	}
+	if len(tempKeys) > bootstrap.MaxPostImages {
+		return nil, exception.NewBadRequestException("maximum 10 images allowed", "POST_TOO_MANY_IMAGES", nil)
+	}
+	publicURLs := make([]string, 0, len(tempKeys))
+	for _, tmpKey := range tempKeys {
+		if tmpKey == "" {
+			continue
+		}
+		prefix := fmt.Sprintf("tmp/posts/%d/", userID)
+		if !strings.HasPrefix(tmpKey, prefix) {
+			return nil, exception.NewBadRequestException("invalid temp key", "INVALID_TEMP_KEY", nil)
+		}
+		if s.tempUploadRepo != nil {
+			ok, err := s.tempUploadRepo.VerifyOwnership(ctx, tmpKey, userID)
+			if err != nil {
+				return nil, exception.NewInternalServerException("failed to verify temp key", "TEMP_VERIFY_FAILED", err)
+			}
+			if !ok {
+				return nil, exception.NewBadRequestException("temp key expired or not owned by user", "TEMP_KEY_NOT_OWNED", nil)
+			}
+		}
+		filename := path.Base(tmpKey)
+		dstKey := fmt.Sprintf("posts/%d/%s", postID, filename)
+		url, err := s.objectStorage.Copy(ctx, tmpKey, dstKey)
+		if err != nil {
+			return nil, exception.NewInternalServerException("failed to commit image", "COMMIT_FAILED", err)
+		}
+		_ = s.objectStorage.Delete(ctx, tmpKey) 
+		if s.tempUploadRepo != nil {
+			_ = s.tempUploadRepo.Untrack(ctx, tmpKey)
+		}
+		publicURLs = append(publicURLs, url)
+	}
+
+	return publicURLs, nil
 }

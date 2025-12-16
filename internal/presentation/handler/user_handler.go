@@ -53,7 +53,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dto.UserResponse{
-		ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio,
+		ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio, ProfilePicture: user.ProfilePicture,
 	})
 }
 
@@ -79,7 +79,7 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	var userResponses []dto.UserResponse
 	for _, user := range users {
 		userResponses = append(userResponses, dto.UserResponse{
-			ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio,
+			ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio, ProfilePicture: user.ProfilePicture,
 		})
 	}
 
@@ -113,6 +113,7 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 		Username: user.Username,
 		Email:    user.Email,
 		Bio:      user.Bio,
+		ProfilePicture: user.ProfilePicture,
 	})
 
 }
@@ -288,4 +289,25 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+}
+
+func (h *UserHandler) UploadProfilePicture(c *gin.Context) {
+	userID := c.GetUint("userID")
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.Error(exception.NewBadRequestException("file is required", "FILE_REQUIRED", nil))
+		return
+	}
+
+	user, e := h.UserService.UploadProfilePicture(c.Request.Context(), userID, file)
+	if e != nil {
+		c.Error(e)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":         "Profile picture uploaded successfully",
+		"profile_picture": user.ProfilePicture,
+	})
 }

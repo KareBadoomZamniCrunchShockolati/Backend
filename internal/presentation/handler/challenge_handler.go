@@ -875,3 +875,28 @@ func (h *ChallengeHandler) IsUserLikedChallenge(ctx *gin.Context) {
 
 	Response(ctx, http.StatusOK, "", gin.H{"is_liked": isLiked})
 }
+
+func (h *ChallengeHandler) UploadChallengeCover(c *gin.Context) {
+	type uriParams struct {
+		ID uint `uri:"id" binding:"required"`
+	}
+	params := Validated[uriParams](c)
+
+	userID := c.GetUint("userID")
+
+	file, err := c.FormFile("file") 
+	if err != nil {
+		c.Error(exception.NewBadRequestException("file is required", "FILE_REQUIRED", nil))
+		return
+	}
+
+	ch, err := h.challengeService.UploadChallengeCover(c.Request.Context(), userID, params.ID, file)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	Response(c, http.StatusOK, "challenge cover uploaded successfully", gin.H{
+		"cover_image": ch.CoverImage,
+	})
+}

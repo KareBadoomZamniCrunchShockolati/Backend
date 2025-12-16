@@ -13,4 +13,5 @@ type PostHandler interface {
 	GetComments(c *gin.Context)
 	LikeEntity(c *gin.Context)
 	UnlikeEntity(c *gin.Context)
+	PresignPostImages(c *gin.Context)
 }

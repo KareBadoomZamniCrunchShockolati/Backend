@@ -14,6 +14,7 @@ import (
 	"challenge-app/internal/infrastructure/repository/postgres"
 	"challenge-app/internal/infrastructure/repository/postgres/driver"
 	"challenge-app/internal/infrastructure/repository/redis"
+	"challenge-app/internal/infrastructure/storage"
 	"challenge-app/internal/presentation/handler"
 	handler2 "challenge-app/internal/presentation/handler/interface"
 	"challenge-app/internal/presentation/middleware"
@@ -33,17 +34,20 @@ import (
 
 // Injectors from wire.go:
 
-// --- Initialize Router ---
-func InitializeRouter(db *gorm.DB, validator2 *validator.Validate) (*gin.Engine, error) {
+func InitializeRouter(db *gorm.DB, v *validator.Validate) (*gin.Engine, error) {
 	userRepository := postgres.NewUserRepository(db)
-	client, err := ProvideRedisClient()
+	env := ProvideEnv()
+	client, err := ProvideRedisClient(env)
 	if err != nil {
 		return nil, err
 	}
 	verificationRepository := redis.NewVerificationRepository(client)
-	env := bootstrap.LoadEnv()
 	emailServiceImpl := ProvideEmailService(env)
-	userService := service.NewUserService(userRepository, verificationRepository, emailServiceImpl)
+	s3Storage, err := ProvideS3Storage(env)
+	if err != nil {
+		return nil, err
+	}
+	userService := service.NewUserService(userRepository, verificationRepository, emailServiceImpl, s3Storage)
 	userHandler := handler.NewUserHandler(userService)
 	jwtServiceImpl := ProvideJWTService(env)
 	passwordServiceImpl := security.NewPasswordService()
@@ -58,13 +62,14 @@ func InitializeRouter(db *gorm.DB, validator2 *validator.Validate) (*gin.Engine,
 	challengeParticipationRepository := postgres.NewChallengeParticipationRepository(db)
 	categoryRepository := postgres.NewCategoryRepository(db)
 	likeRepository := postgres.NewLikeRepository(db)
-	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, commentRepository, challengeParticipationRepository, challengeParticipationRepository, categoryRepository, userRepository, followRepository, likeRepository)
+	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, commentRepository, challengeParticipationRepository, challengeParticipationRepository, categoryRepository, userRepository, followRepository, likeRepository, s3Storage)
 	challengeHandler := handler.NewChallengeHandler(challengeService)
 	userDayRepository := postgres.NewUserDayRepository(db)
 	userDayService := service.NewUserDayService(userDayRepository)
 	userDayHandler := handler.NewUserDayHandler(userDayService)
 	postRepository := postgres.NewPostRepository(db)
-	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository)
+	tempUploadRepository := redis.NewTempUploadRepository(client)
+	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository, s3Storage, tempUploadRepository)
 	postHandler := handler.NewPostHandler(postService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	errorMiddleware := middleware.NewErrorProvider()
@@ -72,22 +77,25 @@ func InitializeRouter(db *gorm.DB, validator2 *validator.Validate) (*gin.Engine,
 	return engine, nil
 }
 
-// --- Initialize Full Application ---
 func InitializeApplication() (*Application, error) {
-	postgresDSN := ProvideDSN()
+	env := ProvideEnv()
+	postgresDSN := ProvideDSN(env)
 	db, err := ProvidePostgresDB(postgresDSN)
 	if err != nil {
 		return nil, err
 	}
 	userRepository := postgres.NewUserRepository(db)
-	client, err := ProvideRedisClient()
+	client, err := ProvideRedisClient(env)
 	if err != nil {
 		return nil, err
 	}
 	verificationRepository := redis.NewVerificationRepository(client)
-	env := bootstrap.LoadEnv()
 	emailServiceImpl := ProvideEmailService(env)
-	userService := service.NewUserService(userRepository, verificationRepository, emailServiceImpl)
+	s3Storage, err := ProvideS3Storage(env)
+	if err != nil {
+		return nil, err
+	}
+	userService := service.NewUserService(userRepository, verificationRepository, emailServiceImpl, s3Storage)
 	userHandler := handler.NewUserHandler(userService)
 	jwtServiceImpl := ProvideJWTService(env)
 	passwordServiceImpl := security.NewPasswordService()
@@ -102,13 +110,14 @@ func InitializeApplication() (*Application, error) {
 	challengeParticipationRepository := postgres.NewChallengeParticipationRepository(db)
 	categoryRepository := postgres.NewCategoryRepository(db)
 	likeRepository := postgres.NewLikeRepository(db)
-	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, commentRepository, challengeParticipationRepository, challengeParticipationRepository, categoryRepository, userRepository, followRepository, likeRepository)
+	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, commentRepository, challengeParticipationRepository, challengeParticipationRepository, categoryRepository, userRepository, followRepository, likeRepository, s3Storage)
 	challengeHandler := handler.NewChallengeHandler(challengeService)
 	userDayRepository := postgres.NewUserDayRepository(db)
 	userDayService := service.NewUserDayService(userDayRepository)
 	userDayHandler := handler.NewUserDayHandler(userDayService)
 	postRepository := postgres.NewPostRepository(db)
-	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository)
+	tempUploadRepository := redis.NewTempUploadRepository(client)
+	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository, s3Storage, tempUploadRepository)
 	postHandler := handler.NewPostHandler(postService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	errorMiddleware := middleware.NewErrorProvider()
@@ -121,15 +130,11 @@ func InitializeApplication() (*Application, error) {
 
 type PostgresDSN string
 
-type JWTSecret string
+func ProvideEnv() *bootstrap.Env {
+	return bootstrap.LoadEnv()
+}
 
-type TokenExpiry time.Duration
-
-type RedisClient *redis2.Client
-
-// --- Providers ---
-func ProvideDSN() PostgresDSN {
-	cfg := bootstrap.LoadEnv()
+func ProvideDSN(cfg *bootstrap.Env) PostgresDSN {
 	dsn := "host=" + cfg.Database.Host +
 		" user=" + cfg.Database.User +
 		" password=" + cfg.Database.Password +
@@ -143,9 +148,7 @@ func ProvidePostgresDB(dsn PostgresDSN) (*gorm.DB, error) {
 	return driver.InitPostgresDB(string(dsn))
 }
 
-func ProvideRedisClient() (*redis2.Client, error) {
-	cfg := bootstrap.LoadEnv()
-
+func ProvideRedisClient(cfg *bootstrap.Env) (*redis2.Client, error) {
 	client := redis2.NewClient(&redis2.Options{
 		Addr:     cfg.Redis.Address + ":" + cfg.Redis.Port,
 		Password: cfg.Redis.Password,
@@ -175,7 +178,22 @@ func ProvideValidator() *validator.Validate {
 	return v
 }
 
-// --- Provider Sets ---
+// ✅ Provide S3 concrete implementation
+func ProvideS3Storage(cfg *bootstrap.Env) (*storage.S3Storage, error) {
+	return storage.NewS3Storage(
+		cfg.Storage.Endpoint,
+		cfg.Storage.Region,
+		cfg.Storage.Bucket,
+		cfg.Storage.AccessKey,
+		cfg.Storage.SecretKey,
+		cfg.Storage.PublicURL,
+	)
+}
+
+var EnvProviderSet = wire.NewSet(
+	ProvideEnv,
+)
+
 var SecurityProviderSet = wire.NewSet(security.NewPasswordService, ProvideJWTService, wire.Bind(new(security.PasswordService), new(*security.PasswordServiceImpl)), wire.Bind(new(security.JWTService), new(*security.JwtServiceImpl)))
 
 var DatabaseProviderSet = wire.NewSet(
@@ -184,20 +202,26 @@ var DatabaseProviderSet = wire.NewSet(
 )
 
 var RedisProviderSet = wire.NewSet(
-	ProvideRedisClient, redis.NewVerificationRepository, wire.Bind(new(repository.VerificationRepository), new(*redis.VerificationRepository)),
+	ProvideRedisClient, redis.NewVerificationRepository, wire.Bind(new(repository.VerificationRepository), new(*redis.VerificationRepository)), redis.NewTempUploadRepository, wire.Bind(new(repository.TempUploadRepository), new(*redis.TempUploadRepository)),
 )
 
-var EmailProviderSet = wire.NewSet(bootstrap.LoadEnv, ProvideEmailService, wire.Bind(new(email.EmailService), new(*email.EmailServiceImpl)))
+var EmailProviderSet = wire.NewSet(
+	ProvideEmailService, wire.Bind(new(email.EmailService), new(*email.EmailServiceImpl)),
+)
+
+// ✅ Storage provider set: provide concrete S3 + bind to interface
+var StorageProviderSet = wire.NewSet(
+	ProvideS3Storage, wire.Bind(new(storage.ObjectStorage), new(*storage.S3Storage)),
+)
 
 var RepositoryProviderSet = wire.NewSet(postgres.NewUserRepository, postgres.NewChallengeRepository, postgres.NewCategoryRepository, postgres.NewChallengeParticipationRepository, postgres.NewChallengeParticipantRepository, postgres.NewCommentRepository, postgres.NewLikeRepository, postgres.NewUserDayRepository, postgres.NewFollowRepository, postgres.NewPostRepository, wire.Bind(new(repository.LikeRepository), new(*postgres.LikeRepository)), wire.Bind(new(repository.UserDayRepository), new(*postgres.UserDayRepository)), wire.Bind(new(repository.ChallengeInviteRepository), new(*postgres.ChallengeParticipationRepository)), wire.Bind(new(repository.ChallengeJoinRequestRepository), new(*postgres.ChallengeParticipationRepository)), wire.Bind(new(repository.CommentRepository), new(*postgres.CommentRepository)), wire.Bind(new(repository.ChallengeParticipantRepository), new(*postgres.ChallengeParticipantRepository)), wire.Bind(new(repository.UserRepository), new(*postgres.UserRepository)), wire.Bind(new(repository.ChallengeRepository), new(*postgres.ChallengeRepository)), wire.Bind(new(repository.CategoryRepository), new(*postgres.CategoryRepository)), wire.Bind(new(repository.FollowRepository), new(*postgres.FollowRepository)), wire.Bind(new(repository.PostRepository), new(*postgres.PostRepository)))
 
-var ServiceProviderSet = wire.NewSet(service.NewUserService, service.NewAuthService, service.NewChallengeService, service.NewFollowService, service.NewPostService, service.NewUserDayService, wire.Bind(new(serviceinterface.ChallengeServicer), new(*service.ChallengeService)), wire.Bind(new(serviceinterface.UserServicer), new(*service.UserService)), wire.Bind(new(serviceinterface.AuthServicer), new(*service.AuthService)), wire.Bind(new(serviceinterface.FollowServicer), new(*service.FollowService)), wire.Bind(new(serviceinterface.PostServicer), new(*service.PostService)), wire.Bind(new(serviceinterface.UserDayServicer), new(*service.UserDayService)))
+var ServiceProviderSet = wire.NewSet(service.NewUserService, service.NewAuthService, service.NewChallengeService, service.NewFollowService, service.NewPostService, service.NewUserDayService, service.NewTempUploadCleaner, wire.Bind(new(serviceinterface.ChallengeServicer), new(*service.ChallengeService)), wire.Bind(new(serviceinterface.UserServicer), new(*service.UserService)), wire.Bind(new(serviceinterface.AuthServicer), new(*service.AuthService)), wire.Bind(new(serviceinterface.FollowServicer), new(*service.FollowService)), wire.Bind(new(serviceinterface.PostServicer), new(*service.PostService)), wire.Bind(new(serviceinterface.UserDayServicer), new(*service.UserDayService)))
 
 var HandlerProviderSet = wire.NewSet(handler.NewUserHandler, handler.NewAuthHandler, handler.NewChallengeHandler, handler.NewFollowHandler, handler.NewPostHandler, handler.NewUserDayHandler, wire.Bind(new(handler2.UserHandler), new(*handler.UserHandler)), wire.Bind(new(handler2.AuthHandler), new(*handler.AuthHandler)), wire.Bind(new(handler2.ChallengeHandler), new(*handler.ChallengeHandler)), wire.Bind(new(handler2.FollowHandler), new(*handler.FollowHandlerImpl)), wire.Bind(new(handler2.PostHandler), new(*handler.PostHandler)), wire.Bind(new(handler2.UserDayHandler), new(*handler.UserDayHandler)))
 
 var MiddlewareProviderSet = wire.NewSet(middleware.NewJWTMiddleware, middleware.NewErrorProvider, wire.Bind(new(middleware2.ErrorMiddleware), new(*middleware.ErrorMiddleware)), wire.Bind(new(middleware2.JWTMiddleware), new(*middleware.JWTMiddleware)))
 
-// --- Application ---
 type Application struct {
 	DB     *gorm.DB
 	Router *gin.Engine

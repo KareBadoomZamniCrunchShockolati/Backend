@@ -1,12 +1,18 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"mime/multipart"
+	"path/filepath"
 	"strings"
+	"time"
 
+	"challenge-app/internal/application/validator"
 	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
+	"challenge-app/internal/infrastructure/storage"
 	"challenge-app/pkg/email"
 	"errors"
 	"fmt"
@@ -16,13 +22,15 @@ type UserService struct {
 	UserRepo         repository.UserRepository
 	VerificationRepo repository.VerificationRepository
 	EmailService     email.EmailService
+	ObjectStorage    storage.ObjectStorage
 }
 
-func NewUserService(repo repository.UserRepository, vRepo repository.VerificationRepository, emailSvc email.EmailService) *UserService {
+func NewUserService(repo repository.UserRepository, vRepo repository.VerificationRepository, emailSvc email.EmailService, storage storage.ObjectStorage) *UserService {
 	return &UserService{
 		UserRepo:         repo,
 		VerificationRepo: vRepo,
 		EmailService:     emailSvc,
+		ObjectStorage:    storage,
 	}
 }
 
@@ -175,7 +183,6 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 	var storedCode string
 	n, err := fmt.Sscanf(storedData, "%d:%s", &userID, &storedCode)
 	if err != nil || n != 2 {
-		//fmt.Printf("DEBUG CompleteEmailChange: Failed to parse stored data. Parsed %d items, error: %v\n", n, err)
 		return nil, exception.NewInternalServerException(fmt.Sprintf("Corrupted verification data for key %s", emailChangeKey), "CODE_DATA_CORRUPT", err)
 	}
 
@@ -245,4 +252,53 @@ func (s *UserService) DeleteUser(id uint) error {
 
 	}
 	return nil
+}
+
+func (s *UserService) UploadProfilePicture(ctx context.Context, userID uint, file *multipart.FileHeader) (*model.UserModel, error) {
+	user, err := s.UserRepo.GetUserByID(userID)
+	if err != nil {
+		return nil, exception.NewRepositoryError(err)
+	}
+	if user == nil {
+		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", userID), "USER_NOT_FOUND_PROFILE_PIC")
+	}
+	data, mime, err := validator.ValidateProfileImage(file)
+	if err != nil {
+		return nil, exception.NewBadRequestException(err.Error(), "INVALID_PROFILE_PICTURE", nil)
+	}
+	ext := extFromMIMEOrName(mime, file.Filename)
+	key := fmt.Sprintf("profiles/%d/%d%s", userID, time.Now().UTC().UnixNano(), ext)
+	publicURL, err := s.ObjectStorage.Upload(ctx, key, mime, bytes.NewReader(data))
+	if err != nil {
+		return nil, exception.NewInternalServerException("failed to upload profile picture", "S3_UPLOAD_FAILED", err)
+	}
+	user.ProfilePicture = publicURL
+	updated, err := s.UserRepo.UpdateUser(user)
+	if err != nil {
+		return nil, exception.NewRepositoryUpdateError(err)
+	}
+	if updated == nil {
+		return nil, exception.NewInternalServerException("UserRepo.UpdateUser returned nil", "CODE_LOGIC_ERROR", nil)
+	}
+	return updated, nil
+}
+
+func extFromMIMEOrName(mime, filename string) string {
+	switch strings.ToLower(mime) {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/webp":
+		return ".webp"
+	}
+
+	ext := strings.ToLower(filepath.Ext(filename))
+	if ext == ".jpeg" {
+		return ".jpg"
+	}
+	if ext == ".jpg" || ext == ".png" || ext == ".webp" {
+		return ext
+	}
+	return ""
 }

@@ -12,5 +12,5 @@ type UserHandler interface {
 	InitiateEmailChange(c *gin.Context)
 	VerifyEmailChange(c *gin.Context)
 	GetUserByID(c *gin.Context)
-	
+	UploadProfilePicture(c *gin.Context)
 }

@@ -2,6 +2,8 @@ package serviceinterface
 
 import (
 	"challenge-app/internal/domain/model"
+	"context"
+	"mime/multipart"
 )
 
 type UserServicer interface {
@@ -15,4 +17,5 @@ type UserServicer interface {
 
 	InitiateEmailChange(id uint, newEmail string) error
 	CompleteEmailChange(oldEmail, newEmail, code string) (*model.UserModel, error)
+	UploadProfilePicture(ctx context.Context, userID uint, file *multipart.FileHeader) (*model.UserModel, error)
 }

@@ -1,14 +1,19 @@
 package service
 
 import (
+	"bytes"
+	"context"
 	"fmt"
+	"mime/multipart"
 	"time"
 
 	"challenge-app/internal/application/dto"
+	"challenge-app/internal/application/validator"
 	"challenge-app/internal/domain/enum"
 	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
+	"challenge-app/internal/infrastructure/storage"
 )
 
 type ChallengeService struct {
@@ -21,6 +26,7 @@ type ChallengeService struct {
 	userRepo        repository.UserRepository
 	followRepo      repository.FollowRepository
 	likeRepo        repository.LikeRepository
+	ObjectStorage   storage.ObjectStorage
 }
 
 func NewChallengeService(
@@ -33,6 +39,7 @@ func NewChallengeService(
 	userRepo repository.UserRepository,
 	followRepo repository.FollowRepository,
 	likeRepo repository.LikeRepository,
+	objectStorage storage.ObjectStorage,
 ) *ChallengeService {
 	return &ChallengeService{
 		challengeRepo:   challengeRepo,
@@ -44,6 +51,7 @@ func NewChallengeService(
 		userRepo:        userRepo,
 		followRepo:      followRepo,
 		likeRepo:        likeRepo,
+		ObjectStorage:   objectStorage,
 	}
 }
 
@@ -87,7 +95,6 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 		StartTime:       input.StartTime,
 		EndTime:         &input.EndTime,
 		Timezone:        input.Timezone,
-		ImageURL:        input.ImageURL,
 		IsStopped:       false,
 		CommentsEnabled: input.CommentsEnabled,
 	}
@@ -151,8 +158,8 @@ func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *d
 	if input.Rule != nil {
 		challenge.Rule = *input.Rule
 	}
-	if input.ImageURL != nil {
-		challenge.ImageURL = *input.ImageURL
+	if input.CoverImage != nil {
+		challenge.CoverImage = *input.CoverImage
 	}
 	if input.Timezone != nil {
 		challenge.Timezone = *input.Timezone
@@ -301,7 +308,6 @@ func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDeta
 		Visibility:          challenge.Visibility,
 		Location:            challenge.Location,
 		Goal:                challenge.Goal,
-		ImageURL:            challenge.ImageURL,
 		MaxParticipants:     challenge.MaxParticipants,
 		CurrentParticipants: int(totalParticipants),
 		LikeCount:           likeCount,
@@ -313,6 +319,7 @@ func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDeta
 		IsUserParticipating: isUserParticipating,
 		IsUserLiked:         isUserLiked,
 		MutualParticipants:  mutualDTOs,
+		CoverImage:          challenge.CoverImage,
 	}
 	return &dto.ChallengeDetailDTO{
 		ChallengePreviewDTO: previewDTO,
@@ -1088,4 +1095,36 @@ func (s *ChallengeService) checkParticipantLimit(challengeID uint, maxParticipan
 		}
 	}
 	return nil
+}
+
+func (s *ChallengeService) UploadChallengeCover(ctx context.Context, userID uint, challengeID uint, file *multipart.FileHeader) (*model.ChallengeModel, error) {
+	ch, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if ch == nil {
+		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", challengeID), "CHALLENGE_NOT_FOUND")
+	}
+	if ch.CreatorID != userID {
+		return nil, exception.NewForbiddenException("Only creator can change cover", "COVER_FORBIDDEN")
+	}
+	data, mime, err := validator.ValidateChallengeCover(file)
+	if err != nil {
+		return nil, exception.NewBadRequestException(err.Error(), "INVALID_COVER_IMAGE", nil)
+	}
+	ext := ".jpg"
+	if mime == "image/png" {
+		ext = ".png"
+	}
+	key := fmt.Sprintf("challenges/%d/covers/%d%s", challengeID, time.Now().UTC().UnixNano(), ext)
+	publicURL, err := s.ObjectStorage.Upload(ctx, key, mime, bytes.NewReader(data))
+	if err != nil {
+		return nil, exception.NewInternalServerException("failed to upload cover image", "S3_UPLOAD_FAILED", err)
+	}
+	ch.CoverImage = publicURL
+	updated, err := s.challengeRepo.UpdateChallenge(ch)
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
 }

@@ -3,10 +3,11 @@ package serviceinterface
 import (
 	"challenge-app/internal/application/dto"
 	"challenge-app/internal/domain/model"
+	"context"
 )
 
 type PostServicer interface {
-	CreatePost(userID uint, input *dto.CreatePostDTO) (*model.Post, error)
+	CreatePost(ctx context.Context, userID uint, input *dto.CreatePostDTO) (*model.Post, error) 
 	GetPost(postID, userID uint) (*dto.PostResponseDTO, error)
 	UpdatePost(postID, userID uint, input *dto.UpdatePostDTO) (*model.Post, error)
 	DeletePost(postID, userID uint) error
@@ -16,4 +17,6 @@ type PostServicer interface {
 	GetComments(entityType string, entityID, userID uint, offset, limit int) ([]*dto.CommentResponseDTO, error)
 	LikeEntity(userID uint, input *dto.LikeRequestDTO) error
 	UnlikeEntity(userID uint, input *dto.LikeRequestDTO) error
+	PresignPostImages(ctx context.Context, userID uint, req dto.PresignPostImagesRequest) (*dto.PresignPostImagesResponse, error)
+	CommitPostImages(ctx context.Context, userID uint, postID uint, tempKeys []string) ([]string, error)
 }
