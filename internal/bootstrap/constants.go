@@ -14,15 +14,18 @@ var (
 )
 
 const (
-	ProfileMinWidth   = 320
-	ProfileMinHeight  = 320
-	PostMinDimension  = 1080 
-	MaxProfileSize    = 5 << 20   // 5 MB
-	MaxPostImageSize  = 10 << 20  // 10 MB
+	ProfileMinWidth  = 320
+	ProfileMinHeight = 320
+	PostMinDimension = 1080
+	MaxProfileSize   = 5 << 20  // 5 MB
+	MaxPostImageSize = 10 << 20 // 10 MB
+	MaxCoverSize     = 10 << 20 // 10 MB 
+	CoverMinWidth  = 1080
+	CoverMinHeight = 540
 )
-
 
 const (
 	PostImagesTTL = 15 * time.Minute
 	MaxPostImages = 10
 )
+

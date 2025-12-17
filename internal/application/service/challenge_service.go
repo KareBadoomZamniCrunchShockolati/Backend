@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"mime/multipart"
 	"time"
 
 	"challenge-app/internal/application/dto"
-	"challenge-app/internal/application/validator"
 	"challenge-app/internal/domain/enum"
 	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
@@ -26,7 +24,7 @@ type ChallengeService struct {
 	userRepo        repository.UserRepository
 	followRepo      repository.FollowRepository
 	likeRepo        repository.LikeRepository
-	ObjectStorage   storage.ObjectStorage
+	objectStorage   storage.ObjectStorage
 }
 
 func NewChallengeService(
@@ -51,7 +49,7 @@ func NewChallengeService(
 		userRepo:        userRepo,
 		followRepo:      followRepo,
 		likeRepo:        likeRepo,
-		ObjectStorage:   objectStorage,
+		objectStorage:   objectStorage,
 	}
 }
 
@@ -1097,7 +1095,8 @@ func (s *ChallengeService) checkParticipantLimit(challengeID uint, maxParticipan
 	return nil
 }
 
-func (s *ChallengeService) UploadChallengeCover(ctx context.Context, userID uint, challengeID uint, file *multipart.FileHeader) (*model.ChallengeModel, error) {
+func (s *ChallengeService) UploadChallengeCover(ctx context.Context, userID uint, challengeID uint, data []byte, mime string) (*model.ChallengeModel, error) {
+
 	ch, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
 	if err != nil {
 		return nil, err
@@ -1108,16 +1107,15 @@ func (s *ChallengeService) UploadChallengeCover(ctx context.Context, userID uint
 	if ch.CreatorID != userID {
 		return nil, exception.NewForbiddenException("Only creator can change cover", "COVER_FORBIDDEN")
 	}
-	data, mime, err := validator.ValidateChallengeCover(file)
-	if err != nil {
-		return nil, exception.NewBadRequestException(err.Error(), "INVALID_COVER_IMAGE", nil)
-	}
+
 	ext := ".jpg"
 	if mime == "image/png" {
 		ext = ".png"
+	} else if mime == "image/webp" {
+		ext = ".webp"
 	}
 	key := fmt.Sprintf("challenges/%d/covers/%d%s", challengeID, time.Now().UTC().UnixNano(), ext)
-	publicURL, err := s.ObjectStorage.Upload(ctx, key, mime, bytes.NewReader(data))
+	publicURL, err := s.objectStorage.Upload(ctx, key, mime, bytes.NewReader(data))
 	if err != nil {
 		return nil, exception.NewInternalServerException("failed to upload cover image", "S3_UPLOAD_FAILED", err)
 	}

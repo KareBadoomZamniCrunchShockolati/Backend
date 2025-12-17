@@ -45,6 +45,7 @@ func NewPostService(
 		tempUploadRepo: tempUploadRepo,
 	}
 }
+
 func (s *PostService) CreatePost(ctx context.Context, userID uint, input *dto.CreatePostDTO) (*model.Post, error) {
 	if input == nil {
 		return nil, exception.NewBadRequestException("Input cannot be nil", "POST_CREATE_BAD_INPUT", nil)
@@ -68,17 +69,22 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, input *dto.Cr
 		}
 	}
 
-	// ✅ NEW RULE: post can have up to 10 images, and images come from TempKeys
-	if len(input.TempKeys) > 10 {
+	tempKeys := make([]string, 0, len(input.Images))
+	for _, img := range input.Images {
+		if img.TempKey != "" {
+			tempKeys = append(tempKeys, img.TempKey)
+		}
+	}
+
+	if len(tempKeys) > 10 {
 		return nil, exception.NewBadRequestException("Maximum 10 pictures allowed", "POST_TOO_MANY_PICTURES", nil)
 	}
 
-	// ✅ Create post WITHOUT pictures first
 	post := &model.Post{
 		UserID:      userID,
 		Description: input.Description,
 		ChallengeID: input.ChallengeID,
-		Pictures:    []string{}, // will be filled after commit
+		Pictures:    []string{},
 	}
 
 	created, err := s.postRepo.CreatePost(post)
@@ -86,15 +92,13 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, input *dto.Cr
 		return nil, err
 	}
 
-	// ✅ If no images, return immediately
-	if len(input.TempKeys) == 0 {
+	if len(tempKeys) == 0 {
 		return created, nil
 	}
 
-	urls, err := s.CommitPostImages(ctx, userID, created.ID, input.TempKeys)
+	urls, err := s.CommitPostImages(ctx, userID, created.ID, tempKeys)
 	if err != nil {
-		// Best-effort cleanup: if commit failed, try to remove any remaining temp keys
-		for _, k := range input.TempKeys {
+		for _, k := range tempKeys {
 			_ = s.objectStorage.Delete(ctx, k)
 			if s.tempUploadRepo != nil {
 				_ = s.tempUploadRepo.Untrack(ctx, k)
@@ -111,6 +115,7 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, input *dto.Cr
 
 	return updated, nil
 }
+
 
 func (s *PostService) GetPost(postID, userID uint) (*dto.PostResponseDTO, error) {
 	post, err := s.postRepo.GetPost(postID)

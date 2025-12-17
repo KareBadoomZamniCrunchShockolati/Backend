@@ -3,6 +3,7 @@ package handler
 import (
 	"challenge-app/internal/application/dto"
 	serviceinterface "challenge-app/internal/application/service/interface"
+	"challenge-app/internal/application/validator"
 	"challenge-app/internal/domain/enum"
 	"challenge-app/internal/domain/exception"
 	"net/http"
@@ -878,24 +879,31 @@ func (h *ChallengeHandler) IsUserLikedChallenge(ctx *gin.Context) {
 
 func (h *ChallengeHandler) UploadChallengeCover(c *gin.Context) {
 	type uriParams struct {
-		ID uint `uri:"id" binding:"required"`
+		ID uint `uri:"id" validate:"required"`
 	}
 	params := Validated[uriParams](c)
-
-	userID := c.GetUint("userID")
-
-	file, err := c.FormFile("file") 
-	if err != nil {
-		c.Error(exception.NewBadRequestException("file is required", "FILE_REQUIRED", nil))
-		return
+	userID, exists := c.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
 	}
-
-	ch, err := h.challengeService.UploadChallengeCover(c.Request.Context(), userID, params.ID, file)
+	file, err := c.FormFile("file")
 	if err != nil {
-		c.Error(err)
-		return
+		panic(exception.NewBadRequestException("file is required", "FILE_REQUIRED", nil))
 	}
-
+	data, mime, err := validator.ValidateChallengeCover(file)
+	if err != nil {
+		panic(exception.NewBadRequestException(err.Error(), "INVALID_COVER_IMAGE", nil))
+	}
+	ch, err := h.challengeService.UploadChallengeCover(
+		c.Request.Context(),
+		userID.(uint),
+		params.ID,
+		data,
+		mime,
+	)
+	if err != nil {
+		panic(err)
+	}
 	Response(c, http.StatusOK, "challenge cover uploaded successfully", gin.H{
 		"cover_image": ch.CoverImage,
 	})

@@ -19,24 +19,24 @@ import (
 )
 
 type UserService struct {
-	UserRepo         repository.UserRepository
-	VerificationRepo repository.VerificationRepository
-	EmailService     email.EmailService
-	ObjectStorage    storage.ObjectStorage
+	userRepo         repository.UserRepository
+	verificationRepo repository.VerificationRepository
+	emailService     email.EmailService
+	objectStorage    storage.ObjectStorage
 }
 
 func NewUserService(repo repository.UserRepository, vRepo repository.VerificationRepository, emailSvc email.EmailService, storage storage.ObjectStorage) *UserService {
 	return &UserService{
-		UserRepo:         repo,
-		VerificationRepo: vRepo,
-		EmailService:     emailSvc,
-		ObjectStorage:    storage,
+		userRepo:         repo,
+		verificationRepo: vRepo,
+		emailService:     emailSvc,
+		objectStorage:    storage,
 	}
 }
 
 // GetUserByID (CRUD - Read Logic)
 func (s *UserService) GetUserByID(id uint) (*model.UserModel, error) {
-	user, err := s.UserRepo.GetUserByID(id)
+	user, err := s.userRepo.GetUserByID(id)
 	if err != nil {
 		if _, ok := err.(*exception.NotFoundException); ok {
 			return nil, err
@@ -50,7 +50,7 @@ func (s *UserService) GetUserByID(id uint) (*model.UserModel, error) {
 }
 
 func (s *UserService) GetAllUsers() ([]model.UserModel, error) {
-	users, err := s.UserRepo.GetAllUsers()
+	users, err := s.userRepo.GetAllUsers()
 	if err != nil {
 		if _, ok := err.(*exception.NotFoundException); ok {
 			return nil, err
@@ -65,7 +65,7 @@ func (s *UserService) GetAllUsers() ([]model.UserModel, error) {
 
 // UpdateUser (CRUD - Update Logic)
 func (s *UserService) UpdateUser(id uint, username, bio, newEmail string) (*model.UserModel, error) {
-	user, err := s.UserRepo.GetUserByID(id)
+	user, err := s.userRepo.GetUserByID(id)
 	if err != nil {
 		return nil, exception.NewRepositoryError(err)
 	}
@@ -78,7 +78,7 @@ func (s *UserService) UpdateUser(id uint, username, bio, newEmail string) (*mode
 	}
 
 	// 4. Persist changes to the repository
-	updatedUser, err := s.UserRepo.UpdateUser(user)
+	updatedUser, err := s.userRepo.UpdateUser(user)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
 			return nil, exception.NewConflictException("User field", "username/email", "USER_UPDATE_CONFLICT")
@@ -97,7 +97,7 @@ func (s *UserService) UpdateUser(id uint, username, bio, newEmail string) (*mode
 // starting the process of changing email
 func (s *UserService) InitiateEmailChange(userID uint, newEmail string) error {
 	// 1. getting the user with his ID
-	user, err := s.UserRepo.GetUserByID(userID)
+	user, err := s.userRepo.GetUserByID(userID)
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (s *UserService) InitiateEmailChange(userID uint, newEmail string) error {
 	}
 
 	// 3. Check if new email is already taken by another user
-	existingUser, _ := s.UserRepo.GetUserByEmail(newEmail)
+	existingUser, _ := s.userRepo.GetUserByEmail(newEmail)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (s *UserService) InitiateEmailChange(userID uint, newEmail string) error {
 
 	//fmt.Printf("DEBUG: Storing in Redis - Key: %s, Data: %s\n", emailChangeKey, verificationData)
 
-	err = s.VerificationRepo.StoreVerificationCode(ctx, emailChangeKey, verificationData, 10) // 10 minutes expiration time
+	err = s.verificationRepo.StoreVerificationCode(ctx, emailChangeKey, verificationData, 10) // 10 minutes expiration time
 	if err != nil {
 		return exception.NewRepositoryVerificationError(err)
 	}
@@ -143,11 +143,11 @@ func (s *UserService) InitiateEmailChange(userID uint, newEmail string) error {
 
 	// 6. Send verification email to the NEW email address
 	//fmt.Printf("DEBUG: Sending verification email to: %s\n", newEmail)
-	err = s.EmailService.SendEmailChangeVerification(newEmail, code, user.Email)
+	err = s.emailService.SendEmailChangeVerification(newEmail, code, user.Email)
 	if err != nil {
 		// Clean up the stored verification if email fails
 		//fmt.Printf("DEBUG: Email sending failed, cleaning up Redis: %v\n", err)
-		_ = s.VerificationRepo.DeleteVerificationCode(ctx, emailChangeKey)
+		_ = s.verificationRepo.DeleteVerificationCode(ctx, emailChangeKey)
 		return exception.NewEmailError(err)
 	}
 	fmt.Printf("DEBUG: Verification email sent successfully\n")
@@ -166,7 +166,7 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 	emailChangeKey := fmt.Sprintf("emailchange:%s", newEmail)
 	//fmt.Printf("DEBUG CompleteEmailChange: Looking for Redis key: %s\n", emailChangeKey)
 
-	storedData, err := s.VerificationRepo.GetVerificationCode(ctx, emailChangeKey)
+	storedData, err := s.verificationRepo.GetVerificationCode(ctx, emailChangeKey)
 	if err != nil && storedData == "" {
 		// If storedData is empty, it means the key was not found or expired.
 		// If err is not nil, it's an infra failure. We treat the expiry as a BadRequest
@@ -192,7 +192,7 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 
 	// 3. Get the user by ID ( because  it is more reliable than email)
 	fmt.Printf("DEBUG CompleteEmailChange: Looking for user with ID: %d\n", userID)
-	user, err := s.UserRepo.GetUserByID(userID)
+	user, err := s.userRepo.GetUserByID(userID)
 	if err != nil {
 		return nil, exception.NewRepositoryError(err)
 	}
@@ -214,7 +214,7 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 	//fmt.Printf("DEBUG CompleteEmailChange: Updating user email to: %s\n", newEmail)
 
 	// 5. Save the updated user
-	updatedUser, err := s.UserRepo.UpdateUser(user)
+	updatedUser, err := s.userRepo.UpdateUser(user)
 	if err != nil {
 		//fmt.Printf("DEBUG CompleteEmailChange: Failed to update user in database: %v\n", err)
 		return nil, exception.NewRepositoryUpdateError(err)
@@ -222,7 +222,7 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 	fmt.Printf("DEBUG CompleteEmailChange: User updated successfully - New Email: %s\n", updatedUser.Email)
 
 	// 6. Clean up the verification data for speed up and memory saving
-	err = s.VerificationRepo.DeleteVerificationCode(ctx, emailChangeKey)
+	err = s.verificationRepo.DeleteVerificationCode(ctx, emailChangeKey)
 	if err != nil {
 		fmt.Printf("DEBUG CompleteEmailChange: Warning - failed to delete verification code: %v\n", err)
 	} else {
@@ -230,7 +230,7 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 	}
 
 	// 7. Send confirmation email to the NEW email
-	err = s.EmailService.SendEmailChangeConfirmation(newEmail, oldEmail)
+	err = s.emailService.SendEmailChangeConfirmation(newEmail, oldEmail)
 	if err != nil {
 		fmt.Printf("DEBUG CompleteEmailChange: Warning - failed to send confirmation email: %v\n", err)
 	} else {
@@ -242,7 +242,7 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 
 // DeleteUser (CRUD - Delete Logic)
 func (s *UserService) DeleteUser(id uint) error {
-	err := s.UserRepo.DeleteUser(id)
+	err := s.userRepo.DeleteUser(id)
 	if err != nil {
 		var nf exception.NotFoundException
 		if errors.As(err, &nf) {
@@ -255,7 +255,7 @@ func (s *UserService) DeleteUser(id uint) error {
 }
 
 func (s *UserService) UploadProfilePicture(ctx context.Context, userID uint, file *multipart.FileHeader) (*model.UserModel, error) {
-	user, err := s.UserRepo.GetUserByID(userID)
+	user, err := s.userRepo.GetUserByID(userID)
 	if err != nil {
 		return nil, exception.NewRepositoryError(err)
 	}
@@ -268,12 +268,12 @@ func (s *UserService) UploadProfilePicture(ctx context.Context, userID uint, fil
 	}
 	ext := extFromMIMEOrName(mime, file.Filename)
 	key := fmt.Sprintf("profiles/%d/%d%s", userID, time.Now().UTC().UnixNano(), ext)
-	publicURL, err := s.ObjectStorage.Upload(ctx, key, mime, bytes.NewReader(data))
+	publicURL, err := s.objectStorage.Upload(ctx, key, mime, bytes.NewReader(data))
 	if err != nil {
 		return nil, exception.NewInternalServerException("failed to upload profile picture", "S3_UPLOAD_FAILED", err)
 	}
 	user.ProfilePicture = publicURL
-	updated, err := s.UserRepo.UpdateUser(user)
+	updated, err := s.userRepo.UpdateUser(user)
 	if err != nil {
 		return nil, exception.NewRepositoryUpdateError(err)
 	}

@@ -70,12 +70,10 @@ func (s *S3Storage) PresignPut(ctx context.Context, key, contentType string, exp
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(key),
 		ContentType: aws.String(contentType),
-		ACL:         types.ObjectCannedACLPublicRead,
-	}, func(opts *s3.PresignOptions) {
-		opts.Expires = expiresIn
-	})
+		ACL:         types.ObjectCannedACLPublicRead, 
+	}, s3.WithPresignExpires(expiresIn))
 	if err != nil {
-		return nil, fmt.Errorf("presign put failed: %w", err)
+		return nil, err
 	}
 
 	return &PresignedUpload{

@@ -5,7 +5,6 @@ import (
 	"challenge-app/internal/domain/enum"
 	"challenge-app/internal/domain/model"
 	"context"
-	"mime/multipart"
 )
 
 type ChallengeServicer interface {
@@ -66,5 +65,5 @@ type ChallengeServicer interface {
 	IsUserLikedChallenge(userID, challengeID uint) (bool, error)
 	GetChallengeLikeCount(challengeID uint) (uint, error)
 
-	UploadChallengeCover(ctx context.Context, userID uint, challengeID uint, file *multipart.FileHeader) (*model.ChallengeModel, error)
+	UploadChallengeCover(ctx context.Context, userID uint, challengeID uint, data []byte, mime string) (*model.ChallengeModel, error)
 }
