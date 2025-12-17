@@ -467,12 +467,27 @@ func (h *ChallengeHandler) StopChallenge(ctx *gin.Context) {
 
 	Response(ctx, http.StatusOK, "Challenge stopped successfully", nil)
 }
-
 func (h *ChallengeHandler) JoinPublicChallenge(ctx *gin.Context) {
 	type joinPublicChallengeParams struct {
 		ID uint `uri:"id" validate:"required"`
 	}
-	params := Validated[joinPublicChallengeParams](ctx)
+
+	// Manually bind and validate without using Validated
+	var params joinPublicChallengeParams
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		panic(exception.NewBadRequestException(
+			err.Error(),
+			exception.ErrorTypeInvalidJSONFormat,
+			nil,
+		))
+	}
+
+	// Manually validate
+	if err := validate.Struct(params); err != nil {
+		validationErrors := make(map[string]any)
+		validationErrors["details"] = err.Error()
+		panic(exception.NewValidationFailedException(validationErrors))
+	}
 
 	userID, exists := ctx.Get("userID")
 	if !exists {
@@ -485,7 +500,6 @@ func (h *ChallengeHandler) JoinPublicChallenge(ctx *gin.Context) {
 
 	Response(ctx, http.StatusOK, "Successfully joined challenge", nil)
 }
-
 func (h *ChallengeHandler) JoinPrivateChallenge(ctx *gin.Context) {
 	type joinPrivateChallengeParams struct {
 		ID uint `uri:"id" validate:"required"`

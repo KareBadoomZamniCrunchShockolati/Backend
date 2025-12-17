@@ -20,7 +20,7 @@ func SetupRouter(
 	followHandler handler.FollowHandler,
 	challengeHandler handler.ChallengeHandler,
 	userDayHandler handler.UserDayHandler,
-	postHandler handler.PostHandler, // ADDED: Post handler
+	postHandler handler.PostHandler,
 	jwtMiddleware middleware.JWTMiddleware,
 	errorMiddleware middleware.ErrorMiddleware,
 ) *gin.Engine {
@@ -35,7 +35,7 @@ func SetupRouter(
 
 	// CORS configuration
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"}, // Allow requests from localhost:3000 or anywhere
+		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowHeaders:     []string{"Content-Type", "Authorization", "ACCEPT"},
 		AllowCredentials: true,
@@ -76,6 +76,10 @@ func SetupRouter(
 		v1.GET("/challenges/:id/comments", challengeHandler.GetAllComments)
 		v1.GET("/challenges/categories", challengeHandler.GetAllCategories)
 
+		// Public post routes
+		v1.GET("/posts/:id", postHandler.GetPost)
+		v1.GET("/posts/:id/comments", postHandler.GetPostComments)
+
 		// Public follow routes
 		v1.GET("/users/:id/followers", followHandler.GetFollowers)
 		v1.GET("/users/:id/following", followHandler.GetFollowing)
@@ -83,7 +87,7 @@ func SetupRouter(
 	}
 
 	// Protected routes
-	protected := v1.Group("") // Use v1 as base for protected routes
+	protected := v1.Group("")
 	protected.Use(jwtMiddleware.Handler())
 	{
 		protected.GET("/users", userHandler.GetAllUsers)
@@ -113,7 +117,6 @@ func SetupRouter(
 
 		// Protected challenge participant management (creator only)
 		protected.DELETE("/challenges/:id/participants/:participant_id", challengeHandler.RemoveParticipant)
-
 		protected.GET("/challenges/:id/participants", challengeHandler.ListChallengeParticipants)
 
 		// Protected challenge invite routes
@@ -127,7 +130,13 @@ func SetupRouter(
 
 		// Protected challenge comment routes
 		protected.POST("/challenges/:id/comments", challengeHandler.AddComment)
-		protected.GET("/challenges/:id/comments/:comment_id", challengeHandler.GetComment)
+		protected.GET("/challenges/comments/:comment_id", challengeHandler.GetComment)
+
+		// Protected challenge like routes
+		protected.POST("/challenges/:id/like", challengeHandler.LikeChallenge)
+		protected.DELETE("/challenges/:id/like", challengeHandler.UnlikeChallenge)
+		protected.GET("/challenges/:id/likes", challengeHandler.GetChallengeLikeCount)
+		protected.GET("/challenges/:id/is-liked", challengeHandler.IsUserLikedChallenge)
 
 		// Protected user-specific challenge routes
 		protected.GET("/challenges/participating", challengeHandler.GetChallengesUserIsParticipating)
@@ -136,7 +145,7 @@ func SetupRouter(
 		protected.GET("/challenges/:id/requests", challengeHandler.GetRequestsSentToChallenge)
 		protected.GET("/challenges/:id/invites", challengeHandler.GetInvitesSentFromChallenge)
 
-		//Search & Discovery
+		// Search & Discovery
 		protected.GET("/challenges/creator-username/:username", challengeHandler.ListByCreatorUsername)
 		protected.GET("/challenges/category-name/:category_name", challengeHandler.ListByCategoryName)
 		protected.GET("/challenges/participant-count", challengeHandler.ListByParticipantCount)
@@ -149,32 +158,25 @@ func SetupRouter(
 
 		protected.GET("/challenges/:id/mutual-followers", challengeHandler.GetMutualFollowersInChallenge)
 
-		protected.POST("/challenges/:id/like", challengeHandler.LikeChallenge)
-		protected.DELETE("/challenges/:id/like", challengeHandler.UnlikeChallenge)
-		protected.GET("/challenges/:id/likes", challengeHandler.GetChallengeLikeCount)
-
-		// use day routes
-		protected.POST("/challenges/:id/days", userDayHandler.SaveDayData)          
-		protected.PUT("/challenges/:id/days", userDayHandler.UpdateDayData) 
-		protected.GET("/challenges/:id/days/:date", userDayHandler.GetDayData)     
-		protected.DELETE("/challenges/:id/days/:date", userDayHandler.DeleteDayData) 
-		protected.GET("/challenges/:id/progress", userDayHandler.GetGoalProgressChart) // ?start=YYYY-MM-DD&end=YYYY-MM-DD
+		protected.POST("/challenges/:id/days", userDayHandler.SaveDayData)
+		protected.PUT("/challenges/:id/days", userDayHandler.UpdateDayData)
+		protected.GET("/challenges/:id/days/:date", userDayHandler.GetDayData)
+		protected.DELETE("/challenges/:id/days/:date", userDayHandler.DeleteDayData)
+		protected.GET("/challenges/:id/progress", userDayHandler.GetGoalProgressChart)
 		protected.GET("/challenges/:id/feelings", userDayHandler.GetFeelingCounts)
-		// ========== NEW POST ROUTES ==========
+
 		// Post CRUD operations
 		protected.POST("/posts", postHandler.CreatePost)
-		protected.GET("/posts/:id", postHandler.GetPost)
 		protected.PUT("/posts/:id", postHandler.UpdatePost)
 		protected.DELETE("/posts/:id", postHandler.DeletePost)
 
 		// Post feed and user posts
 		protected.GET("/posts/feed", postHandler.GetFeedPosts)
 		protected.GET("/posts/user/:user_id", postHandler.GetUserPosts)
+		protected.GET("/posts/challenge/:challenge_id", postHandler.GetPostsByChallenge)
 
-		// ========== POLYMORPHIC COMMENT ROUTES ==========
-		// These work for both challenges AND posts
-		protected.POST("/comments", postHandler.AddComment)
-		protected.GET("/comments", postHandler.GetComments)
+		// Post comment routes
+		protected.POST("/posts/:id/comments", postHandler.AddPostComment)
 
 		// ========== POLYMORPHIC LIKE ROUTES ==========
 		// These work for challenges, posts, AND comments
@@ -184,6 +186,9 @@ func SetupRouter(
 		protected.POST("/posts/images/presign", postHandler.PresignPostImages)
 		protected.POST("/users/profile/picture", userHandler.UploadProfilePicture)
 		protected.POST("/challenges/:id/cover", challengeHandler.UploadChallengeCover)
+		// Post like routes
+		protected.POST("/posts/:id/like", postHandler.LikePost)
+		protected.DELETE("/posts/:id/like", postHandler.UnlikePost)
 	}
 
 	return r

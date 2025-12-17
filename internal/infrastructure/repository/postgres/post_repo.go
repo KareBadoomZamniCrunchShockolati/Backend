@@ -83,17 +83,8 @@ func (r *PostRepository) GetPostsByChallenge(challengeID uint, offset, limit int
 }
 
 func (r *PostRepository) GetFeedPosts(userID uint, offset, limit int) ([]*model.Post, error) {
-	var entities []entity.PostEntity
-	result := r.db.Order("created_at DESC").
-		Offset(offset).
-		Limit(limit).
-		Find(&entities)
-
-	if result.Error != nil {
-		return nil, exception.NewRepositoryError(result.Error)
-	}
-
-	return toPostModels(entities), nil
+	// Call GetPostsByFollowedUsers instead of getting all posts
+	return r.GetPostsByFollowedUsers(userID, offset, limit)
 }
 
 func (r *PostRepository) UpdatePost(post *model.Post) (*model.Post, error) {
@@ -125,6 +116,22 @@ func (r *PostRepository) DeletePost(postID uint) error {
 		return exception.NewRepositoryError(result.Error)
 	}
 	return nil
+}
+func (r *PostRepository) GetPostsByFollowedUsers(userID uint, offset, limit int) ([]*model.Post, error) {
+	var postEntities []entity.PostEntity
+
+	query := r.db.
+		Joins("JOIN follows ON posts.user_id = follows.following_id").
+		Where("follows.follower_id = ? AND follows.deleted_at IS NULL AND posts.user_id != ?", userID, userID).
+		Order("posts.created_at DESC").
+		Offset(offset).
+		Limit(limit)
+
+	if err := query.Find(&postEntities).Error; err != nil {
+		return nil, exception.NewRepositoryError(err)
+	}
+
+	return toPostModels(postEntities), nil
 }
 
 // Helper functions

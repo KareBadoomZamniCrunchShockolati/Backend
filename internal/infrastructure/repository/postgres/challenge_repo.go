@@ -6,6 +6,9 @@ import (
 	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/infrastructure/repository/postgres/entity"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -52,7 +55,7 @@ func (r *ChallengeRepository) GetChallengeByID(id uint, userID uint) (*model.Cha
 	pendingInviteSubQuery := r.db.Select("challenge_id").
 		Table("challenge_participation_requests").
 		Where("to_user_id = ? AND type = ? AND status = ?",
-			userID, enum.RequestTypeInvite, enum.RequestStatusPending) 
+			userID, enum.RequestTypeInvite, enum.RequestStatusPending)
 
 	baseQuery := r.db.Table("challenges c").Where(
 		r.db.Where("c.id = ? AND c.visibility = ? AND c.is_stopped = false", id, "public").
@@ -374,18 +377,30 @@ func (r *ChallengeRepository) batchGetLikeCounts(challengeIDs []uint) map[uint]u
 	if len(challengeIDs) == 0 {
 		return counts
 	}
+
+	// Convert challenge IDs to string for query
+	var idStrings []string
+	for _, id := range challengeIDs {
+		idStrings = append(idStrings, strconv.FormatUint(uint64(id), 10))
+	}
+
 	var results []struct {
-		ChallengeID uint
-		Count       int64
+		EntityID uint
+		Count    int64
 	}
-	r.db.Table("likes").
-		Select("challenge_id, COUNT(*) as count").
-		Where("challenge_id IN ?", challengeIDs).
-		Group("challenge_id").
-		Find(&results)
+
+	// Use entity_type = 'challenge' and entity_id IN challengeIDs
+	query := fmt.Sprintf(
+		"SELECT entity_id, COUNT(*) as count FROM likes WHERE entity_type = 'challenge' AND entity_id IN (%s) GROUP BY entity_id",
+		strings.Join(idStrings, ","),
+	)
+
+	r.db.Raw(query).Scan(&results)
+
 	for _, r := range results {
-		counts[r.ChallengeID] = uint(r.Count)
+		counts[r.EntityID] = uint(r.Count)
 	}
+
 	for _, id := range challengeIDs {
 		if _, exists := counts[id]; !exists {
 			counts[id] = 0
@@ -399,18 +414,30 @@ func (r *ChallengeRepository) batchGetCommentCounts(challengeIDs []uint) map[uin
 	if len(challengeIDs) == 0 {
 		return counts
 	}
+
+	// Convert challenge IDs to string for query
+	var idStrings []string
+	for _, id := range challengeIDs {
+		idStrings = append(idStrings, strconv.FormatUint(uint64(id), 10))
+	}
+
 	var results []struct {
-		ChallengeID uint
-		Count       int64
+		EntityID uint
+		Count    int64
 	}
-	r.db.Table("comments").
-		Select("challenge_id, COUNT(*) as count").
-		Where("challenge_id IN ?", challengeIDs).
-		Group("challenge_id").
-		Find(&results)
+
+	// Use entity_type = 'challenge' and entity_id IN challengeIDs
+	query := fmt.Sprintf(
+		"SELECT entity_id, COUNT(*) as count FROM comments WHERE entity_type = 'challenge' AND entity_id IN (%s) GROUP BY entity_id",
+		strings.Join(idStrings, ","),
+	)
+
+	r.db.Raw(query).Scan(&results)
+
 	for _, r := range results {
-		counts[r.ChallengeID] = uint(r.Count)
+		counts[r.EntityID] = uint(r.Count)
 	}
+
 	for _, id := range challengeIDs {
 		if _, exists := counts[id]; !exists {
 			counts[id] = 0
@@ -418,7 +445,6 @@ func (r *ChallengeRepository) batchGetCommentCounts(challengeIDs []uint) map[uin
 	}
 	return counts
 }
-
 func (r *ChallengeRepository) batchGetParticipantCounts(challengeIDs []uint) map[uint]uint {
 	counts := make(map[uint]uint)
 	if len(challengeIDs) == 0 {
