@@ -7,7 +7,7 @@ type PostRepository interface {
 	GetPost(postID uint) (*model.Post, error)
 	GetPostsByUser(userID uint, offset, limit int) ([]*model.Post, error)
 	GetPostsByChallenge(challengeID uint, offset, limit int) ([]*model.Post, error)
-	GetFeedPosts(userID uint, offset, limit int) ([]*model.Post, error)
+	GetFeedPosts(userID uint, offset, limit int) ([]*model.Post, error) // This is missing
 	UpdatePost(post *model.Post) (*model.Post, error)
 	DeletePost(postID uint) error
 }

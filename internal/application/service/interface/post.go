@@ -12,6 +12,9 @@ type PostServicer interface {
 	DeletePost(postID, userID uint) error
 	GetUserPosts(userID uint, offset, limit int) ([]*dto.PostResponseDTO, error)
 	GetFeedPosts(userID uint, offset, limit int) ([]*dto.PostResponseDTO, error)
+	GetPostsByChallenge(challengeID, userID uint, offset, limit int) ([]*dto.PostResponseDTO, error)
+
+	// Polymorphic methods for posts
 	AddComment(userID uint, input *dto.CommentRequestDTO) (*model.Comment, error)
 	GetComments(entityType string, entityID, userID uint, offset, limit int) ([]*dto.CommentResponseDTO, error)
 	LikeEntity(userID uint, input *dto.LikeRequestDTO) error

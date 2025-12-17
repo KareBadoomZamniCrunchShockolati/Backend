@@ -69,7 +69,8 @@ func (s *PostService) CreatePost(userID uint, input *dto.CreatePostDTO) (*model.
 	return s.postRepo.CreatePost(post)
 }
 
-func (s *PostService) GetPost(postID, userID uint) (*dto.PostResponseDTO, error) {
+func (s *PostService) GetPost(postID uint, userID uint) (*dto.PostResponseDTO, error) {
+	// Get the post
 	post, err := s.postRepo.GetPost(postID)
 	if err != nil {
 		return nil, err
@@ -78,6 +79,7 @@ func (s *PostService) GetPost(postID, userID uint) (*dto.PostResponseDTO, error)
 		return nil, exception.NewNotFoundException("Post", fmt.Sprintf("%d", postID), "POST_NOT_FOUND")
 	}
 
+	// Get user info
 	user, err := s.userRepo.GetUserByID(post.UserID)
 	if err != nil {
 		return nil, err
@@ -87,11 +89,26 @@ func (s *PostService) GetPost(postID, userID uint) (*dto.PostResponseDTO, error)
 		username = user.Username
 	}
 
-	likeCount, _ := s.likeRepo.GetLikeCount(model.LikeTypePost, postID)
-	commentCount, _ := s.commentRepo.GetCommentCount(model.CommentTypePost, postID)
-	isLiked, _ := s.likeRepo.IsUserLiked(model.LikeTypePost, postID, userID)
+	// Get like count
+	likeCount, err := s.likeRepo.GetLikeCount(model.LikeTypePost, post.ID)
+	if err != nil {
+		likeCount = 0
+	}
 
-	return &dto.PostResponseDTO{
+	// Get comment count
+	commentCount, err := s.commentRepo.GetCommentCount(model.CommentTypePost, post.ID)
+	if err != nil {
+		commentCount = 0
+	}
+
+	// Check if current user liked this post
+	isLiked, err := s.likeRepo.IsUserLiked(model.LikeTypePost, post.ID, userID)
+	if err != nil {
+		isLiked = false
+	}
+
+	// Build response
+	response := &dto.PostResponseDTO{
 		ID:           post.ID,
 		UserID:       post.UserID,
 		Username:     username,
@@ -103,7 +120,9 @@ func (s *PostService) GetPost(postID, userID uint) (*dto.PostResponseDTO, error)
 		IsLiked:      isLiked,
 		CreatedAt:    post.CreatedAt,
 		UpdatedAt:    post.UpdatedAt,
-	}, nil
+	}
+
+	return response, nil
 }
 
 func (s *PostService) UpdatePost(postID, userID uint, input *dto.UpdatePostDTO) (*model.Post, error) {
@@ -200,6 +219,7 @@ func (s *PostService) AddComment(userID uint, input *dto.CommentRequestDTO) (*mo
 
 	return s.commentRepo.CreateComment(comment)
 }
+
 func (s *PostService) GetComments(entityType string, entityID, userID uint, offset, limit int) ([]*dto.CommentResponseDTO, error) {
 	comments, err := s.commentRepo.GetComments(model.CommentType(entityType), entityID, offset, limit)
 	if err != nil {
@@ -207,7 +227,6 @@ func (s *PostService) GetComments(entityType string, entityID, userID uint, offs
 	}
 
 	nestedComments := s.buildCommentTree(comments)
-
 	return s.convertCommentsToDTO(nestedComments, userID), nil
 }
 
@@ -217,11 +236,9 @@ func (s *PostService) buildCommentTree(comments []*model.Comment) []*model.Comme
 
 	// First pass: create map and identify root comments
 	for _, comment := range comments {
-		// Create a copy to avoid modifying the original
 		commentCopy := *comment
 		commentMap[commentCopy.ID] = &commentCopy
 
-		// If no parent or parent is 0, it's a root comment
 		if commentCopy.ParentID == nil || *commentCopy.ParentID == 0 {
 			rootComments = append(rootComments, &commentCopy)
 		}
@@ -258,10 +275,7 @@ func (s *PostService) convertCommentToDTO(comment *model.Comment, userID uint) *
 		return nil
 	}
 
-	// Get username with proper error handling
 	username := s.getUsernameForComment(comment.UserID)
-
-	// Get like information with error handling
 	likeCount, isLiked := s.getCommentLikeInfo(comment.ID, userID)
 
 	dto := &dto.CommentResponseDTO{
@@ -277,7 +291,6 @@ func (s *PostService) convertCommentToDTO(comment *model.Comment, userID uint) *
 		CreatedAt:  comment.CreatedAt,
 	}
 
-	// Recursively convert replies if they exist
 	if comment.Replies != nil && len(comment.Replies) > 0 {
 		dto.Replies = s.convertCommentsToDTO(comment.Replies, userID)
 	}
@@ -285,7 +298,6 @@ func (s *PostService) convertCommentToDTO(comment *model.Comment, userID uint) *
 	return dto
 }
 
-// Helper function to get username with proper error handling
 func (s *PostService) getUsernameForComment(userID uint) string {
 	user, err := s.userRepo.GetUserByID(userID)
 	if err != nil {
@@ -307,7 +319,6 @@ func (s *PostService) getCommentLikeInfo(commentID, userID uint) (uint, bool) {
 
 	isLiked, err := s.likeRepo.IsUserLiked(model.LikeTypeComment, commentID, userID)
 	if err != nil {
-
 		isLiked = false
 	}
 
@@ -319,7 +330,7 @@ func (s *PostService) LikeEntity(userID uint, input *dto.LikeRequestDTO) error {
 		return exception.NewBadRequestException("Input cannot be nil", "LIKE_BAD_INPUT", nil)
 	}
 
-	// Validate entity exists first (your existing code)
+	// Validate entity exists first
 	switch input.EntityType {
 	case "challenge":
 		challenge, err := s.challengeRepo.GetChallengeByID(input.EntityID, userID)
@@ -381,6 +392,25 @@ func (s *PostService) UnlikeEntity(userID uint, input *dto.LikeRequestDTO) error
 	}
 
 	return s.likeRepo.DeleteLike(model.LikeType(input.EntityType), input.EntityID, userID)
+}
+
+func (s *PostService) GetPostsByChallenge(challengeID, userID uint, offset, limit int) ([]*dto.PostResponseDTO, error) {
+	// Verify challenge exists
+	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if challenge == nil {
+		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", challengeID), "CHALLENGE_NOT_FOUND")
+	}
+
+	// Get posts for this challenge
+	posts, err := s.postRepo.GetPostsByChallenge(challengeID, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.enrichPostsWithDetails(posts, userID)
 }
 
 // Helper method

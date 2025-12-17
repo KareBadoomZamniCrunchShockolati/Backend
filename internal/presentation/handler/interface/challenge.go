@@ -44,7 +44,7 @@ type ChallengeHandler interface {
 	GetAllCategories(ctx *gin.Context)
 	GetMutualFollowersInChallenge(ctx *gin.Context)
 	LikeChallenge(ctx *gin.Context)
-    UnlikeChallenge(ctx *gin.Context)
-    GetChallengeLikeCount(ctx *gin.Context)
+	UnlikeChallenge(ctx *gin.Context)
+	GetChallengeLikeCount(ctx *gin.Context)
 	IsUserLikedChallenge(ctx *gin.Context)
 }

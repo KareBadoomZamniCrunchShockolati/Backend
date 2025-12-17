@@ -57,11 +57,11 @@ func (r *LikeRepository) DeleteLike(entityType model.LikeType, entityID, userID 
 func (r *LikeRepository) IsUserLiked(entityType model.LikeType, entityID, userID uint) (bool, error) {
 	var count int64
 	err := r.db.Model(&entity.LikeEntity{}).
-		Where("entity_type = ? AND entity_id = ? AND user_id = ?", string(entityType), entityID, userID).
+		Where("entity_type = ? AND entity_id = ? AND user_id = ?",
+			entityType, entityID, userID).
 		Count(&count).Error
-
 	if err != nil {
-		return false, exception.NewRepositoryError(err)
+		return false, err
 	}
 	return count > 0, nil
 }
