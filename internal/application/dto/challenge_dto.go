@@ -38,6 +38,7 @@ type UpdateChallengeDTO struct {
 	ImageURL        *string                   `json:"image_url,omitempty"`
 	StartTime       *time.Time                `json:"start_time,omitempty"`
 	Timezone        *string                   `json:"timezone,omitempty"`
+	CoverImage      *string                   `json:"cover_image,omitempty"`
 }
 
 type ChallengePreviewDTO struct {
@@ -54,6 +55,7 @@ type ChallengePreviewDTO struct {
 	ImageURL            string                   `json:"image_url"`
 	MaxParticipants     uint                     `json:"max_participants"`
 	CurrentParticipants int                      `json:"current_participants"`
+	CoverImage          string                   `json:"cover_image"`
 	LikeCount           uint                     `json:"like_count"`
 	CommentCount        uint                     `json:"comment_count"`
 	StartTime           time.Time                `json:"start_time"`

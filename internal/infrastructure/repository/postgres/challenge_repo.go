@@ -285,10 +285,11 @@ func (r *ChallengeRepository) executeQuery(query *gorm.DB, userID uint, offset, 
 		EndTime         *time.Time
 		Timezone        string
 		CreatedAt       time.Time
+		CoverImage      string
 	}
 
 	err := query.
-		Select("c.id, c.title, c.description, c.rule, c.category_id, c.creator_id, c.visibility, c.image_url, c.max_participants, c.start_time, c.end_time, c.timezone, c.created_at").
+		Select("c.id, c.title, c.description, c.rule, c.category_id, c.creator_id, c.visibility, c.cover_image, c.max_participants, c.start_time, c.end_time, c.timezone, c.created_at").
 		Offset(offset).Limit(limit).
 		Find(&results).Error
 	if err != nil {
@@ -324,7 +325,7 @@ func (r *ChallengeRepository) executeQuery(query *gorm.DB, userID uint, offset, 
 			CreatorUsername:     creatorMap[res.CreatorID],
 			CreatorID:           res.CreatorID,
 			Visibility:          enum.ChallengeVisibility(res.Visibility),
-			ImageURL:            res.ImageURL,
+			CoverImage:      res.CoverImage,
 			MaxParticipants:     res.MaxParticipants,
 			CurrentParticipants: int(participantCounts[res.ID]),
 			LikeCount:           likeCounts[res.ID],
@@ -541,7 +542,7 @@ func toChallengeEntity(m *model.ChallengeModel) *entity.ChallengeEntity {
 		StartTime:       &m.StartTime,
 		EndTime:         m.EndTime,
 		Timezone:        m.Timezone,
-		ImageURL:        m.ImageURL,
+		CoverImage:      m.CoverImage,
 		IsStopped:       m.IsStopped,
 		CommentsEnabled: m.CommentsEnabled,
 	}
@@ -562,7 +563,7 @@ func toChallengeModel(e *entity.ChallengeEntity) *model.ChallengeModel {
 		EndTime:         e.EndTime,
 		StartTime:       *e.StartTime,
 		Timezone:        e.Timezone,
-		ImageURL:        e.ImageURL,
+		CoverImage:      e.CoverImage,
 		IsStopped:       e.IsStopped,
 		CommentsEnabled: e.CommentsEnabled,
 		CreatedAt:       e.CreatedAt,

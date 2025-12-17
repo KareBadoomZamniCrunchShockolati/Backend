@@ -2,10 +2,15 @@ package dto
 
 import "time"
 
+type PostImageDTO struct {
+	TempKey string `json:"temp_key,omitempty"`
+	URL     string `json:"url,omitempty"`
+}
+
 type CreatePostDTO struct {
-	Description string   `json:"description" validate:"required,min=1,max=1000"`
-	ChallengeID *uint    `json:"challenge_id,omitempty"`
-	Pictures    []string `json:"pictures" validate:"max=5"`
+	Description string         `json:"description"`
+	Images      []PostImageDTO `json:"images,omitempty" validate:"max=10"`
+	ChallengeID *uint          `json:"challenge_id,omitempty"`
 }
 
 type UpdatePostDTO struct {

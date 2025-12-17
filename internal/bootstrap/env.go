@@ -16,6 +16,7 @@ type Env struct {
 	Redis    RedisConfig
 	Security SecurityConfig
 	Email    EmailConfig
+	Storage  StorageConfig
 }
 
 type AppConfig struct {
@@ -53,7 +54,16 @@ type EmailConfig struct {
 	SMTPPass string
 }
 
-// Load environment variables and constants into a unified struct
+type StorageConfig struct {
+	Provider  string
+	Endpoint  string
+	Region    string
+	Bucket    string
+	AccessKey string
+	SecretKey string
+	PublicURL string
+}
+
 func LoadEnv() *Env {
 	if err := godotenv.Load("../../.env"); err != nil {
 		log.Println("No .env file found, using system environment variables.")
@@ -90,11 +100,19 @@ func LoadEnv() *Env {
 			SMTPUser: mustGetEnv("SMTP_USER"),
 			SMTPPass: mustGetEnv("SMTP_PASS"),
 		},
+		Storage: StorageConfig{
+			Provider:  getEnv("STORAGE_PROVIDER", "arvan"),
+			Endpoint:  mustGetEnv("STORAGE_ENDPOINT"),
+			Region:    mustGetEnv("STORAGE_REGION"),
+			Bucket:    mustGetEnv("STORAGE_BUCKET"),
+			AccessKey: mustGetEnv("STORAGE_ACCESS_KEY"),
+			SecretKey: mustGetEnv("STORAGE_SECRET_KEY"),
+			PublicURL: mustGetEnv("STORAGE_PUBLIC_URL"),
+		},
 	}
 }
 
 // --- Helper functions ---
-
 func getEnv(key, defaultValue string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value

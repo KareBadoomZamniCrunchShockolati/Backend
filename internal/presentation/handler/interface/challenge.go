@@ -47,4 +47,5 @@ type ChallengeHandler interface {
 	UnlikeChallenge(ctx *gin.Context)
 	GetChallengeLikeCount(ctx *gin.Context)
 	IsUserLikedChallenge(ctx *gin.Context)
+	UploadChallengeCover(ctx *gin.Context)
 }

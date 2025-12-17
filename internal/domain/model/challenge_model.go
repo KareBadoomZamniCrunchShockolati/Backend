@@ -13,7 +13,6 @@ type ChallengeModel struct {
 	CreatorID       uint
 	MaxParticipants uint
 	Visibility      enum.ChallengeVisibility
-	ImageURL        string
 	Rule            string
 	Timezone        string
 	Location        string
@@ -24,4 +23,5 @@ type ChallengeModel struct {
 	CommentsEnabled bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	CoverImage      string
 }

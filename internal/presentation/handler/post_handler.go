@@ -33,7 +33,7 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		return
 	}
 
-	post, err := h.postService.CreatePost(userID.(uint), &input)
+	post, err := h.postService.CreatePost(c.Request.Context(), userID.(uint), &input)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -310,4 +310,19 @@ func handleError(c *gin.Context, err error) {
 	default:
 		c.JSON(http.StatusInternalServerError, exception.NewInternalServerException("Internal server error", "INTERNAL_SERVER_ERROR", nil))
 	}
+}
+
+func (h *PostHandler) PresignPostImages(c *gin.Context) {
+	userID := c.GetUint("userID")
+	var req dto.PresignPostImagesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("invalid request body", "INVALID_INPUT", nil))
+		return
+	}
+	resp, err := h.postService.PresignPostImages(c.Request.Context(), userID, req)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, resp)
 }

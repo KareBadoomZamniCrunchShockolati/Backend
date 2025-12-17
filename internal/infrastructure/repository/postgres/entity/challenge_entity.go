@@ -25,6 +25,7 @@ type ChallengeEntity struct {
 	IsStopped        bool `gorm:"default:false"`
 	CommentsEnabled  bool `gorm:"default:false"`
 	LikeCount        uint `gorm:"default:0"`
+	CoverImage       string `gorm:"type:text"`
 	ParticipantCount uint `gorm:"default:0"`
 	// Relations
 	Participants []*ChallengeParticipantEntity `gorm:"foreignKey:ChallengeID"`
