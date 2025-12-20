@@ -31,14 +31,17 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 		CategoryID      uint   `json:"category_id" validate:"required"`
 		MaxParticipants uint   `json:"max_participants" validate:"omitempty,min=0"`
 		Visibility      string `json:"visibility" validate:"required,oneof=public private invite"`
-		Location        string `json:"location"`
-		Goal            *int   `json:"goal"`
-		Rule            string `json:"rule" validate:"required"`
-		CommentsEnabled bool   `json:"comments_enabled"`
-		StartTime       string `json:"start_time" validate:"required"`
-		EndTime         string `json:"end_time" validate:"required"`
-		Timezone        string `json:"timezone"`
-		ImageURL        string `json:"image_url"`
+		// Map location fields (from frontend map)
+		Latitude        *float64 `json:"latitude" validate:"omitempty,latitude"`
+		Longitude       *float64 `json:"longitude" validate:"omitempty,longitude"`
+		Address         *string  `json:"address" validate:"omitempty,max=500"`
+		Goal            *int     `json:"goal"`
+		Rule            string   `json:"rule" validate:"required"`
+		CommentsEnabled bool     `json:"comments_enabled"`
+		StartTime       string   `json:"start_time" validate:"required"`
+		EndTime         string   `json:"end_time" validate:"required"`
+		Timezone        string   `json:"timezone"`
+		ImageURL        string   `json:"image_url"`
 	}
 	params := Validated[createChallengeParams](ctx)
 	userID, exists := ctx.Get("userID")
@@ -62,7 +65,9 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 		CategoryID:      params.CategoryID,
 		MaxParticipants: params.MaxParticipants,
 		Visibility:      enum.ChallengeVisibility(params.Visibility),
-		Location:        params.Location,
+		Latitude:        params.Latitude,
+		Longitude:       params.Longitude,
+		Address:         params.Address,
 		Goal:            params.Goal,
 		Rule:            params.Rule,
 		CommentsEnabled: params.CommentsEnabled,
@@ -104,15 +109,19 @@ func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
 		CategoryID      *uint   `json:"category_id"`
 		MaxParticipants *uint   `json:"max_participants"`
 		Visibility      *uint   `json:"visibility"`
-		Location        *string `json:"location"`
-		Goal            *int    `json:"goal"`
-		Rule            *string `json:"rule"`
-		CommentsEnabled *bool   `json:"comments_enabled"`
-		IsStopped       *bool   `json:"is_stopped"`
-		EndTime         *string `json:"end_time"`
-		ImageURL        *string `json:"image_url"`
-		StartTime       *string `json:"start_time"`
-		Timezone        *string `json:"timezone"`
+		// Map location fields (from frontend map)
+		Latitude        *float64 `json:"latitude" validate:"omitempty,latitude"`
+		Longitude       *float64 `json:"longitude" validate:"omitempty,longitude"`
+		Address         *string  `json:"address" validate:"omitempty,max=500"`
+		Goal            *int     `json:"goal"`
+		Rule            *string  `json:"rule"`
+		CommentsEnabled *bool    `json:"comments_enabled"`
+		IsStopped       *bool    `json:"is_stopped"`
+		EndTime         *string  `json:"end_time"`
+		ImageURL        *string  `json:"image_url"`
+		StartTime       *string  `json:"start_time"`
+		Timezone        *string  `json:"timezone"`
+		CoverImage      *string  `json:"cover_image"`
 	}
 	params := Validated[updateChallengeParams](ctx)
 	userID, exists := ctx.Get("userID")
@@ -146,7 +155,9 @@ func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
 		CategoryID:      params.CategoryID,
 		MaxParticipants: params.MaxParticipants,
 		Visibility:      visibility,
-		Location:        params.Location,
+		Latitude:        params.Latitude,
+		Longitude:       params.Longitude,
+		Address:         params.Address,
 		Goal:            params.Goal,
 		Rule:            params.Rule,
 		CommentsEnabled: params.CommentsEnabled,
@@ -155,6 +166,7 @@ func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
 		ImageURL:        params.ImageURL,
 		StartTime:       startTime,
 		Timezone:        params.Timezone,
+		CoverImage:      params.CoverImage,
 	}
 
 	updatedChallenge, err := h.challengeService.UpdateChallenge(params.ID, userID.(uint), updateChallengeDTO)
@@ -661,8 +673,9 @@ func (h *ChallengeHandler) LeaveChallenge(ctx *gin.Context) {
 
 func (h *ChallengeHandler) AddComment(ctx *gin.Context) {
 	type addCommentParams struct {
-		ID      uint   `uri:"id" validate:"required"`
-		Content string `json:"content" validate:"required,min=1,max=1000"`
+		ID       uint   `uri:"id" validate:"required"`
+		Content  string `json:"content" validate:"required,min=1,max=1000"`
+		ParentID *uint  `json:"parent_id"`
 	}
 	params := Validated[addCommentParams](ctx)
 	userID, exists := ctx.Get("userID")

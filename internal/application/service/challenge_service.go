@@ -53,11 +53,40 @@ func NewChallengeService(
 	}
 }
 
+// Validation functions for map coordinates
+func isValidLatitude(lat float64) bool {
+	return lat >= -90 && lat <= 90
+}
+
+func isValidLongitude(lng float64) bool {
+	return lng >= -180 && lng <= 180
+}
+
 // Challenge CRUD operations
 func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*model.ChallengeModel, error) {
 	if input == nil {
 		return nil, exception.NewBadRequestException("Input cannot be nil", "CHALLENGE_CREATE_BAD_INPUT", nil)
 	}
+
+	// Validate map coordinates if provided
+	if input.Latitude != nil && input.Longitude != nil {
+		if !isValidLatitude(*input.Latitude) || !isValidLongitude(*input.Longitude) {
+			return nil, exception.NewBadRequestException(
+				"Invalid map coordinates. Latitude must be between -90 and 90, longitude between -180 and 180",
+				"INVALID_MAP_COORDINATES",
+				nil,
+			)
+		}
+	} else if input.Latitude != nil || input.Longitude != nil {
+		// Only one coordinate provided (invalid for map)
+		return nil, exception.NewBadRequestException(
+			"Both latitude and longitude must be provided from the map interface",
+			"MISSING_MAP_COORDINATES",
+			nil,
+		)
+	}
+	// Note: It's okay if both are nil - location is optional
+
 	category, err := s.categoryRepo.GetCategoryByID(input.CategoryID)
 	if err != nil {
 		return nil, err
@@ -87,7 +116,10 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 		CreatorID:       input.CreatorID,
 		MaxParticipants: input.MaxParticipants,
 		Visibility:      input.Visibility,
-		Location:        input.Location,
+		// Set default location values
+		Latitude:        0,
+		Longitude:       0,
+		Address:         "",
 		Goal:            goal,
 		Rule:            input.Rule,
 		StartTime:       input.StartTime,
@@ -96,6 +128,16 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 		IsStopped:       false,
 		CommentsEnabled: input.CommentsEnabled,
 	}
+
+	// Set location if provided
+	if input.Latitude != nil && input.Longitude != nil {
+		challenge.Latitude = *input.Latitude
+		challenge.Longitude = *input.Longitude
+	}
+	if input.Address != nil {
+		challenge.Address = *input.Address
+	}
+
 	created, err := s.challengeRepo.CreateChallenge(challenge)
 	if err != nil {
 		return nil, err
@@ -150,9 +192,36 @@ func (s *ChallengeService) UpdateChallenge(id uint, currentUserID uint, input *d
 	if input.Visibility != nil {
 		challenge.Visibility = *input.Visibility
 	}
-	if input.Location != nil {
-		challenge.Location = *input.Location
+
+	// Handle map location updates (from frontend map interface)
+	if input.Latitude != nil || input.Longitude != nil {
+		// Validate that both coordinates are provided together
+		if (input.Latitude != nil && input.Longitude == nil) || (input.Latitude == nil && input.Longitude != nil) {
+			return nil, exception.NewBadRequestException(
+				"Both latitude and longitude must be provided from the map interface",
+				"MISSING_MAP_COORDINATES",
+				nil,
+			)
+		}
+
+		if input.Latitude != nil && input.Longitude != nil {
+			// Validate map coordinates
+			if !isValidLatitude(*input.Latitude) || !isValidLongitude(*input.Longitude) {
+				return nil, exception.NewBadRequestException(
+					"Invalid map coordinates",
+					"INVALID_MAP_COORDINATES",
+					nil,
+				)
+			}
+			challenge.Latitude = *input.Latitude
+			challenge.Longitude = *input.Longitude
+		}
 	}
+
+	if input.Address != nil {
+		challenge.Address = *input.Address
+	}
+
 	if input.Rule != nil {
 		challenge.Rule = *input.Rule
 	}
@@ -209,6 +278,55 @@ func (s *ChallengeService) StopChallenge(challengeID, currentUserID uint) error 
 	}
 
 	return s.challengeRepo.StopChallenge(challengeID)
+}
+
+func (s *ChallengeService) buildNestedComments(comments []*model.Comment, userID uint) []*dto.CommentResponseDTO {
+	commentMap := make(map[uint]*dto.CommentResponseDTO)
+	var rootComments []*dto.CommentResponseDTO
+
+	for _, comment := range comments {
+		username := ""
+		if comment.UserID > 0 {
+			user, err := s.userRepo.GetUserByID(comment.UserID)
+			if err == nil && user != nil {
+				username = user.Username
+			}
+		}
+
+		likeCount, _ := s.likeRepo.GetLikeCount(model.LikeTypeComment, comment.ID)
+		isLiked, _ := s.likeRepo.IsUserLiked(model.LikeTypeComment, comment.ID, userID)
+
+		commentDTO := &dto.CommentResponseDTO{
+			ID:         comment.ID,
+			EntityType: string(comment.EntityType),
+			EntityID:   comment.EntityID,
+			UserID:     comment.UserID,
+			Username:   username,
+			Content:    comment.Content,
+			ParentID:   comment.ParentID,
+			LikeCount:  likeCount,
+			IsLiked:    isLiked,
+			CreatedAt:  comment.CreatedAt,
+			Replies:    []*dto.CommentResponseDTO{},
+		}
+		commentMap[comment.ID] = commentDTO
+
+		// If no parent or parent is 0, it's a root comment
+		if comment.ParentID == nil || *comment.ParentID == 0 {
+			rootComments = append(rootComments, commentDTO)
+		}
+	}
+
+	// Second pass: build the tree structure
+	for _, comment := range comments {
+		if comment.ParentID != nil && *comment.ParentID != 0 {
+			if parent, exists := commentMap[*comment.ParentID]; exists {
+				parent.Replies = append(parent.Replies, commentMap[comment.ID])
+			}
+		}
+	}
+
+	return rootComments
 }
 
 func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDetailDTO, error) {
@@ -304,12 +422,14 @@ func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDeta
 		CreatorUsername:     creatorUsername,
 		CreatorID:           challenge.CreatorID,
 		Visibility:          challenge.Visibility,
-		Location:            challenge.Location,
+		Latitude:            challenge.Latitude,
+		Longitude:           challenge.Longitude,
+		Address:             challenge.Address,
 		Goal:                challenge.Goal,
 		MaxParticipants:     challenge.MaxParticipants,
 		CurrentParticipants: int(totalParticipants),
 		LikeCount:           likeCount,
-		CommentCount:        uint(len(comments)), //includes all comments (even nested replies)
+		CommentCount:        uint(len(comments)),
 		StartTime:           challenge.StartTime,
 		EndTime:             challenge.EndTime,
 		Timezone:            challenge.Timezone,
@@ -325,62 +445,6 @@ func (s *ChallengeService) GetChallengeByID(id, userID uint) (*dto.ChallengeDeta
 		Participants:        participantDTOs,
 		Comments:            commentDTOs,
 	}, nil
-}
-
-// Helper function to build nested comments
-func (s *ChallengeService) buildNestedComments(comments []*model.Comment, userID uint) []dto.CommentResponseDTO {
-	commentMap := make(map[uint]*dto.CommentResponseDTO)
-	var rootComments []*dto.CommentResponseDTO
-
-	// First pass: create all comment DTOs
-	for _, comment := range comments {
-		username := ""
-		if comment.UserID > 0 {
-			user, err := s.userRepo.GetUserByID(comment.UserID)
-			if err == nil && user != nil {
-				username = user.Username
-			}
-		}
-
-		likeCount, _ := s.likeRepo.GetLikeCount(model.LikeTypeComment, comment.ID)
-		isLiked, _ := s.likeRepo.IsUserLiked(model.LikeTypeComment, comment.ID, userID)
-
-		commentDTO := &dto.CommentResponseDTO{
-			ID:         comment.ID,
-			EntityType: string(comment.EntityType),
-			EntityID:   comment.EntityID,
-			UserID:     comment.UserID,
-			Username:   username,
-			Content:    comment.Content,
-			ParentID:   comment.ParentID,
-			LikeCount:  likeCount,
-			IsLiked:    isLiked,
-			CreatedAt:  comment.CreatedAt,
-			Replies:    []*dto.CommentResponseDTO{},
-		}
-		commentMap[comment.ID] = commentDTO
-
-		// If no parent or parent is 0, it's a root comment
-		if comment.ParentID == nil || *comment.ParentID == 0 {
-			rootComments = append(rootComments, commentDTO)
-		}
-	}
-
-	// Second pass: build the tree structure
-	for _, comment := range comments {
-		if comment.ParentID != nil && *comment.ParentID != 0 {
-			if parent, exists := commentMap[*comment.ParentID]; exists {
-				parent.Replies = append(parent.Replies, commentMap[comment.ID])
-			}
-		}
-	}
-
-	// Convert to non-pointer slice to match DTO definition
-	result := make([]dto.CommentResponseDTO, len(rootComments))
-	for i, comment := range rootComments {
-		result[i] = *comment
-	}
-	return result
 }
 
 func (s *ChallengeService) GetAllChallenges(userID, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
@@ -858,57 +922,8 @@ func (s *ChallengeService) GetAllComments(challengeID, userID uint, offset, limi
 		return nil, err
 	}
 
-	nestedComments := s.buildNestedCommentsForInterface(comments, userID)
+	nestedComments := s.buildNestedComments(comments, userID)
 	return nestedComments, nil
-}
-
-func (s *ChallengeService) buildNestedCommentsForInterface(comments []*model.Comment, userID uint) []*dto.CommentResponseDTO {
-	commentMap := make(map[uint]*dto.CommentResponseDTO)
-	var rootComments []*dto.CommentResponseDTO
-
-	for _, comment := range comments {
-		username := ""
-		if comment.UserID > 0 {
-			user, err := s.userRepo.GetUserByID(comment.UserID)
-			if err == nil && user != nil {
-				username = user.Username
-			}
-		}
-
-		likeCount, _ := s.likeRepo.GetLikeCount(model.LikeTypeComment, comment.ID)
-		isLiked, _ := s.likeRepo.IsUserLiked(model.LikeTypeComment, comment.ID, userID)
-
-		commentDTO := &dto.CommentResponseDTO{
-			ID:         comment.ID,
-			EntityType: string(comment.EntityType),
-			EntityID:   comment.EntityID,
-			UserID:     comment.UserID,
-			Username:   username,
-			Content:    comment.Content,
-			ParentID:   comment.ParentID,
-			LikeCount:  likeCount,
-			IsLiked:    isLiked,
-			CreatedAt:  comment.CreatedAt,
-			Replies:    []*dto.CommentResponseDTO{},
-		}
-		commentMap[comment.ID] = commentDTO
-
-		// If no parent or parent is 0, it's a root comment
-		if comment.ParentID == nil || *comment.ParentID == 0 {
-			rootComments = append(rootComments, commentDTO)
-		}
-	}
-
-	// Second pass: build the tree structure
-	for _, comment := range comments {
-		if comment.ParentID != nil && *comment.ParentID != 0 {
-			if parent, exists := commentMap[*comment.ParentID]; exists {
-				parent.Replies = append(parent.Replies, commentMap[comment.ID])
-			}
-		}
-	}
-
-	return rootComments
 }
 
 // GetComment - UPDATED: Use polymorphic comments

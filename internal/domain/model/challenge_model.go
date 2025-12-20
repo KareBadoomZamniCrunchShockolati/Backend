@@ -15,7 +15,9 @@ type ChallengeModel struct {
 	Visibility      enum.ChallengeVisibility
 	Rule            string
 	Timezone        string
-	Location        string
+	Latitude        float64 `json:"latitude"`
+	Longitude       float64 `json:"longitude"`
+	Address         string  `json:"address"`
 	Goal            int
 	StartTime       time.Time
 	EndTime         *time.Time

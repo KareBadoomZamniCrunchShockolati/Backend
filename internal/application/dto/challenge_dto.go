@@ -12,8 +12,10 @@ type CreateChallengeDTO struct {
 	CategoryID      uint                     `json:"category_id" validate:"required"`
 	MaxParticipants uint                     `json:"max_participants" validate:"omitempty,min=0"`
 	Visibility      enum.ChallengeVisibility `json:"visibility" validate:"required,oneof=public private invite"`
-	Location        string                   `json:"location" validate:"omitempty"`
-	Goal            *int                      `json:"goal"`
+	Latitude        *float64                 `json:"latitude" validate:"omitempty,latitude"`
+	Longitude       *float64                 `json:"longitude" validate:"omitempty,longitude"`
+	Address         *string                  `json:"address" validate:"omitempty,max=500"`
+	Goal            *int                     `json:"goal"`
 	Rule            string                   `json:"rule" validate:"required"`
 	CommentsEnabled bool                     `json:"comments_enabled"`
 	StartTime       time.Time                `json:"start_time"`
@@ -32,7 +34,9 @@ type UpdateChallengeDTO struct {
 	MaxParticipants *uint                     `json:"max_participants,omitempty"`
 	Rule            *string                   `json:"rule,omitempty"`
 	Visibility      *enum.ChallengeVisibility `json:"visibility,omitempty"`
-	Location        *string                   `json:"location,omitempty"`
+	Latitude        *float64                  `json:"latitude,omitempty" validate:"omitempty,latitude"`
+	Longitude       *float64                  `json:"longitude,omitempty" validate:"omitempty,longitude"`
+	Address         *string                   `json:"address,omitempty" validate:"omitempty,max=500"`
 	Goal            *int                      `json:"goal,omitempty"`
 	EndTime         *time.Time                `json:"end_time,omitempty"`
 	ImageURL        *string                   `json:"image_url,omitempty"`
@@ -50,7 +54,9 @@ type ChallengePreviewDTO struct {
 	CreatorUsername     string                   `json:"creator_username"`
 	CreatorID           uint                     `json:"creator_id"`
 	Visibility          enum.ChallengeVisibility `json:"visibility"`
-	Location            string                   `json:"location"`
+	Latitude            float64                  `json:"latitude"`
+	Longitude           float64                  `json:"longitude"`
+	Address             string                   `json:"address"`
 	Goal                int                      `json:"goal"`
 	ImageURL            string                   `json:"image_url"`
 	MaxParticipants     uint                     `json:"max_participants"`
@@ -71,5 +77,5 @@ type ChallengeDetailDTO struct {
 	ChallengePreviewDTO
 	CommentsEnabled bool                     `json:"comments_enabled"`
 	Participants    []ParticipantResponseDTO `json:"participants,omitempty"`
-	Comments        []CommentResponseDTO     `json:"comments,omitempty"`
+	Comments        []*CommentResponseDTO    `json:"comments,omitempty"`
 }
