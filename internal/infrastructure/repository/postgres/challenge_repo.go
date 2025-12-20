@@ -254,7 +254,6 @@ func (r *ChallengeRepository) ListChallengesJoinedByUser(userID uint, offset, li
 	return r.executeQuery(query, userID, offset, limit)
 }
 
-
 func (r *ChallengeRepository) SearchChallenges(query string, visibility []enum.ChallengeVisibility, userID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
 	visStrings := make([]string, len(visibility))
 	for i, v := range visibility {
@@ -272,14 +271,18 @@ func (r *ChallengeRepository) SearchChallenges(query string, visibility []enum.C
 
 func (r *ChallengeRepository) executeQuery(query *gorm.DB, userID uint, offset, limit int) ([]*dto.ChallengePreviewDTO, error) {
 	var results []struct {
-		ID              uint
-		Title           string
-		Description     string
-		Rule            string
-		CategoryID      uint
-		CreatorID       uint
-		Visibility      string
-		ImageURL        string
+		ID          uint
+		Title       string
+		Description string
+		Rule        string
+		CategoryID  uint
+		CreatorID   uint
+		Visibility  string
+		ImageURL    string
+		// Map location fields - use non-pointer types with COALESCE
+		Latitude        float64 // Changed from *float64
+		Longitude       float64 // Changed from *float64
+		Address         string  // Changed from *string
 		MaxParticipants uint
 		StartTime       time.Time
 		EndTime         *time.Time
@@ -289,7 +292,25 @@ func (r *ChallengeRepository) executeQuery(query *gorm.DB, userID uint, offset, 
 	}
 
 	err := query.
-		Select("c.id, c.title, c.description, c.rule, c.category_id, c.creator_id, c.visibility, c.cover_image, c.max_participants, c.start_time, c.end_time, c.timezone, c.created_at").
+		Select(`
+			c.id, 
+			c.title, 
+			c.description, 
+			c.rule, 
+			c.category_id, 
+			c.creator_id, 
+			c.visibility, 
+			c.image_url, 
+			c.cover_image, 
+			c.max_participants, 
+			c.start_time, 
+			c.end_time, 
+			c.timezone, 
+			c.created_at,
+			COALESCE(c.latitude, 0) as latitude,    -- Use COALESCE for NULL handling
+			COALESCE(c.longitude, 0) as longitude,  -- Use COALESCE for NULL handling
+			COALESCE(c.address, '') as address      -- Use COALESCE for NULL handling
+		`).
 		Offset(offset).Limit(limit).
 		Find(&results).Error
 	if err != nil {
@@ -325,7 +346,10 @@ func (r *ChallengeRepository) executeQuery(query *gorm.DB, userID uint, offset, 
 			CreatorUsername:     creatorMap[res.CreatorID],
 			CreatorID:           res.CreatorID,
 			Visibility:          enum.ChallengeVisibility(res.Visibility),
-			CoverImage:      res.CoverImage,
+			Latitude:            res.Latitude,
+			Longitude:           res.Longitude,
+			Address:             res.Address,
+			CoverImage:          res.CoverImage,
 			MaxParticipants:     res.MaxParticipants,
 			CurrentParticipants: int(participantCounts[res.ID]),
 			LikeCount:           likeCounts[res.ID],
@@ -527,7 +551,6 @@ func (r *ChallengeRepository) GetMutualFollowersInChallenge(userID, challengeID 
 	return userModels, nil
 }
 
-// Helpers
 func toChallengeEntity(m *model.ChallengeModel) *entity.ChallengeEntity {
 	return &entity.ChallengeEntity{
 		Title:           m.Title,
@@ -537,7 +560,10 @@ func toChallengeEntity(m *model.ChallengeModel) *entity.ChallengeEntity {
 		MaxParticipants: m.MaxParticipants,
 		Visibility:      m.Visibility,
 		Rule:            m.Rule,
-		Location:        m.Location,
+		// Map location fields
+		Latitude:        m.Latitude,
+		Longitude:       m.Longitude,
+		Address:         m.Address,
 		Goal:            m.Goal,
 		StartTime:       &m.StartTime,
 		EndTime:         m.EndTime,
@@ -558,7 +584,10 @@ func toChallengeModel(e *entity.ChallengeEntity) *model.ChallengeModel {
 		MaxParticipants: e.MaxParticipants,
 		Visibility:      e.Visibility,
 		Rule:            e.Rule,
-		Location:        e.Location,
+		// Map location fields
+		Latitude:        e.Latitude,
+		Longitude:       e.Longitude,
+		Address:         e.Address,
 		Goal:            e.Goal,
 		EndTime:         e.EndTime,
 		StartTime:       *e.StartTime,

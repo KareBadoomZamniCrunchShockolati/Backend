@@ -9,8 +9,8 @@ type PostHandler interface {
 	DeletePost(c *gin.Context)
 	GetUserPosts(c *gin.Context)
 	GetFeedPosts(c *gin.Context)
-	LikeEntity(c *gin.Context)
-	UnlikeEntity(c *gin.Context)
+	LikePost(c *gin.Context)
+	UnlikePost(c *gin.Context)
 	PresignPostImages(c *gin.Context)
 	GetPostsByChallenge(c *gin.Context)
 

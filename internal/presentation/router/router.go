@@ -177,12 +177,6 @@ func SetupRouter(
 
 		// Post comment routes
 		protected.POST("/posts/:id/comments", postHandler.AddPostComment)
-
-		// ========== POLYMORPHIC LIKE ROUTES ==========
-		// These work for challenges, posts, AND comments
-		protected.POST("/likes", postHandler.LikeEntity)
-		protected.DELETE("/likes", postHandler.UnlikeEntity)
-
 		protected.POST("/posts/images/presign", postHandler.PresignPostImages)
 		protected.POST("/users/profile/picture", userHandler.UploadProfilePicture)
 		protected.POST("/challenges/:id/cover", challengeHandler.UploadChallengeCover)

@@ -18,19 +18,20 @@ type ChallengeEntity struct {
 	ImageURL         string                   `gorm:"type:text"`
 	Rule             string                   `gorm:"size:255;not null"`
 	Timezone         string                   `gorm:"size:50"`
-	Location         string                   `gorm:"type:varchar(100)"`
+	Latitude         float64                  `gorm:"type:decimal(10,8);default:0"`
+	Longitude        float64                  `gorm:"type:decimal(11,8);default:0"`
+	Address          string                   `gorm:"type:text;default:''"`
 	Goal             int                      `gorm:"not null"`
 	StartTime        *time.Time               `gorm:"index"`
 	EndTime          *time.Time
-	IsStopped        bool `gorm:"default:false"`
-	CommentsEnabled  bool `gorm:"default:false"`
-	LikeCount        uint `gorm:"default:0"`
+	IsStopped        bool   `gorm:"default:false"`
+	CommentsEnabled  bool   `gorm:"default:false"`
+	LikeCount        uint   `gorm:"default:0"`
 	CoverImage       string `gorm:"type:text"`
-	ParticipantCount uint `gorm:"default:0"`
+	ParticipantCount uint   `gorm:"default:0"`
 	// Relations
 	Participants []*ChallengeParticipantEntity `gorm:"foreignKey:ChallengeID"`
-	// Removed Comments and Likes relations since they're now polymorphic
-	Category ChallengeCategoryEntity `gorm:"foreignKey:CategoryID"`
+	Category     ChallengeCategoryEntity       `gorm:"foreignKey:CategoryID"`
 }
 
 func (ChallengeEntity) TableName() string {
