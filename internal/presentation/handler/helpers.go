@@ -23,11 +23,9 @@ func Response(ctx *gin.Context, statusCode int, message string, data interface{}
 		})
 	}
 }
-
 func Validated[T any](ctx *gin.Context) T {
 	var req T
 
-	// Always try to bind URI params first
 	if err := ctx.ShouldBindUri(&req); err != nil {
 		panic(exception.NewBadRequestException(
 			err.Error(),
@@ -35,8 +33,13 @@ func Validated[T any](ctx *gin.Context) T {
 			nil,
 		))
 	}
-
-	// Check content type before trying to bind JSON
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		panic(exception.NewBadRequestException(
+			err.Error(),
+			exception.ErrorTypeInvalidJSONFormat,
+			nil,
+		))
+	}
 	contentType := ctx.GetHeader("Content-Type")
 	if contentType == "application/json" && ctx.Request.ContentLength > 0 {
 		if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -48,15 +51,14 @@ func Validated[T any](ctx *gin.Context) T {
 		}
 	}
 
-	// Validate the struct
 	if err := validate.Struct(req); err != nil {
-		validationErrors := make(map[string]any)
-		validationErrors["details"] = err.Error()
+		validationErrors := map[string]any{"details": err.Error()}
 		panic(exception.NewValidationFailedException(validationErrors))
 	}
 
 	return req
 }
+
 func GetOffsetLimit(page, pageSize, defaultPage, defaultPageSize int) (int, int) {
 	if page <= 0 {
 		page = defaultPage
@@ -64,9 +66,7 @@ func GetOffsetLimit(page, pageSize, defaultPage, defaultPageSize int) (int, int)
 	if pageSize <= 0 {
 		pageSize = defaultPageSize
 	}
-
 	offset := (page - 1) * pageSize
 	limit := pageSize
-
 	return offset, limit
 }
