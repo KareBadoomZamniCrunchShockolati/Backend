@@ -22,11 +22,11 @@ func NewUserDayHandler(userDayService serviceinterface.UserDayServicer) *UserDay
 
 func (h *UserDayHandler) SaveDayData(c *gin.Context) {
 	type req struct {
-		ChID       uint    `uri:"id"`
-		Date     string  `json:"date" validate:"required,datetime=2006-01-02"`
-		Note     *string `json:"note"`
-		Feeling  *string `json:"feeling"`
-		Progress *uint   `json:"progress"`
+		ChID      uint    `uri:"id"`
+		Date      string  `json:"date" validate:"required,datetime=2006-01-02"`
+		Note      *string `json:"note"`
+		Feeling   *string `json:"feeling"`
+		Progress  *uint   `json:"progress"`
 	}
 	p := Validated[req](c)
 
@@ -52,7 +52,14 @@ func (h *UserDayHandler) SaveDayData(c *gin.Context) {
 	if p.Feeling != nil {
 		val := *p.Feeling
 		if val != "good" && val != "bad" {
-			panic(exception.NewBadRequestException("Invalid feeling", "INVALID_FEELING", nil))
+			panic(exception.NewBadRequestException(
+				"INVALID_FEELING",
+				map[string]any{
+					"field":   "feeling",
+					"got":     val,
+					"allowed": []string{"good", "bad"},
+				},
+			))
 		}
 		if err := h.userDayService.CreateFeeling(userID, cID, date, enum.UserFeeling(val)); err != nil {
 			panic(err)
@@ -69,45 +76,45 @@ func (h *UserDayHandler) SaveDayData(c *gin.Context) {
 }
 
 func (h *UserDayHandler) UpdateDayData(ctx *gin.Context) {
-    type req struct {
-        ID       uint    `uri:"id"`
-        Date     string  `json:"date" validate:"required,datetime=2006-01-02"`
-        Note     *string `json:"note"`
-        Feeling  *string `json:"feeling"`
-        Progress *uint   `json:"progress"`
-    }
-    p := Validated[req](ctx)
+	type req struct {
+		ID       uint    `uri:"id"`
+		Date     string  `json:"date" validate:"required,datetime=2006-01-02"`
+		Note     *string `json:"note"`
+		Feeling  *string `json:"feeling"`
+		Progress *uint   `json:"progress"`
+	}
+	p := Validated[req](ctx)
 
-    uID, ok := ctx.Get("userID")
-    if !ok {
-        panic(exception.NewMissingUserIDException())
-    }
+	uID, ok := ctx.Get("userID")
+	if !ok {
+		panic(exception.NewMissingUserIDException())
+	}
 
-    cID := p.ID
-    if val, exists := ctx.Get("challengeID"); exists {
-        cID = val.(uint)
-    }
+	cID := p.ID
+	if val, exists := ctx.Get("challengeID"); exists {
+		cID = val.(uint)
+	}
 
-    date, _ := time.Parse("2006-01-02", p.Date)
-    userID := uID.(uint)
+	date, _ := time.Parse("2006-01-02", p.Date)
+	userID := uID.(uint)
 
-    if p.Note != nil {
-        if err := h.userDayService.UpdateNote(userID, cID, date, *p.Note); err != nil {
-            panic(err)
-        }
-    }
-    if p.Feeling != nil {
-        if err := h.userDayService.UpdateFeeling(userID, cID, date, enum.UserFeeling(*p.Feeling)); err != nil {
-            panic(err)
-        }
-    }
-    if p.Progress != nil {
-        if err := h.userDayService.UpdateGoalProgress(userID, cID, date, *p.Progress); err != nil {
-            panic(err)
-        }
-    }
+	if p.Note != nil {
+		if err := h.userDayService.UpdateNote(userID, cID, date, *p.Note); err != nil {
+			panic(err)
+		}
+	}
+	if p.Feeling != nil {
+		if err := h.userDayService.UpdateFeeling(userID, cID, date, enum.UserFeeling(*p.Feeling)); err != nil {
+			panic(err)
+		}
+	}
+	if p.Progress != nil {
+		if err := h.userDayService.UpdateGoalProgress(userID, cID, date, *p.Progress); err != nil {
+			panic(err)
+		}
+	}
 
-    Response(ctx, 200, "Updated successfully", nil)
+	Response(ctx, 200, "Updated successfully", nil)
 }
 
 func (h *UserDayHandler) GetDayData(c *gin.Context) {
@@ -173,9 +180,9 @@ func (h *UserDayHandler) DeleteDayData(c *gin.Context) {
 	date, _ := time.Parse("2006-01-02", p.Date)
 	userID := uID.(uint)
 
-	h.userDayService.DeleteNote(userID, cID, date)
-	h.userDayService.DeleteFeeling(userID, cID, date)
-	h.userDayService.DeleteGoalProgress(userID, cID, date)
+	_ = h.userDayService.DeleteNote(userID, cID, date)
+	_ = h.userDayService.DeleteFeeling(userID, cID, date)
+	_ = h.userDayService.DeleteGoalProgress(userID, cID, date)
 
 	Response(c, 200, "Day data deleted successfully", nil)
 }

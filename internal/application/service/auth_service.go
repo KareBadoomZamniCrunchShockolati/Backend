@@ -44,7 +44,7 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 	}
 
 	if existingUser != nil {
-		return nil, exception.NewConflictException("User", username, "USER_ALREADY_EXIST")
+		return nil, exception.NewConflictException(exception.ErrorUserAlreadyExistsEmail, "User", "email", email)
 	}
 
 	existingUser, err = s.UserRepo.GetUserByName(username)
@@ -56,7 +56,7 @@ func (s *AuthService) RegisterUser(username, email, password, bio string) (*mode
 	}
 
 	if existingUser != nil {
-		return nil, exception.NewConflictException("User", username, "USER_ALREADY_EXIST")
+		return nil, exception.NewConflictException(exception.ErrorUserAlreadyExistsUsername, "User", "username", username)
 	}
 
 	// 2. Hash the password
@@ -103,10 +103,10 @@ func (s *AuthService) LoginUser(email string, password string) (*model.UserModel
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
 		var notFoundErr *exception.NotFoundException
-		if !errors.As(err, &notFoundErr){
-			return nil,"", exception.NewNotFoundException("User", email, "USER_EMAIL_NOT_FOUND")
+		if errors.As(err, &notFoundErr) {
+			return nil, "", exception.NewNotFoundException("User", email, "USER_EMAIL_NOT_FOUND")
 		}
-		return nil, "", err
+		return nil, "", exception.NewRepositoryError(err)
 	}
 	// 2. Check the password hash
 	if user == nil {
@@ -162,7 +162,7 @@ func (s *AuthService) VerifyEmail(email, code string) (string, error) {
 func (s *AuthService) ResendVerificationEmail(email string) error {
 	user, err := s.UserRepo.GetUserByEmail(email)
 	if err != nil {
-		return err
+		return exception.NewRepositoryError(err)
 	}
 
 	if user == nil {
@@ -170,7 +170,7 @@ func (s *AuthService) ResendVerificationEmail(email string) error {
 	}
 
 	if user.Verified {
-		return exception.NewConflictException("User", "verification status", "USER_ALREADY_VERIFIED")
+		return exception.NewConflictException("USER_ALREADY_VERIFIED", "User", "verified", "true")
 	}
 
 	code, err := generateVerificationCode1()

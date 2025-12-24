@@ -21,308 +21,220 @@ func NewPostHandler(postService *service.PostService) *PostHandler {
 }
 
 func (h *PostHandler) CreatePost(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, exception.NewUnauthorizedException("User not authenticated", "UNAUTHORIZED"))
-		return
-	}
+	userID := mustGetUserID(c)
+	input := Validated[dto.CreatePostDTO](c)
 
-	var input dto.CreatePostDTO
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid input", "INVALID_INPUT", nil))
-		return
-	}
-
-	post, err := h.postService.CreatePost(c.Request.Context(), userID.(uint), &input)
+	post, err := h.postService.CreatePost(c.Request.Context(), userID, &input)
 	if err != nil {
-		handleError(c, err)
-		return
+		panic(err)
 	}
 
-	c.JSON(http.StatusCreated, post)
+	Response(c, http.StatusCreated, "", post)
 }
 
 func (h *PostHandler) GetPost(c *gin.Context) {
-	// Get userID from context, but handle nil case
 	var userID uint = 0
-	if userIDVal, exists := c.Get("userID"); exists {
-		if id, ok := userIDVal.(uint); ok {
+	if v, exists := c.Get("userID"); exists {
+		if id, ok := v.(uint); ok {
 			userID = id
 		}
 	}
 
-	postID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	postID := mustParseUintParam(c, "id", "INVALID_POST_ID")
+
+	post, err := h.postService.GetPost(postID, userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid post ID", "INVALID_POST_ID", nil))
-		return
+		panic(err)
 	}
 
-	post, err := h.postService.GetPost(uint(postID), userID)
-	if err != nil {
-		handleError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, post)
+	Response(c, http.StatusOK, "", post)
 }
 
 func (h *PostHandler) UpdatePost(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, exception.NewUnauthorizedException("User not authenticated", "UNAUTHORIZED"))
-		return
-	}
+	userID := mustGetUserID(c)
+	postID := mustParseUintParam(c, "id", "INVALID_POST_ID")
 
-	postID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	input := Validated[dto.UpdatePostDTO](c)
+
+	post, err := h.postService.UpdatePost(postID, userID, &input)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid post ID", "INVALID_POST_ID", nil))
-		return
+		panic(err)
 	}
 
-	var input dto.UpdatePostDTO
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid input", "INVALID_INPUT", nil))
-		return
-	}
-
-	post, err := h.postService.UpdatePost(uint(postID), userID.(uint), &input)
-	if err != nil {
-		handleError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, post)
+	Response(c, http.StatusOK, "", post)
 }
 
 func (h *PostHandler) DeletePost(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, exception.NewUnauthorizedException("User not authenticated", "UNAUTHORIZED"))
-		return
+	userID := mustGetUserID(c)
+	postID := mustParseUintParam(c, "id", "INVALID_POST_ID")
+
+	if err := h.postService.DeletePost(postID, userID); err != nil {
+		panic(err)
 	}
 
-	postID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid post ID", "INVALID_POST_ID", nil))
-		return
-	}
-
-	err = h.postService.DeletePost(uint(postID), userID.(uint))
-	if err != nil {
-		handleError(c, err)
-		return
-	}
-
-	c.Status(http.StatusNoContent)
+	Response(c, http.StatusNoContent, "", nil)
 }
 
 func (h *PostHandler) GetUserPosts(c *gin.Context) {
-	targetUserID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid user ID", "INVALID_USER_ID", nil))
-		return
-	}
+	targetUserID := mustParseUintParam(c, "user_id", "INVALID_USER_ID")
 
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	posts, err := h.postService.GetUserPosts(uint(targetUserID), offset, limit)
+	posts, err := h.postService.GetUserPosts(targetUserID, offset, limit)
 	if err != nil {
-		handleError(c, err)
-		return
+		panic(err)
 	}
 
-	c.JSON(http.StatusOK, posts)
+	Response(c, http.StatusOK, "", posts)
 }
 
 func (h *PostHandler) GetFeedPosts(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, exception.NewUnauthorizedException("User not authenticated", "UNAUTHORIZED"))
-		return
-	}
+	userID := mustGetUserID(c)
 
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	posts, err := h.postService.GetFeedPosts(userID.(uint), offset, limit)
+	posts, err := h.postService.GetFeedPosts(userID, offset, limit)
 	if err != nil {
-		handleError(c, err)
-		return
+		panic(err)
 	}
 
-	c.JSON(http.StatusOK, posts)
+	Response(c, http.StatusOK, "", posts)
 }
 
 func (h *PostHandler) GetPostsByChallenge(c *gin.Context) {
-	userID, _ := c.Get("userID")
-
-	challengeID, err := strconv.ParseUint(c.Param("challenge_id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid challenge ID", "INVALID_CHALLENGE_ID", nil))
-		return
+	var userID uint = 0
+	if v, exists := c.Get("userID"); exists {
+		if id, ok := v.(uint); ok {
+			userID = id
+		}
 	}
+
+	challengeID := mustParseUintParam(c, "challenge_id", "INVALID_CHALLENGE_ID")
 
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	posts, err := h.postService.GetPostsByChallenge(uint(challengeID), userID.(uint), offset, limit)
+	posts, err := h.postService.GetPostsByChallenge(challengeID, userID, offset, limit)
 	if err != nil {
-		handleError(c, err)
-		return
+		panic(err)
 	}
 
-	c.JSON(http.StatusOK, posts)
+	Response(c, http.StatusOK, "", posts)
 }
 
 func (h *PostHandler) AddPostComment(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, exception.NewUnauthorizedException("User not authenticated", "UNAUTHORIZED"))
-		return
-	}
+	userID := mustGetUserID(c)
+	postID := mustParseUintParam(c, "id", "INVALID_POST_ID")
 
-	postID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid post ID", "INVALID_POST_ID", nil))
-		return
-	}
-
-	var input struct {
+	type req struct {
 		Content  string `json:"content" validate:"required,min=1,max=1000"`
 		ParentID *uint  `json:"parent_id"`
 	}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid input", "INVALID_INPUT", nil))
-		return
-	}
+	input := Validated[req](c)
 
 	commentDTO := &dto.CommentRequestDTO{
 		EntityType: "post",
-		EntityID:   uint(postID),
+		EntityID:   postID,
 		Content:    input.Content,
 		ParentID:   input.ParentID,
 	}
 
-	comment, err := h.postService.AddComment(userID.(uint), commentDTO)
+	comment, err := h.postService.AddComment(userID, commentDTO)
 	if err != nil {
-		handleError(c, err)
-		return
+		panic(err)
 	}
 
-	c.JSON(http.StatusCreated, comment)
+	Response(c, http.StatusCreated, "", comment)
 }
 
 func (h *PostHandler) GetPostComments(c *gin.Context) {
-	// Get userID from context, but handle nil case
 	var userID uint = 0
-	if userIDVal, exists := c.Get("userID"); exists {
-		if id, ok := userIDVal.(uint); ok {
+	if v, exists := c.Get("userID"); exists {
+		if id, ok := v.(uint); ok {
 			userID = id
 		}
 	}
 
-	postID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid post ID", "INVALID_POST_ID", nil))
-		return
-	}
+	postID := mustParseUintParam(c, "id", "INVALID_POST_ID")
 
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	comments, err := h.postService.GetComments("post", uint(postID), userID, offset, limit)
+	comments, err := h.postService.GetComments("post", postID, userID, offset, limit)
 	if err != nil {
-		handleError(c, err)
-		return
+		panic(err)
 	}
 
-	c.JSON(http.StatusOK, comments)
+	Response(c, http.StatusOK, "", comments)
 }
 
 func (h *PostHandler) LikePost(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, exception.NewUnauthorizedException("User not authenticated", "UNAUTHORIZED"))
-		return
-	}
-
-	postID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid post ID", "INVALID_POST_ID", nil))
-		return
-	}
+	userID := mustGetUserID(c)
+	postID := mustParseUintParam(c, "id", "INVALID_POST_ID")
 
 	likeDTO := &dto.LikeRequestDTO{
 		EntityType: "post",
-		EntityID:   uint(postID),
+		EntityID:   postID,
 	}
 
-	err = h.postService.LikeEntity(userID.(uint), likeDTO)
-	if err != nil {
-		handleError(c, err)
-		return
+	if err := h.postService.LikeEntity(userID, likeDTO); err != nil {
+		panic(err)
 	}
 
-	c.Status(http.StatusNoContent)
+	Response(c, http.StatusNoContent, "", nil)
 }
 
 func (h *PostHandler) UnlikePost(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, exception.NewUnauthorizedException("User not authenticated", "UNAUTHORIZED"))
-		return
-	}
-
-	postID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("Invalid post ID", "INVALID_POST_ID", nil))
-		return
-	}
+	userID := mustGetUserID(c)
+	postID := mustParseUintParam(c, "id", "INVALID_POST_ID")
 
 	likeDTO := &dto.LikeRequestDTO{
 		EntityType: "post",
-		EntityID:   uint(postID),
+		EntityID:   postID,
 	}
 
-	err = h.postService.UnlikeEntity(userID.(uint), likeDTO)
-	if err != nil {
-		handleError(c, err)
-		return
+	if err := h.postService.UnlikeEntity(userID, likeDTO); err != nil {
+		panic(err)
 	}
 
-	c.Status(http.StatusNoContent)
-}
-
-// Helper function to handle errors
-func handleError(c *gin.Context, err error) {
-	switch e := err.(type) {
-	case *exception.BadRequestException:
-		c.JSON(http.StatusBadRequest, e)
-	case *exception.UnauthorizedException:
-		c.JSON(http.StatusUnauthorized, e)
-	case *exception.ForbiddenException:
-		c.JSON(http.StatusForbidden, e)
-	case *exception.NotFoundException:
-		c.JSON(http.StatusNotFound, e)
-	case *exception.ConflictException:
-		c.JSON(http.StatusConflict, e)
-	default:
-		c.JSON(http.StatusInternalServerError, exception.NewInternalServerException("Internal server error", "INTERNAL_SERVER_ERROR", nil))
-	}
+	Response(c, http.StatusNoContent, "", nil)
 }
 
 func (h *PostHandler) PresignPostImages(c *gin.Context) {
-	userID := c.GetUint("userID")
-	var req dto.PresignPostImagesRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, exception.NewBadRequestException("invalid request body", "INVALID_INPUT", nil))
-		return
-	}
+	userID := mustGetUserID(c)
+
+	req := Validated[dto.PresignPostImagesRequest](c)
+
 	resp, err := h.postService.PresignPostImages(c.Request.Context(), userID, req)
 	if err != nil {
-		handleError(c, err)
-		return
+		panic(err)
 	}
-	c.JSON(http.StatusOK, resp)
+
+	Response(c, http.StatusOK, "", resp)
+}
+
+func mustGetUserID(c *gin.Context) uint {
+	v, exists := c.Get("userID")
+	if !exists {
+		panic(exception.NewMissingUserIDException())
+	}
+	id, ok := v.(uint)
+	if !ok || id == 0 {
+		panic(exception.NewContextCastError(nil))
+	}
+	return id
+}
+
+func mustParseUintParam(c *gin.Context, paramName string, code string) uint {
+	raw := c.Param(paramName)
+	v, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil {
+		panic(exception.NewBadRequestException(
+			code,
+			map[string]any{"param": paramName, "value": raw},
+		))
+	}
+	return uint(v)
 }

@@ -10,7 +10,9 @@ import (
 	"challenge-app/internal/application/service"
 	"challenge-app/internal/application/service/interface"
 	"challenge-app/internal/bootstrap"
+	"challenge-app/internal/domain/localization"
 	"challenge-app/internal/domain/repository"
+	localization2 "challenge-app/internal/infrastructure/localization"
 	"challenge-app/internal/infrastructure/repository/postgres"
 	"challenge-app/internal/infrastructure/repository/postgres/driver"
 	"challenge-app/internal/infrastructure/repository/redis"
@@ -34,6 +36,7 @@ import (
 
 // Injectors from wire.go:
 
+// Initialize Router
 func InitializeRouter(db *gorm.DB, v *validator.Validate) (*gin.Engine, error) {
 	userRepository := postgres.NewUserRepository(db)
 	env := ProvideEnv()
@@ -72,11 +75,14 @@ func InitializeRouter(db *gorm.DB, v *validator.Validate) (*gin.Engine, error) {
 	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository, s3Storage, tempUploadRepository)
 	postHandler := handler.NewPostHandler(postService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
-	errorMiddleware := middleware.NewErrorProvider()
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, jwtMiddleware, errorMiddleware)
+	errorMiddleware := middleware.NewErrorMiddleware()
+	translator := ProvideTranslator()
+	localizationMiddleware := middleware.NewLocalizationMiddleware(translator)
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
 	return engine, nil
 }
 
+// Initialize Full Application
 func InitializeApplication() (*Application, error) {
 	env := ProvideEnv()
 	postgresDSN := ProvideDSN(env)
@@ -120,8 +126,10 @@ func InitializeApplication() (*Application, error) {
 	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository, s3Storage, tempUploadRepository)
 	postHandler := handler.NewPostHandler(postService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
-	errorMiddleware := middleware.NewErrorProvider()
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, jwtMiddleware, errorMiddleware)
+	errorMiddleware := middleware.NewErrorMiddleware()
+	translator := ProvideTranslator()
+	localizationMiddleware := middleware.NewLocalizationMiddleware(translator)
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
 	application := NewApplication(db, engine)
 	return application, nil
 }
@@ -130,6 +138,7 @@ func InitializeApplication() (*Application, error) {
 
 type PostgresDSN string
 
+// Providers
 func ProvideEnv() *bootstrap.Env {
 	return bootstrap.LoadEnv()
 }
@@ -178,7 +187,6 @@ func ProvideValidator() *validator.Validate {
 	return v
 }
 
-// ✅ Provide S3 concrete implementation
 func ProvideS3Storage(cfg *bootstrap.Env) (*storage.S3Storage, error) {
 	return storage.NewS3Storage(
 		cfg.Storage.Endpoint,
@@ -190,8 +198,17 @@ func ProvideS3Storage(cfg *bootstrap.Env) (*storage.S3Storage, error) {
 	)
 }
 
+func ProvideTranslator() localization.Translator {
+	return localization2.NewTranslationService()
+}
+
+// Provider Sets
 var EnvProviderSet = wire.NewSet(
 	ProvideEnv,
+)
+
+var LocalizationProviderSet = wire.NewSet(
+	ProvideTranslator,
 )
 
 var SecurityProviderSet = wire.NewSet(security.NewPasswordService, ProvideJWTService, wire.Bind(new(security.PasswordService), new(*security.PasswordServiceImpl)), wire.Bind(new(security.JWTService), new(*security.JwtServiceImpl)))
@@ -202,14 +219,13 @@ var DatabaseProviderSet = wire.NewSet(
 )
 
 var RedisProviderSet = wire.NewSet(
-	ProvideRedisClient, redis.NewVerificationRepository, wire.Bind(new(repository.VerificationRepository), new(*redis.VerificationRepository)), redis.NewTempUploadRepository, wire.Bind(new(repository.TempUploadRepository), new(*redis.TempUploadRepository)),
+	ProvideRedisClient, redis.NewVerificationRepository, redis.NewTempUploadRepository, wire.Bind(new(repository.TempUploadRepository), new(*redis.TempUploadRepository)), wire.Bind(new(repository.VerificationRepository), new(*redis.VerificationRepository)),
 )
 
 var EmailProviderSet = wire.NewSet(
 	ProvideEmailService, wire.Bind(new(email.EmailService), new(*email.EmailServiceImpl)),
 )
 
-// ✅ Storage provider set: provide concrete S3 + bind to interface
 var StorageProviderSet = wire.NewSet(
 	ProvideS3Storage, wire.Bind(new(storage.ObjectStorage), new(*storage.S3Storage)),
 )
@@ -220,8 +236,9 @@ var ServiceProviderSet = wire.NewSet(service.NewUserService, service.NewAuthServ
 
 var HandlerProviderSet = wire.NewSet(handler.NewUserHandler, handler.NewAuthHandler, handler.NewChallengeHandler, handler.NewFollowHandler, handler.NewPostHandler, handler.NewUserDayHandler, wire.Bind(new(handler2.UserHandler), new(*handler.UserHandler)), wire.Bind(new(handler2.AuthHandler), new(*handler.AuthHandler)), wire.Bind(new(handler2.ChallengeHandler), new(*handler.ChallengeHandler)), wire.Bind(new(handler2.FollowHandler), new(*handler.FollowHandlerImpl)), wire.Bind(new(handler2.PostHandler), new(*handler.PostHandler)), wire.Bind(new(handler2.UserDayHandler), new(*handler.UserDayHandler)))
 
-var MiddlewareProviderSet = wire.NewSet(middleware.NewJWTMiddleware, middleware.NewErrorProvider, wire.Bind(new(middleware2.ErrorMiddleware), new(*middleware.ErrorMiddleware)), wire.Bind(new(middleware2.JWTMiddleware), new(*middleware.JWTMiddleware)))
+var MiddlewareProviderSet = wire.NewSet(middleware.NewJWTMiddleware, middleware.NewLocalizationMiddleware, middleware.NewErrorMiddleware, wire.Bind(new(middleware2.ErrorMiddleware), new(*middleware.ErrorMiddleware)), wire.Bind(new(middleware2.JWTMiddleware), new(*middleware.JWTMiddleware)), wire.Bind(new(middleware2.LocalizationMiddleware), new(*middleware.LocalizationMiddleware)))
 
+// Application
 type Application struct {
 	DB     *gorm.DB
 	Router *gin.Engine

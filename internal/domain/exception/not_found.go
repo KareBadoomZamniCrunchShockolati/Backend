@@ -1,27 +1,21 @@
 package exception
 
-import (
-	"fmt"
-	"net/http"
-)
+import "net/http"
 
 type NotFoundException struct {
 	*BaseError
 }
 
-func NewNotFoundException(item string, id string, code string) *NotFoundException {
-	msg := fmt.Sprintf("Resource '%s' with identifier '%s' not found.", item, id)
+func (e *NotFoundException) ClientError() {}
+
+func NewNotFoundException(resource string, identifier string, code string, params ...string) *NotFoundException {
+	details := map[string]any{
+		"resource":   resource,
+		"identifier": identifier,
+	}
+
 	return &NotFoundException{
-		BaseError: NewBaseError(
-			code,
-			msg,
-			http.StatusNotFound, // 404
-			map[string]any{
-				"resource_type": item,
-				"identifier":    id,
-			},
-		),
+		BaseError: NewBaseError(code, http.StatusNotFound, details).
+			WithParams(append([]string{resource, identifier}, params...)...),
 	}
 }
-
-func (e *NotFoundException) ClientError() {}

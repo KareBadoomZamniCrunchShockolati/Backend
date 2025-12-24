@@ -16,7 +16,6 @@ func RegisterGinValidator() error {
 	return nil
 }
 
-// PasswordValidationFunc implements the go-playground validator signature.
 func PasswordValidationFunc(fl validator.FieldLevel) bool {
 	pwd, ok := fl.Field().Interface().(string)
 	if !ok {
@@ -29,7 +28,6 @@ func PasswordValidationFunc(fl validator.FieldLevel) bool {
 	return ok2
 }
 
-// passwordChecks returns whether the password is valid and a slice of human-readable reasons for failures.
 func passwordChecks(pwd string) (bool, []string) {
 	var reasons []string
 	if len(pwd) < 8 {
@@ -66,7 +64,6 @@ func passwordChecks(pwd string) (bool, []string) {
 	return len(reasons) == 0, reasons
 }
 
-// FormatValidationError converts a binding/validator error into a map of field->list of problems.
 func FormatValidationError(err error) map[string][]string {
 	out := make(map[string][]string)
 	if err == nil {

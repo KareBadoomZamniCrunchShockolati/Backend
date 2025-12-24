@@ -18,10 +18,10 @@ func NewCategoryService(repo repository.CategoryRepository) *CategoryService {
 func (s *CategoryService) CreateCategory(dto *dto.CreateCategoryDTO) (*model.ChallengeCategoryModel, error) {
 	existing, err := s.categoryRepo.GetCategoryByName(dto.Name)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 	if existing != nil {
-		return nil, exception.NewConflictException("Category", "name", "CATEGORY_ALREADY_EXISTS")
+		return nil, exception.NewConflictException("CATEGORY_ALREADY_EXISTS", "Category", "name", dto.Name)
 	}
 
 	return s.categoryRepo.CreateCategory(&model.ChallengeCategoryModel{
@@ -41,13 +41,16 @@ func (s *CategoryService) GetAllCategories() ([]*model.ChallengeCategoryModel, e
 func (s *CategoryService) UpdateCategory(id uint, dto *dto.UpdateCategoryDTO) (*model.ChallengeCategoryModel, error) {
 	category, err := s.categoryRepo.GetCategoryByID(id)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 
 	if dto.Name != nil {
-		existing, _ := s.categoryRepo.GetCategoryByName(*dto.Name)
+		existing, err := s.categoryRepo.GetCategoryByName(*dto.Name)
+		if err != nil {
+			return nil, exception.NewRepositoryError(err)
+		}
 		if existing != nil && existing.ID != id {
-			return nil, exception.NewConflictException("Category", "name", "CATEGORY_ALREADY_EXISTS")
+			return nil, exception.NewConflictException("CATEGORY_ALREADY_EXISTS", "Category", "name", *dto.Name)
 		}
 		category.Name = *dto.Name
 	}

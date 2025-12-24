@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,7 +49,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		if errors.As(err, &clientErr) {
 			c.Error(err)
 			return
-		}		
+		}
 		panic(err)
 	}
 
@@ -73,7 +74,7 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 		if errors.As(err, &clientErr) {
 			c.Error(err)
 			return
-		}		
+		}
 		panic(err)
 	}
 	var userResponses []dto.UserResponse
@@ -106,19 +107,16 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 		return
 	}
 	if requesterID != user.ID {
-		user.Email = "" // hide private info
+		user.Email = ""
 	}
 	c.JSON(http.StatusOK, dto.UserResponse{
-		ID:       user.ID,
-		Username: user.Username,
-		Email:    user.Email,
-		Bio:      user.Bio,
+		ID:             user.ID,
+		Username:       user.Username,
+		Email:          user.Email,
+		Bio:            user.Bio,
 		ProfilePicture: user.ProfilePicture,
 	})
-
 }
-
-// UpdateProfile (CRUD - Update Handler)
 
 // UpdateProfile godoc
 // @Summary Update user profile
@@ -147,14 +145,12 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		panic(exception.NewContextCastError(errors.New("userID context value was not uint")))
 	}
 
-	// 2. Bind the request body to the DTO
 	var req dto.UpdateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.Error(exception.NewInvalidRequestBodyException(err))
 		return
 	}
 
-	// 3. Call the business logic
 	user, err := h.UserService.UpdateUser(
 		userID,
 		req.Username,
@@ -162,7 +158,6 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		req.NewEmail,
 	)
 
-	// 4. Error Handling and Status Mapping
 	if err != nil {
 		var clientErr exception.ClientError
 		if errors.As(err, &clientErr) {
@@ -172,7 +167,6 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		panic(err)
 	}
 
-	// 5. Success Response (Returning resource + message)
 	var successMessage string
 	if req.NewEmail != "" && req.NewEmail != user.Email {
 		successMessage = "Profile and email updated successfully. You may need to log in again."
@@ -255,8 +249,6 @@ func (h *UserHandler) VerifyEmailChange(c *gin.Context) {
 	})
 }
 
-// DeleteUser (CRUD - Delete Handler)
-
 // DeleteUser godoc
 // @Summary Delete current user
 // @Description Deletes the account of the authenticated user
@@ -296,7 +288,12 @@ func (h *UserHandler) UploadProfilePicture(c *gin.Context) {
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.Error(exception.NewBadRequestException("file is required", "FILE_REQUIRED", nil))
+		c.Error(exception.NewBadRequestException(
+			"FILE_REQUIRED",
+			map[string]any{
+				"field": "file",
+			},
+		))
 		return
 	}
 
