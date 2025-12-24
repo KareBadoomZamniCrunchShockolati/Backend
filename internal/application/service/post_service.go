@@ -1,17 +1,18 @@
 package service
 
 import (
+	"context"
+	"fmt"
+	"path"
+	"strings"
+	"time"
+
 	"challenge-app/internal/application/dto"
 	"challenge-app/internal/bootstrap"
 	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
 	"challenge-app/internal/infrastructure/storage"
-	"context"
-	"fmt"
-	"path"
-	"strings"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -48,12 +49,14 @@ func NewPostService(
 
 func (s *PostService) CreatePost(ctx context.Context, userID uint, input *dto.CreatePostDTO) (*model.Post, error) {
 	if input == nil {
-		return nil, exception.NewBadRequestException("Input cannot be nil", "POST_CREATE_BAD_INPUT", nil)
+		return nil, exception.NewBadRequestException("POST_CREATE_BAD_INPUT", map[string]any{
+			"reason": "input_is_nil",
+		})
 	}
 
 	user, err := s.userRepo.GetUserByID(userID)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 	if user == nil {
 		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", userID), "USER_NOT_FOUND")
@@ -62,7 +65,7 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, input *dto.Cr
 	if input.ChallengeID != nil {
 		challenge, err := s.challengeRepo.GetChallengeByID(*input.ChallengeID, userID)
 		if err != nil {
-			return nil, err
+			return nil, exception.NewRepositoryError(err)
 		}
 		if challenge == nil {
 			return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", *input.ChallengeID), "CHALLENGE_NOT_FOUND")
@@ -75,9 +78,11 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, input *dto.Cr
 			tempKeys = append(tempKeys, img.TempKey)
 		}
 	}
-
-	if len(tempKeys) > 10 {
-		return nil, exception.NewBadRequestException("Maximum 10 pictures allowed", "POST_TOO_MANY_PICTURES", nil)
+	if len(tempKeys) > bootstrap.MaxPostImages {
+		return nil, exception.NewBadRequestException("POST_TOO_MANY_PICTURES", map[string]any{
+			"max":   bootstrap.MaxPostImages,
+			"count": len(tempKeys),
+		})
 	}
 
 	post := &model.Post{
@@ -89,7 +94,7 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, input *dto.Cr
 
 	created, err := s.postRepo.CreatePost(post)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 
 	if len(tempKeys) == 0 {
@@ -110,52 +115,44 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, input *dto.Cr
 	created.Pictures = urls
 	updated, err := s.postRepo.UpdatePost(created)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 
 	return updated, nil
 }
 
-
 func (s *PostService) GetPost(postID, userID uint) (*dto.PostResponseDTO, error) {
 	post, err := s.postRepo.GetPost(postID)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 	if post == nil {
 		return nil, exception.NewNotFoundException("Post", fmt.Sprintf("%d", postID), "POST_NOT_FOUND")
 	}
 
-	// Get user info
-	user, err := s.userRepo.GetUserByID(post.UserID)
+	u, err := s.userRepo.GetUserByID(post.UserID)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 	username := ""
-	if user != nil {
-		username = user.Username
+	if u != nil {
+		username = u.Username
 	}
 
-	// Get like count
 	likeCount, err := s.likeRepo.GetLikeCount(model.LikeTypePost, post.ID)
 	if err != nil {
 		likeCount = 0
 	}
-
-	// Get comment count
 	commentCount, err := s.commentRepo.GetCommentCount(model.CommentTypePost, post.ID)
 	if err != nil {
 		commentCount = 0
 	}
-
-	// Check if current user liked this post
 	isLiked, err := s.likeRepo.IsUserLiked(model.LikeTypePost, post.ID, userID)
 	if err != nil {
 		isLiked = false
 	}
 
-	// Build response
-	response := &dto.PostResponseDTO{
+	return &dto.PostResponseDTO{
 		ID:           post.ID,
 		UserID:       post.UserID,
 		Username:     username,
@@ -167,50 +164,56 @@ func (s *PostService) GetPost(postID, userID uint) (*dto.PostResponseDTO, error)
 		IsLiked:      isLiked,
 		CreatedAt:    post.CreatedAt,
 		UpdatedAt:    post.UpdatedAt,
-	}
-
-	return response, nil
+	}, nil
 }
 
 func (s *PostService) UpdatePost(postID, userID uint, input *dto.UpdatePostDTO) (*model.Post, error) {
 	post, err := s.postRepo.GetPost(postID)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 	if post == nil {
 		return nil, exception.NewNotFoundException("Post", fmt.Sprintf("%d", postID), "POST_NOT_FOUND")
 	}
 
 	if post.UserID != userID {
-		return nil, exception.NewUnauthorizedException("Only the post creator can update this post", "POST_UPDATE_FORBIDDEN")
+		return nil, exception.NewForbiddenException("POST_UPDATE_FORBIDDEN")
 	}
 
 	if input.Description != nil {
 		post.Description = *input.Description
 	}
-	return s.postRepo.UpdatePost(post)
+	updated, err := s.postRepo.UpdatePost(post)
+	if err != nil {
+		return nil, exception.NewRepositoryError(err)
+	}
+	return updated, nil
 }
 
 func (s *PostService) DeletePost(postID, userID uint) error {
 	post, err := s.postRepo.GetPost(postID)
 	if err != nil {
-		return err
+		return exception.NewRepositoryError(err)
 	}
 	if post == nil {
 		return exception.NewNotFoundException("Post", fmt.Sprintf("%d", postID), "POST_NOT_FOUND")
 	}
 
 	if post.UserID != userID {
-		return exception.NewUnauthorizedException("Only the post creator can delete this post", "POST_DELETE_FORBIDDEN")
+		return exception.NewForbiddenException("POST_DELETE_FORBIDDEN")
 	}
 
-	return s.postRepo.DeletePost(postID)
+	err = s.postRepo.DeletePost(postID)
+	if err != nil {
+		return exception.NewRepositoryError(err)
+	}
+	return nil
 }
 
 func (s *PostService) GetUserPosts(userID uint, offset, limit int) ([]*dto.PostResponseDTO, error) {
 	posts, err := s.postRepo.GetPostsByUser(userID, offset, limit)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 	return s.enrichPostsWithDetails(posts, userID)
 }
@@ -218,35 +221,40 @@ func (s *PostService) GetUserPosts(userID uint, offset, limit int) ([]*dto.PostR
 func (s *PostService) GetFeedPosts(userID uint, offset, limit int) ([]*dto.PostResponseDTO, error) {
 	posts, err := s.postRepo.GetFeedPosts(userID, offset, limit)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 	return s.enrichPostsWithDetails(posts, userID)
 }
 
 func (s *PostService) AddComment(userID uint, input *dto.CommentRequestDTO) (*model.Comment, error) {
 	if input == nil {
-		return nil, exception.NewBadRequestException("Input cannot be nil", "COMMENT_ADD_BAD_INPUT", nil)
+		return nil, exception.NewBadRequestException("COMMENT_ADD_BAD_INPUT", map[string]any{
+			"reason": "input_is_nil",
+		})
 	}
 
 	switch input.EntityType {
 	case "challenge":
-		challenge, err := s.challengeRepo.GetChallengeByID(input.EntityID, userID)
+		ch, err := s.challengeRepo.GetChallengeByID(input.EntityID, userID)
 		if err != nil {
-			return nil, err
+			return nil, exception.NewRepositoryError(err)
 		}
-		if challenge == nil {
+		if ch == nil {
 			return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", input.EntityID), "CHALLENGE_NOT_FOUND")
 		}
 	case "post":
-		post, err := s.postRepo.GetPost(input.EntityID)
+		p, err := s.postRepo.GetPost(input.EntityID)
 		if err != nil {
-			return nil, err
+			return nil, exception.NewRepositoryError(err)
 		}
-		if post == nil {
+		if p == nil {
 			return nil, exception.NewNotFoundException("Post", fmt.Sprintf("%d", input.EntityID), "POST_NOT_FOUND")
 		}
 	default:
-		return nil, exception.NewBadRequestException("Invalid entity type", "INVALID_ENTITY_TYPE", nil)
+		return nil, exception.NewBadRequestException("INVALID_ENTITY_TYPE", map[string]any{
+			"expected": []string{"challenge", "post"},
+			"got":      input.EntityType,
+		})
 	}
 
 	comment := &model.Comment{
@@ -257,24 +265,27 @@ func (s *PostService) AddComment(userID uint, input *dto.CommentRequestDTO) (*mo
 		ParentID:   input.ParentID,
 	}
 
-	return s.commentRepo.CreateComment(comment)
+	created, err := s.commentRepo.CreateComment(comment)
+	if err != nil {
+		return nil, exception.NewRepositoryError(err)
+	}
+	return created, nil
 }
 
 func (s *PostService) GetComments(entityType string, entityID, userID uint, offset, limit int) ([]*dto.CommentResponseDTO, error) {
 	comments, err := s.commentRepo.GetComments(model.CommentType(entityType), entityID, offset, limit)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 
-	nestedComments := s.buildCommentTree(comments)
-	return s.convertCommentsToDTO(nestedComments, userID), nil
+	nested := s.buildCommentTree(comments)
+	return s.convertCommentsToDTO(nested, userID), nil
 }
 
 func (s *PostService) buildCommentTree(comments []*model.Comment) []*model.Comment {
 	commentMap := make(map[uint]*model.Comment)
 	var rootComments []*model.Comment
 
-	// First pass: create map and identify root comments
 	for _, comment := range comments {
 		commentCopy := *comment
 		commentMap[commentCopy.ID] = &commentCopy
@@ -284,7 +295,6 @@ func (s *PostService) buildCommentTree(comments []*model.Comment) []*model.Comme
 		}
 	}
 
-	// Second pass: build the tree structure
 	for _, comment := range comments {
 		if comment.ParentID != nil && *comment.ParentID != 0 {
 			if parent, exists := commentMap[*comment.ParentID]; exists {
@@ -296,7 +306,6 @@ func (s *PostService) buildCommentTree(comments []*model.Comment) []*model.Comme
 	return rootComments
 }
 
-// convertCommentsToDTO converts model comments to DTO with nested structure
 func (s *PostService) convertCommentsToDTO(comments []*model.Comment, userID uint) []*dto.CommentResponseDTO {
 	if comments == nil {
 		return []*dto.CommentResponseDTO{}
@@ -309,7 +318,6 @@ func (s *PostService) convertCommentsToDTO(comments []*model.Comment, userID uin
 	return dtos
 }
 
-// convertCommentToDTO converts a single comment to DTO with nested replies
 func (s *PostService) convertCommentToDTO(comment *model.Comment, userID uint) *dto.CommentResponseDTO {
 	if comment == nil {
 		return nil
@@ -318,7 +326,7 @@ func (s *PostService) convertCommentToDTO(comment *model.Comment, userID uint) *
 	username := s.getUsernameForComment(comment.UserID)
 	likeCount, isLiked := s.getCommentLikeInfo(comment.ID, userID)
 
-	dto := &dto.CommentResponseDTO{
+	out := &dto.CommentResponseDTO{
 		ID:         comment.ID,
 		EntityType: string(comment.EntityType),
 		EntityID:   comment.EntityID,
@@ -332,10 +340,10 @@ func (s *PostService) convertCommentToDTO(comment *model.Comment, userID uint) *
 	}
 
 	if comment.Replies != nil && len(comment.Replies) > 0 {
-		dto.Replies = s.convertCommentsToDTO(comment.Replies, userID)
+		out.Replies = s.convertCommentsToDTO(comment.Replies, userID)
 	}
 
-	return dto
+	return out
 }
 
 func (s *PostService) getUsernameForComment(userID uint) string {
@@ -343,11 +351,9 @@ func (s *PostService) getUsernameForComment(userID uint) string {
 	if err != nil {
 		return "Unknown User"
 	}
-
 	if user != nil {
 		return user.Username
 	}
-
 	return "Deleted User"
 }
 
@@ -356,57 +362,58 @@ func (s *PostService) getCommentLikeInfo(commentID, userID uint) (uint, bool) {
 	if err != nil {
 		likeCount = 0
 	}
-
 	isLiked, err := s.likeRepo.IsUserLiked(model.LikeTypeComment, commentID, userID)
 	if err != nil {
 		isLiked = false
 	}
-
 	return likeCount, isLiked
 }
 
 func (s *PostService) LikeEntity(userID uint, input *dto.LikeRequestDTO) error {
 	if input == nil {
-		return exception.NewBadRequestException("Input cannot be nil", "LIKE_BAD_INPUT", nil)
+		return exception.NewBadRequestException("LIKE_BAD_INPUT", map[string]any{
+			"reason": "input_is_nil",
+		})
 	}
 
-	// Validate entity exists first
 	switch input.EntityType {
 	case "challenge":
-		challenge, err := s.challengeRepo.GetChallengeByID(input.EntityID, userID)
+		ch, err := s.challengeRepo.GetChallengeByID(input.EntityID, userID)
 		if err != nil {
-			return err
+			return exception.NewRepositoryError(err)
 		}
-		if challenge == nil {
+		if ch == nil {
 			return exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", input.EntityID), "CHALLENGE_NOT_FOUND")
 		}
 	case "post":
-		post, err := s.postRepo.GetPost(input.EntityID)
+		p, err := s.postRepo.GetPost(input.EntityID)
 		if err != nil {
-			return err
+			return exception.NewRepositoryError(err)
 		}
-		if post == nil {
+		if p == nil {
 			return exception.NewNotFoundException("Post", fmt.Sprintf("%d", input.EntityID), "POST_NOT_FOUND")
 		}
 	case "comment":
-		comment, err := s.commentRepo.GetComment(input.EntityID)
+		cm, err := s.commentRepo.GetComment(input.EntityID)
 		if err != nil {
-			return err
+			return exception.NewRepositoryError(err)
 		}
-		if comment == nil {
+		if cm == nil {
 			return exception.NewNotFoundException("Comment", fmt.Sprintf("%d", input.EntityID), "COMMENT_NOT_FOUND")
 		}
 	default:
-		return exception.NewBadRequestException("Invalid entity type", "INVALID_ENTITY_TYPE", nil)
+		return exception.NewBadRequestException("INVALID_ENTITY_TYPE", map[string]any{
+			"expected": []string{"challenge", "post", "comment"},
+			"got":      input.EntityType,
+		})
 	}
 
-	// Check if user already liked this entity
 	isLiked, err := s.likeRepo.IsUserLiked(model.LikeType(input.EntityType), input.EntityID, userID)
 	if err != nil {
-		return err
+		return exception.NewRepositoryError(err)
 	}
 	if isLiked {
-		return exception.NewConflictException("Like", "user_id", "USER_ALREADY_LIKED")
+		return exception.NewConflictException("USER_ALREADY_LIKED", "Like", "user_id", fmt.Sprintf("%d", userID))
 	}
 
 	like := &model.Like{
@@ -414,53 +421,63 @@ func (s *PostService) LikeEntity(userID uint, input *dto.LikeRequestDTO) error {
 		EntityID:   input.EntityID,
 		UserID:     userID,
 	}
-
-	return s.likeRepo.CreateLike(like)
+	err = s.likeRepo.CreateLike(like)
+	if err != nil {
+		return exception.NewRepositoryError(err)
+	}
+	return nil
 }
 
 func (s *PostService) UnlikeEntity(userID uint, input *dto.LikeRequestDTO) error {
 	if input == nil {
-		return exception.NewBadRequestException("Input cannot be nil", "UNLIKE_BAD_INPUT", nil)
+		return exception.NewBadRequestException("UNLIKE_BAD_INPUT", map[string]any{
+			"reason": "input_is_nil",
+		})
 	}
 
 	isLiked, err := s.likeRepo.IsUserLiked(model.LikeType(input.EntityType), input.EntityID, userID)
 	if err != nil {
-		return err
+		return exception.NewRepositoryError(err)
 	}
 	if !isLiked {
-		return exception.NewBadRequestException("User has not liked this entity", "USER_NOT_LIKED", nil)
+		return exception.NewBadRequestException("USER_NOT_LIKED", map[string]any{
+			"entity_type": input.EntityType,
+			"entity_id":   input.EntityID,
+			"user_id":     userID,
+		})
 	}
 
-	return s.likeRepo.DeleteLike(model.LikeType(input.EntityType), input.EntityID, userID)
+	err = s.likeRepo.DeleteLike(model.LikeType(input.EntityType), input.EntityID, userID)
+	if err != nil {
+		return exception.NewRepositoryError(err)
+	}
+	return nil
 }
 
 func (s *PostService) GetPostsByChallenge(challengeID, userID uint, offset, limit int) ([]*dto.PostResponseDTO, error) {
-	// Verify challenge exists
 	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 	if challenge == nil {
 		return nil, exception.NewNotFoundException("Challenge", fmt.Sprintf("%d", challengeID), "CHALLENGE_NOT_FOUND")
 	}
 
-	// Get posts for this challenge
 	posts, err := s.postRepo.GetPostsByChallenge(challengeID, offset, limit)
 	if err != nil {
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 
 	return s.enrichPostsWithDetails(posts, userID)
 }
 
-// Helper method
 func (s *PostService) enrichPostsWithDetails(posts []*model.Post, userID uint) ([]*dto.PostResponseDTO, error) {
 	postDTOs := make([]*dto.PostResponseDTO, len(posts))
 
 	for i, post := range posts {
 		user, err := s.userRepo.GetUserByID(post.UserID)
 		if err != nil {
-			return nil, err
+			return nil, exception.NewRepositoryError(err)
 		}
 		username := ""
 		if user != nil {
@@ -489,21 +506,29 @@ func (s *PostService) enrichPostsWithDetails(posts []*model.Post, userID uint) (
 	return postDTOs, nil
 }
 
-
 func (s *PostService) PresignPostImages(ctx context.Context, userID uint, req dto.PresignPostImagesRequest) (*dto.PresignPostImagesResponse, error) {
 	count := req.Count
 	if count < 0 {
-		return nil, exception.NewBadRequestException("count must be >= 0", "INVALID_COUNT", nil)
+		return nil, exception.NewBadRequestException("INVALID_COUNT", map[string]any{
+			"min":   0,
+			"value": count,
+		})
 	}
 	if count > bootstrap.MaxPostImages {
-		return nil, exception.NewBadRequestException("maximum 10 images allowed", "POST_TOO_MANY_IMAGES", nil)
+		return nil, exception.NewBadRequestException("POST_TOO_MANY_IMAGES", map[string]any{
+			"max":   bootstrap.MaxPostImages,
+			"value": count,
+		})
 	}
 	ct := strings.ToLower(strings.TrimSpace(req.ContentType))
 	if ct == "" {
 		ct = "image/jpeg"
 	}
 	if ct != "image/jpeg" && ct != "image/png" {
-		return nil, exception.NewBadRequestException("unsupported content_type (only image/jpeg,image/png)", "INVALID_CONTENT_TYPE", nil)
+		return nil, exception.NewBadRequestException("INVALID_CONTENT_TYPE", map[string]any{
+			"allowed": []string{"image/jpeg", "image/png"},
+			"got":     ct,
+		})
 	}
 	uploads := make([]dto.PresignedUploadDTO, 0, count)
 	for i := 0; i < count; i++ {
@@ -514,7 +539,10 @@ func (s *PostService) PresignPostImages(ctx context.Context, userID uint, req dt
 		key := fmt.Sprintf("tmp/posts/%d/%s%s", userID, uuid.NewString(), ext)
 		up, err := s.objectStorage.PresignPut(ctx, key, ct, bootstrap.PostImagesTTL)
 		if err != nil {
-			return nil, exception.NewInternalServerException("failed to presign upload", "PRESIGN_FAILED", err)
+			return nil, exception.NewInternalServerException("PRESIGN_FAILED", map[string]any{
+				"reason": "presign_put_failed",
+				"key":    key,
+			}, err)
 		}
 		if s.tempUploadRepo != nil {
 			_ = s.tempUploadRepo.Track(ctx, key, userID, up.ExpiresAt)
@@ -535,7 +563,10 @@ func (s *PostService) CommitPostImages(ctx context.Context, userID uint, postID 
 		return []string{}, nil
 	}
 	if len(tempKeys) > bootstrap.MaxPostImages {
-		return nil, exception.NewBadRequestException("maximum 10 images allowed", "POST_TOO_MANY_IMAGES", nil)
+		return nil, exception.NewBadRequestException("POST_TOO_MANY_IMAGES", map[string]any{
+			"max":   bootstrap.MaxPostImages,
+			"value": len(tempKeys),
+		})
 	}
 	publicURLs := make([]string, 0, len(tempKeys))
 	for _, tmpKey := range tempKeys {
@@ -544,24 +575,36 @@ func (s *PostService) CommitPostImages(ctx context.Context, userID uint, postID 
 		}
 		prefix := fmt.Sprintf("tmp/posts/%d/", userID)
 		if !strings.HasPrefix(tmpKey, prefix) {
-			return nil, exception.NewBadRequestException("invalid temp key", "INVALID_TEMP_KEY", nil)
+			return nil, exception.NewBadRequestException("INVALID_TEMP_KEY", map[string]any{
+				"reason": "invalid_prefix",
+				"key":    tmpKey,
+				"prefix": prefix,
+			})
 		}
 		if s.tempUploadRepo != nil {
 			ok, err := s.tempUploadRepo.VerifyOwnership(ctx, tmpKey, userID)
 			if err != nil {
-				return nil, exception.NewInternalServerException("failed to verify temp key", "TEMP_VERIFY_FAILED", err)
+				return nil, exception.NewInternalServerException("TEMP_VERIFY_FAILED", map[string]any{
+					"key": tmpKey,
+				}, err)
 			}
 			if !ok {
-				return nil, exception.NewBadRequestException("temp key expired or not owned by user", "TEMP_KEY_NOT_OWNED", nil)
+				return nil, exception.NewBadRequestException("TEMP_KEY_NOT_OWNED", map[string]any{
+					"key": tmpKey,
+				})
 			}
 		}
 		filename := path.Base(tmpKey)
 		dstKey := fmt.Sprintf("posts/%d/%s", postID, filename)
 		url, err := s.objectStorage.Copy(ctx, tmpKey, dstKey)
 		if err != nil {
-			return nil, exception.NewInternalServerException("failed to commit image", "COMMIT_FAILED", err)
+			return nil, exception.NewInternalServerException("COMMIT_FAILED", map[string]any{
+				"src": tmpKey,
+				"dst": dstKey,
+			}, err)
 		}
-		_ = s.objectStorage.Delete(ctx, tmpKey) 
+
+		_ = s.objectStorage.Delete(ctx, tmpKey)
 		if s.tempUploadRepo != nil {
 			_ = s.tempUploadRepo.Untrack(ctx, tmpKey)
 		}

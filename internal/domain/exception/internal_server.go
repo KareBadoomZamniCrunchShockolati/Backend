@@ -1,8 +1,6 @@
 package exception
 
-import (
-	"net/http"
-)
+import "net/http"
 
 const (
 	ErrorTypeDBOperationFailed = "DB_OPERATION_FAILED"
@@ -17,100 +15,69 @@ const (
 	ErrorTypeContextCastFail   = "CONTEXT_CAST_FAIL"
 )
 
-// InternalServerException represents a 500 Internal Server Error
 type InternalServerException struct {
 	*BaseError
 }
 
-// NewInternalServerException creates a new InternalServerException
-func NewInternalServerException(code string, message string, originalErr error) *InternalServerException {
-	return &InternalServerException{
-		BaseError: NewBaseError(
-			code,
-			message, // descriptive message
-			http.StatusInternalServerError,
-			nil,
-		).Wrap(originalErr),
+func NewInternalServerException(code string, details map[string]any, originalErr error, params ...string) *InternalServerException {
+	if details == nil {
+		details = map[string]any{} 
 	}
+
+	be := NewBaseError(code, http.StatusInternalServerError, details).WithParams(params...)
+	if originalErr != nil {
+		be = be.Wrap(originalErr)
+	}
+
+	return &InternalServerException{BaseError: be}
 }
 
-// Convenience constructors
+func NewInternalServerExceptionWithErr(code string, originalErr error) *InternalServerException {
+	return NewInternalServerException(code, nil, originalErr)
+}
+
 func NewRepositoryError(err error) *InternalServerException {
-	return NewInternalServerException(
-		ErrorTypeDBOperationFailed,
-		"Failed to complete repository operation",
-		err,
-	)
+	return NewInternalServerException(ErrorTypeDBOperationFailed, nil, err)
 }
 
 func NewHashedPasswordError(err error) *InternalServerException {
-	return NewInternalServerException(
-		ErrorTypeHashFail,
-		"Failed to hash password",
-		err,
-	)
+	return NewInternalServerException(ErrorTypeHashFail, nil, err)
 }
 
 func NewJWTError(err error) *InternalServerException {
-	return NewInternalServerException(
-		ErrorTypeJWTFail,
-		"Failed to generate JWT token",
-		err,
-	)
+	return NewInternalServerException(ErrorTypeJWTFail, nil, err)
 }
 
 func NewVerificationError(err error) *InternalServerException {
-	return NewInternalServerException(
-		ErrorTypeVerifyFail,
-		"Failed to verify email",
-		err,
-	)
+	return NewInternalServerException(ErrorTypeVerifyFail, nil, err)
 }
 
 func NewEmailError(err error) *InternalServerException {
-	return NewInternalServerException(
-		ErrorTypeEmailFail,
-		"Failed to send email",
-		err,
-	)
+	return NewInternalServerException(ErrorTypeEmailFail, nil, err)
 }
 
 func NewDBLoginError(err error) *InternalServerException {
-	return NewInternalServerException(
-		ErrorTypeDBLoginFail,
-		"Database failure during login",
-		err,
-	)
+	return NewInternalServerException(ErrorTypeDBLoginFail, nil, err)
 }
 
 func NewRepositoryVerificationError(err error) *InternalServerException {
-	return NewInternalServerException(
-		ErrorTypeDBVerifyFail,
-		"Failed to verify email in repository",
-		err,
-	)
+	return NewInternalServerException(ErrorTypeDBVerifyFail, nil, err)
 }
 
 func NewRepositoryUpdateError(err error) *InternalServerException {
-	return NewInternalServerException(
-		ErrorTypeDBUpdateFail,
-		"Failed to update user in repository",
-		err,
-	)
+	return NewInternalServerException(ErrorTypeDBUpdateFail, nil, err)
 }
 
 func NewVerificationCodeGenerationError(err error) *InternalServerException {
-	return NewInternalServerException(
-		ErrorTypeVerifyCodeGenFail,
-		"Failed to generate verification code",
-		err,
-	)
+	return NewInternalServerException(ErrorTypeVerifyCodeGenFail, nil, err)
 }
 
 func NewContextCastError(err error) *InternalServerException {
 	return NewInternalServerException(
 		ErrorTypeContextCastFail,
-		"Failed to cast context",
+		map[string]any{
+			"reason": "context_cast_failed",
+		},
 		err,
 	)
 }

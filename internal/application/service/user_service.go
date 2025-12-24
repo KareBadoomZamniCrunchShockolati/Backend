@@ -3,6 +3,8 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"mime/multipart"
 	"path/filepath"
 	"strings"
@@ -14,8 +16,6 @@ import (
 	"challenge-app/internal/domain/repository"
 	"challenge-app/internal/infrastructure/storage"
 	"challenge-app/pkg/email"
-	"errors"
-	"fmt"
 )
 
 type UserService struct {
@@ -38,13 +38,14 @@ func NewUserService(repo repository.UserRepository, vRepo repository.Verificatio
 func (s *UserService) GetUserByID(id uint) (*model.UserModel, error) {
 	user, err := s.userRepo.GetUserByID(id)
 	if err != nil {
-		if _, ok := err.(*exception.NotFoundException); ok {
-			return nil, err
+		var nf *exception.NotFoundException
+		if errors.As(err, &nf) {
+			return nil, nf
 		}
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 	if user == nil {
-		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", id), "USER_NOT_FOUND_001")
+		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", id), "USER_NOT_FOUND")
 	}
 	return user, nil
 }
@@ -52,13 +53,16 @@ func (s *UserService) GetUserByID(id uint) (*model.UserModel, error) {
 func (s *UserService) GetAllUsers() ([]model.UserModel, error) {
 	users, err := s.userRepo.GetAllUsers()
 	if err != nil {
-		if _, ok := err.(*exception.NotFoundException); ok {
-			return nil, err
+		var nf *exception.NotFoundException
+		if errors.As(err, &nf) {
+			return nil, nf
 		}
-		return nil, err
+		return nil, exception.NewRepositoryError(err)
 	}
 	if users == nil {
-		return nil, exception.NewInternalServerException("UserRepo.GetAllUsers returned nil slice", "CODE_LOGIC_ERROR", nil)
+		return nil, exception.NewInternalServerException("CODE_LOGIC_ERROR", map[string]any{
+			"reason": "userRepo.GetAllUsers returned nil slice",
+		}, errors.New("userRepo.GetAllUsers returned nil slice"))
 	}
 	return users, nil
 }
@@ -71,24 +75,36 @@ func (s *UserService) UpdateUser(id uint, username, bio, newEmail string) (*mode
 	}
 
 	if user == nil {
-		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", id), "USER_NOT_FOUND_002")
+		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", id), "USER_NOT_FOUND")
 	}
-	if username == "" {
-		return nil, exception.NewBadRequestException("Username cannot be empty.", "INPUT_VALIDATION_001", nil)
+	if strings.TrimSpace(username) == "" {
+		return nil, exception.NewBadRequestException("USERNAME_REQUIRED", map[string]any{
+			"field": "username",
+		})
 	}
 
 	// 4. Persist changes to the repository
 	updatedUser, err := s.userRepo.UpdateUser(user)
 	if err != nil {
-		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
-			return nil, exception.NewConflictException("User field", "username/email", "USER_UPDATE_CONFLICT")
+		msg := strings.ToLower(err.Error())
+		if strings.Contains(msg, "duplicate key") || strings.Contains(msg, "unique constraint") {
+			return nil, exception.NewConflictException(
+				"USER_UPDATE_CONFLICT",
+				"User",
+				"username/email",
+				"",
+			)
 		}
-		return nil, err
-
+		return nil, exception.NewRepositoryUpdateError(err)
 	}
 	if updatedUser == nil {
-		return nil, exception.NewInternalServerException(fmt.Sprintf("UserRepo.UpdateUser returned nil for ID %d", id), "CODE_LOGIC_ERROR", nil)
+		return nil, exception.NewInternalServerException("CODE_LOGIC_ERROR", map[string]any{
+			"reason": fmt.Sprintf("userRepo.UpdateUser returned nil for ID %d", id),
+		}, errors.New("userRepo.UpdateUser returned nil"))
 	}
+
+	_ = bio
+	_ = newEmail
 
 	return updatedUser, nil
 }
@@ -99,24 +115,27 @@ func (s *UserService) InitiateEmailChange(userID uint, newEmail string) error {
 	// 1. getting the user with his ID
 	user, err := s.userRepo.GetUserByID(userID)
 	if err != nil {
-		return err
+		return exception.NewRepositoryError(err)
 	}
 	if user == nil {
-		return exception.NewNotFoundException("User", fmt.Sprintf("%d", userID), "USER_NOT_FOUND_003")
+		return exception.NewNotFoundException("User", fmt.Sprintf("%d", userID), "USER_NOT_FOUND")
 	}
 
-	if user.Email == newEmail {
-		return exception.NewBadRequestException("New email cannot be the same as the current email.", "EMAIL_SAME", nil)
+	if strings.EqualFold(strings.TrimSpace(user.Email), strings.TrimSpace(newEmail)) {
+		return exception.NewBadRequestException("EMAIL_SAME", map[string]any{
+			"current": user.Email,
+			"new":     newEmail,
+		})
 	}
 
 	// 3. Check if new email is already taken by another user
-	existingUser, _ := s.userRepo.GetUserByEmail(newEmail)
+	existingUser, err := s.userRepo.GetUserByEmail(newEmail)
 	if err != nil {
-		return err
+		return exception.NewRepositoryError(err)
 	}
 
 	if existingUser != nil && existingUser.ID != user.ID {
-		return exception.NewConflictException("Email address", newEmail, "EMAIL_TAKEN")
+		return exception.NewConflictException("EMAIL_TAKEN", "Email", "email", newEmail)
 	}
 
 	// 4. Generate verification code
@@ -170,7 +189,9 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 	if err != nil && storedData == "" {
 		// If storedData is empty, it means the key was not found or expired.
 		// If err is not nil, it's an infra failure. We treat the expiry as a BadRequest
-		return nil, exception.NewBadRequestException("Email change request not found or expired.", "EMAIL_CHANGE_EXPIRED", nil)
+		return nil, exception.NewBadRequestException("EMAIL_CHANGE_EXPIRED", map[string]any{
+			"email": newEmail,
+		})
 	}
 	if err != nil {
 		// Infrastructure failure on Redis lookup -> PANIC
@@ -183,11 +204,15 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 	var storedCode string
 	n, err := fmt.Sscanf(storedData, "%d:%s", &userID, &storedCode)
 	if err != nil || n != 2 {
-		return nil, exception.NewInternalServerException(fmt.Sprintf("Corrupted verification data for key %s", emailChangeKey), "CODE_DATA_CORRUPT", err)
+		return nil, exception.NewInternalServerException("CODE_DATA_CORRUPT", map[string]any{
+			"key": emailChangeKey,
+		}, err)
 	}
 
 	if strings.TrimSpace(storedCode) != code {
-		return nil, exception.NewBadRequestException("Invalid verification code.", "VERIFY_CODE_INVALID", nil)
+		return nil, exception.NewBadRequestException("VERIFY_CODE_INVALID", map[string]any{
+			"email": newEmail,
+		})
 	}
 
 	// 3. Get the user by ID ( because  it is more reliable than email)
@@ -196,15 +221,18 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 	if err != nil {
 		return nil, exception.NewRepositoryError(err)
 	}
-	fmt.Printf("DEBUG CompleteEmailChange: Found user - ID: %d, Current Email: %s\n", user.ID, user.Email)
 	if user == nil {
-		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", userID), "USER_NOT_FOUND_004")
+		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", userID), "USER_NOT_FOUND")
 	}
+	fmt.Printf("DEBUG CompleteEmailChange: Found user - ID: %d, Current Email: %s\n", user.ID, user.Email)
 
 	// Verify the old email matches ( for security purposes only)
 	if user.Email != oldEmail {
 		//fmt.Printf("DEBUG CompleteEmailChange: Security check failed - user email %s doesn't match provided old email %s\n", user.Email, oldEmail)
-		return nil, exception.NewBadRequestException("Email change request mismatch with existing user.", "EMAIL_CHANGE_MISMATCH", nil)
+		return nil, exception.NewBadRequestException("EMAIL_CHANGE_MISMATCH", map[string]any{
+			"expected_old": user.Email,
+			"got_old":      oldEmail,
+		})
 	}
 
 	// 4. Update user's email
@@ -218,6 +246,11 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 	if err != nil {
 		//fmt.Printf("DEBUG CompleteEmailChange: Failed to update user in database: %v\n", err)
 		return nil, exception.NewRepositoryUpdateError(err)
+	}
+	if updatedUser == nil {
+		return nil, exception.NewInternalServerException("CODE_LOGIC_ERROR", map[string]any{
+			"reason": "userRepo.UpdateUser returned nil",
+		}, errors.New("userRepo.UpdateUser returned nil"))
 	}
 	fmt.Printf("DEBUG CompleteEmailChange: User updated successfully - New Email: %s\n", updatedUser.Email)
 
@@ -244,12 +277,11 @@ func (s *UserService) CompleteEmailChange(oldEmail, newEmail, code string) (*mod
 func (s *UserService) DeleteUser(id uint) error {
 	err := s.userRepo.DeleteUser(id)
 	if err != nil {
-		var nf exception.NotFoundException
+		var nf *exception.NotFoundException
 		if errors.As(err, &nf) {
 			return nf
 		}
-		return err
-
+		return exception.NewRepositoryError(err)
 	}
 	return nil
 }
@@ -260,17 +292,28 @@ func (s *UserService) UploadProfilePicture(ctx context.Context, userID uint, fil
 		return nil, exception.NewRepositoryError(err)
 	}
 	if user == nil {
-		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", userID), "USER_NOT_FOUND_PROFILE_PIC")
+		return nil, exception.NewNotFoundException("User", fmt.Sprintf("%d", userID), "USER_NOT_FOUND")
 	}
 	data, mime, err := validator.ValidateProfileImage(file)
 	if err != nil {
-		return nil, exception.NewBadRequestException(err.Error(), "INVALID_PROFILE_PICTURE", nil)
+		return nil, exception.NewBadRequestException("INVALID_PROFILE_PICTURE", map[string]any{
+			"reason": err.Error(),
+		})
 	}
 	ext := extFromMIMEOrName(mime, file.Filename)
+	if ext == "" {
+		return nil, exception.NewBadRequestException("INVALID_PROFILE_PICTURE", map[string]any{
+			"reason": "unsupported_extension",
+			"mime":   mime,
+			"name":   file.Filename,
+		})
+	}
 	key := fmt.Sprintf("profiles/%d/%d%s", userID, time.Now().UTC().UnixNano(), ext)
 	publicURL, err := s.objectStorage.Upload(ctx, key, mime, bytes.NewReader(data))
 	if err != nil {
-		return nil, exception.NewInternalServerException("failed to upload profile picture", "S3_UPLOAD_FAILED", err)
+		return nil, exception.NewInternalServerException("S3_UPLOAD_FAILED", map[string]any{
+			"reason": "failed to upload profile picture",
+		}, err)
 	}
 	user.ProfilePicture = publicURL
 	updated, err := s.userRepo.UpdateUser(user)
@@ -278,7 +321,9 @@ func (s *UserService) UploadProfilePicture(ctx context.Context, userID uint, fil
 		return nil, exception.NewRepositoryUpdateError(err)
 	}
 	if updated == nil {
-		return nil, exception.NewInternalServerException("UserRepo.UpdateUser returned nil", "CODE_LOGIC_ERROR", nil)
+		return nil, exception.NewInternalServerException("CODE_LOGIC_ERROR", map[string]any{
+			"reason": "userRepo.UpdateUser returned nil",
+		}, errors.New("userRepo.UpdateUser returned nil"))
 	}
 	return updated, nil
 }

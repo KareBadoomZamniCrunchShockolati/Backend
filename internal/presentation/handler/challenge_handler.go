@@ -51,11 +51,17 @@ func (h *ChallengeHandler) CreateChallenge(ctx *gin.Context) {
 
 	startTime, err := time.Parse(time.RFC3339, params.StartTime)
 	if err != nil {
-		panic(exception.NewBadRequestException("Invalid start time format", "INVALID_TIME_FORMAT", nil))
+		panic(exception.NewBadRequestException(
+			"INVALID_TIME_FORMAT",
+			map[string]any{"field": "start_time"},
+		))
 	}
 	endTime, err := time.Parse(time.RFC3339, params.EndTime)
 	if err != nil {
-		panic(exception.NewBadRequestException("Invalid end time format", "INVALID_TIME_FORMAT", nil))
+		panic(exception.NewBadRequestException(
+			"INVALID_TIME_FORMAT",
+			map[string]any{"field": "end_time"},
+		))
 	}
 
 	createChallengeDTO := &dto.CreateChallengeDTO{
@@ -133,14 +139,20 @@ func (h *ChallengeHandler) UpdateChallenge(ctx *gin.Context) {
 	if params.StartTime != nil {
 		parsedTime, err := time.Parse(time.RFC3339, *params.StartTime)
 		if err != nil {
-			panic(exception.NewBadRequestException("Invalid start time format", "INVALID_TIME_FORMAT", nil))
+			panic(exception.NewBadRequestException(
+				"INVALID_TIME_FORMAT",
+				map[string]any{"field": "start_time"},
+			))
 		}
 		startTime = &parsedTime
 	}
 	if params.EndTime != nil {
 		parsedTime, err := time.Parse(time.RFC3339, *params.EndTime)
 		if err != nil {
-			panic(exception.NewBadRequestException("Invalid end time format", "INVALID_TIME_FORMAT", nil))
+			panic(exception.NewBadRequestException(
+				"INVALID_TIME_FORMAT",
+				map[string]any{"field": "end_time"},
+			))
 		}
 		endTime = &parsedTime
 	}
@@ -488,9 +500,8 @@ func (h *ChallengeHandler) JoinPublicChallenge(ctx *gin.Context) {
 	var params joinPublicChallengeParams
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		panic(exception.NewBadRequestException(
-			err.Error(),
 			exception.ErrorTypeInvalidJSONFormat,
-			nil,
+			map[string]any{"error": err.Error()},
 		))
 	}
 
@@ -835,7 +846,7 @@ func (h *ChallengeHandler) LikeChallenge(ctx *gin.Context) {
 	if !ok || userID == 0 {
 		panic(exception.NewInternalServerException(
 			exception.ErrorTypeContextCastFail,
-			"Invalid user ID type",
+			map[string]any{"reason": "invalid_user_id_type"},
 			nil,
 		))
 	}
@@ -860,7 +871,7 @@ func (h *ChallengeHandler) UnlikeChallenge(ctx *gin.Context) {
 	if !ok || userID == 0 {
 		panic(exception.NewInternalServerException(
 			exception.ErrorTypeContextCastFail,
-			"Invalid user ID type",
+			map[string]any{"reason": "invalid_user_id_type"},
 			nil,
 		))
 	}
@@ -915,11 +926,17 @@ func (h *ChallengeHandler) UploadChallengeCover(c *gin.Context) {
 	}
 	file, err := c.FormFile("file")
 	if err != nil {
-		panic(exception.NewBadRequestException("file is required", "FILE_REQUIRED", nil))
+		panic(exception.NewBadRequestException(
+			"FILE_REQUIRED",
+			map[string]any{"field": "file"},
+		))
 	}
 	data, mime, err := validator.ValidateChallengeCover(file)
 	if err != nil {
-		panic(exception.NewBadRequestException(err.Error(), "INVALID_COVER_IMAGE", nil))
+		panic(exception.NewBadRequestException(
+			"INVALID_COVER_IMAGE",
+			map[string]any{"error": err.Error()},
+		))
 	}
 	ch, err := h.challengeService.UploadChallengeCover(
 		c.Request.Context(),

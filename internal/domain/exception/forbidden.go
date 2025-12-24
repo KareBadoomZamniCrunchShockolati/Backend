@@ -1,22 +1,19 @@
-// internal/domain/exception/forbidden.go
 package exception
 
-import (
-	"net/http"
+import "net/http"
+
+const (
+	ErrorTypeForbidden = "FORBIDDEN"
 )
 
 type ForbiddenException struct {
 	*BaseError
 }
 
-func NewForbiddenException(msg string, code string) *ForbiddenException {
+func NewForbiddenException(code string, params ...string) *ForbiddenException {
 	return &ForbiddenException{
-		BaseError: NewBaseError(
-			code,
-			msg,
-			http.StatusForbidden, // 403
-			nil,
-		),
+		BaseError: NewBaseError(code, http.StatusForbidden, map[string]any{}).
+			WithParams(params...),
 	}
 }
 

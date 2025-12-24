@@ -10,7 +10,9 @@ import (
 	"challenge-app/internal/application/service"
 	service_interface "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/bootstrap"
+	domainLoc "challenge-app/internal/domain/localization"
 	repository_interface "challenge-app/internal/domain/repository"
+	"challenge-app/internal/infrastructure/localization"
 	"challenge-app/internal/infrastructure/repository/postgres"
 	"challenge-app/internal/infrastructure/repository/postgres/driver"
 	redisRepo "challenge-app/internal/infrastructure/repository/redis"
@@ -93,9 +95,17 @@ func ProvideS3Storage(cfg *bootstrap.Env) (*infra_storage.S3Storage, error) {
 	)
 }
 
+func ProvideTranslator() domainLoc.Translator {
+	return localization.NewTranslationService()
+}
+
 // Provider Sets
 var EnvProviderSet = wire.NewSet(
 	ProvideEnv,
+)
+
+var LocalizationProviderSet = wire.NewSet(
+	ProvideTranslator, 
 )
 
 var SecurityProviderSet = wire.NewSet(
@@ -185,9 +195,11 @@ var HandlerProviderSet = wire.NewSet(
 
 var MiddlewareProviderSet = wire.NewSet(
 	middleware.NewJWTMiddleware,
-	middleware.NewErrorProvider,
+	middleware.NewLocalizationMiddleware,
+	middleware.NewErrorMiddleware,
 	wire.Bind(new(middleware_interface.ErrorMiddleware), new(*middleware.ErrorMiddleware)),
 	wire.Bind(new(middleware_interface.JWTMiddleware), new(*middleware.JWTMiddleware)),
+	wire.Bind(new(middleware_interface.LocalizationMiddleware), new(*middleware.LocalizationMiddleware)),
 )
 
 // Application
@@ -207,6 +219,7 @@ func NewApplication(db *gorm.DB, router *gin.Engine) *Application {
 func InitializeRouter(db *gorm.DB, v *validator.Validate) (*gin.Engine, error) {
 	wire.Build(
 		EnvProviderSet,
+		LocalizationProviderSet, 
 		StorageProviderSet,
 		SecurityProviderSet,
 		RepositoryProviderSet,
@@ -224,6 +237,7 @@ func InitializeRouter(db *gorm.DB, v *validator.Validate) (*gin.Engine, error) {
 func InitializeApplication() (*Application, error) {
 	wire.Build(
 		EnvProviderSet,
+		LocalizationProviderSet, 
 		StorageProviderSet,
 		DatabaseProviderSet,
 		SecurityProviderSet,

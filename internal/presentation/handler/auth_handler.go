@@ -38,8 +38,10 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 		for k, v := range formatted {
 			errorsMap[k] = v
 		}
-		c.Error(exception.NewValidationFailedException(errorsMap))
-		return 
+		c.Error(exception.NewValidationFailedException(map[string]any{
+			"fields": errorsMap,
+		}))
+		return
 	}
 
 	bio := strings.TrimSpace(req.Bio)
@@ -47,14 +49,12 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 	user, err := h.AuthService.RegisterUser(req.Username, req.Email, req.Password, bio)
 	if err != nil {
 		c.Error(err)
-		return 
+		return
 	}
+	message := GetTranslatedSuccessMessage(c, "USER_REGISTERED")
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "User registered successfully. Check your email for verification code.",
-		"user": dto.LoginResponse{
-			ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio,
-		},
+	Response(c, http.StatusCreated, message, dto.LoginResponse{
+		ID: user.ID, Username: user.Username, Email: user.Email, Bio: user.Bio,
 	})
 }
 
@@ -73,24 +73,21 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.Error(exception.NewInvalidRequestBodyException(err))
-		return 
+		return
 	}
 
 	user, token, err := h.AuthService.LoginUser(req.Email, req.Password)
 	if err != nil {
 		c.Error(err)
-		return 
+		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Login successful",
-		"user_response": dto.LoginResponse{
-			ID:       user.ID,
-			Username: user.Username,
-			Email:    user.Email,
-			Bio:      user.Bio,
-			Token:    token,
-		},
+	Response(c, http.StatusOK, "Login successful", dto.LoginResponse{
+		ID:       user.ID,
+		Username: user.Username,
+		Email:    user.Email,
+		Bio:      user.Bio,
+		Token:    token,
 	})
 }
 
@@ -98,18 +95,17 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 	var req dto.VerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.Error(exception.NewInvalidRequestBodyException(err))
-		return 
+		return
 	}
 
 	token, err := h.AuthService.VerifyEmail(req.Email, req.Code)
 	if err != nil {
 		c.Error(err)
-		return 
+		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Email verified successfully",
-		"token":   token,
+	Response(c, http.StatusOK, "Email verified successfully", gin.H{
+		"token": token,
 	})
 }
 
@@ -123,11 +119,10 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	err := h.AuthService.ResendVerificationEmail(req.Email)
 	if err != nil {
 		c.Error(err)
-		return 
+		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Verification email sent successfully",
-		"email":   req.Email,
+	Response(c, http.StatusOK, "Verification email sent successfully", gin.H{
+		"email": req.Email,
 	})
 }

@@ -1,31 +1,36 @@
 package exception
 
-import (
-	"fmt"
-	"net/http"
+import "net/http"
+
+const (
+	ErrorUserAlreadyExists         = "USER_ALREADY_EXISTS"         
+	ErrorUserAlreadyExistsEmail    = "USER_ALREADY_EXISTS_EMAIL"
+	ErrorUserAlreadyExistsUsername = "USER_ALREADY_EXISTS_USERNAME"
 )
 
 type ConflictException struct {
 	*BaseError
 }
 
-func NewConflictException(resource, field, code string) *ConflictException {
-	msg := fmt.Sprintf("The %s already exists for the field %s.", resource, field)
+func (e *ConflictException) ClientError() {}
+
+func NewConflictException(code, resource, field, identifier string) *ConflictException {
+	details := map[string]any{
+		"resource":   resource,
+		"field":      field,
+		"identifier": identifier,
+	}
+
 	return &ConflictException{
-		BaseError: NewBaseError(
-			code,
-			msg,
-			http.StatusConflict, // 409
-			map[string]any{
-				"resource": resource,
-				"field":    field,
-			},
-		),
+		BaseError: NewBaseError(code, http.StatusConflict, details).
+			WithParams(resource, field, identifier),
 	}
 }
 
-func NewUserConflictException(field string) *ConflictException {
-	return NewConflictException("User", field, "USER_ALREADY_EXISTS")
+func NewUserAlreadyExistsByEmail(email string) *ConflictException {
+	return NewConflictException(ErrorUserAlreadyExists, "User", "email", email)
 }
 
-func (e *ConflictException) ClientError() {}
+func NewUserAlreadyExistsByUsername(username string) *ConflictException {
+	return NewConflictException(ErrorUserAlreadyExists, "User", "username", username)
+}

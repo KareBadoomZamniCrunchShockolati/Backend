@@ -27,16 +27,21 @@ func (r *LikeRepository) CreateLike(like *model.Like) error {
 
 	result := r.db.Create(likeEntity)
 	if result.Error != nil {
-		// Check if it's a duplicate key error
 		if strings.Contains(result.Error.Error(), "duplicate key") ||
 			strings.Contains(result.Error.Error(), "unique constraint") {
-			return exception.NewConflictException("Like", "user_id", "USER_ALREADY_LIKED")
+			return exception.NewConflictException(
+				"USER_ALREADY_LIKED",
+				"Like",
+				"user_id",
+				fmt.Sprintf("%d", like.UserID),
+			)
 		}
 		return exception.NewRepositoryError(result.Error)
 	}
 
 	return nil
 }
+
 func (r *LikeRepository) DeleteLike(entityType model.LikeType, entityID, userID uint) error {
 	result := r.db.Where("entity_type = ? AND entity_id = ? AND user_id = ?",
 		string(entityType), entityID, userID).Delete(&entity.LikeEntity{})

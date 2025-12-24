@@ -1,41 +1,52 @@
 package exception
 
-import (
-	"net/http"
-)
+import "net/http"
 
 const (
 	ErrorTypeAuthMissingID          = "AUTH_MISSING_ID"
 	ErrorTypeAuthInvalidCredentials = "AUTH_INVALID_CREDENTIALS"
+
+	ErrorTypeAuthHeaderMalformed = "AUTH_HEADER_MALFORMED"
+	ErrorTypeTokenEmpty          = "TOKEN_EMPTY"
+	ErrorTypeTokenInvalidExpired = "TOKEN_INVALID_EXPIRED"
 )
 
 type UnauthorizedException struct {
 	*BaseError
 }
 
-func NewUnauthorizedException(msg string, code string) *UnauthorizedException {
+func (e *UnauthorizedException) ClientError() {}
+
+func NewUnauthorizedException(code string, details map[string]any, params ...string) *UnauthorizedException {
+	if details == nil {
+		details = map[string]any{}
+	}
 	return &UnauthorizedException{
-		BaseError: NewBaseError(
-			code,
-			msg,
-			http.StatusUnauthorized, // 401
-			nil,
-		),
+		BaseError: NewBaseError(code, http.StatusUnauthorized, details).WithParams(params...),
 	}
 }
 
 func NewMissingUserIDException() *UnauthorizedException {
-	return NewUnauthorizedException(
-		"Authentication failed: User ID not found in context.",
-		ErrorTypeAuthMissingID,
-	)
+	return NewUnauthorizedException(ErrorTypeAuthMissingID, map[string]any{
+		"field": "user_id",
+	})
 }
 
 func NewAuthInvalidCredentials() *UnauthorizedException {
-	return NewUnauthorizedException(
-		"Invalid credentials.",
-		ErrorTypeAuthInvalidCredentials,
-	)
+	return NewUnauthorizedException(ErrorTypeAuthInvalidCredentials, nil)
 }
 
-func (e *UnauthorizedException) ClientError() {}
+
+func NewAuthHeaderMalformed() *UnauthorizedException {
+	return NewUnauthorizedException(ErrorTypeAuthHeaderMalformed, map[string]any{
+		"header": "Authorization",
+	})
+}
+
+func NewTokenEmpty() *UnauthorizedException {
+	return NewUnauthorizedException(ErrorTypeTokenEmpty, nil)
+}
+
+func NewTokenInvalidOrExpired() *UnauthorizedException {
+	return NewUnauthorizedException(ErrorTypeTokenInvalidExpired, nil)
+}

@@ -23,15 +23,15 @@ func SetupRouter(
 	postHandler handler.PostHandler,
 	jwtMiddleware middleware.JWTMiddleware,
 	errorMiddleware middleware.ErrorMiddleware,
+	localizatorMiddleware middleware.LocalizationMiddleware,
 ) *gin.Engine {
 
 	r := gin.New()
-
-	// Global middleware
 	r.Use(gin.Logger())
-	r.Use(gin.Recovery())
+	r.Use(gin.Recovery()) 
+	r.Use(localizatorMiddleware.Handle())
 	r.Use(errorMiddleware.PanicRecovery())
-	r.Use(errorMiddleware.APIErrorTranslator())
+	r.Use(errorMiddleware.ErrorHandler())  
 
 	// CORS configuration
 	r.Use(cors.New(cors.Config{
