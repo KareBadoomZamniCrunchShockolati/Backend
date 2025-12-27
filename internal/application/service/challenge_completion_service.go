@@ -2,9 +2,10 @@ package service
 
 import (
 	"challenge-app/internal/application/dto"
+	"challenge-app/internal/domain/enum"
 	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/repository"
-	"fmt"
+	"log"
 	"time"
 )
 
@@ -40,7 +41,12 @@ func (s *ChallengeCompletionService) ProcessEndedChallenges() (int, error) {
 	challenges, err := s.completionRepo.GetChallengesToProcess()
 	// a list of challenges where 1.their end time has passed, 2. they have not been stopped
 	if err != nil {
+		log.Printf("Failed to get challenges to process: %v", err)
 		return 0, exception.NewRepositoryError(err)
+	}
+	if len(challenges) == 0 {
+		log.Printf("No ended challenges found to process")
+		return 0, nil
 	}
 
 	completedCount := 0
@@ -48,13 +54,12 @@ func (s *ChallengeCompletionService) ProcessEndedChallenges() (int, error) {
 		// Get all participants for this challenge
 		participants, err := s.participantRepo.GetParticipantsByChallenge(challenge.ID, 0, 1000)
 		if err != nil {
-			// Log error but continue with other challenges
-			continue
+			log.Printf("error getting list of participants for this challenge")
 		}
 
 		for _, participant := range participants {
-			if participant.Status != "joined" {
-				continue
+			if enum.StatusJoined != "joined" {
+				log.Printf("user not joined in the challenge")
 			}
 
 			// Check if user achieved the goal in at least 80% of days
@@ -67,8 +72,8 @@ func (s *ChallengeCompletionService) ProcessEndedChallenges() (int, error) {
 			)
 
 			if err != nil {
-				// Log error but continue with other participants
-				continue
+				log.Printf("error calculating user progress")
+
 			}
 
 			if isCompleted {
@@ -279,35 +284,35 @@ func (s *ChallengeCompletionService) GetUserCompletionStats(userID uint) (*dto.U
 	}, nil
 }
 
-func (s *ChallengeCompletionService) MarkChallengeAsCompleted(userID, challengeID uint) error {
-	// Verify challenge exists and has ended
-	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
-	if err != nil {
-		return exception.NewRepositoryError(err)
-	}
+// func (s *ChallengeCompletionService) MarkChallengeAsCompleted(userID, challengeID uint) error {
+// 	// Verify challenge exists and has ended
+// 	challenge, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
+// 	if err != nil {
+// 		return exception.NewRepositoryError(err)
+// 	}
 
-	if challenge == nil {
-		return exception.NewNotFoundException(
-			"Challenge",
-			fmt.Sprintf("%d", challengeID),
-			"CHALLENGE_NOT_FOUND",
-		)
-	}
+// 	if challenge == nil {
+// 		return exception.NewNotFoundException(
+// 			"Challenge",
+// 			fmt.Sprintf("%d", challengeID),
+// 			"CHALLENGE_NOT_FOUND",
+// 		)
+// 	}
 
-	// Check if challenge has ended
-	if challenge.EndTime != nil && challenge.EndTime.After(time.Now()) {
-		return exception.NewBadRequestException(
-			"CHALLENGE_NOT_ENDED",
-			map[string]any{
-				"challenge_id": challengeID,
-				"end_time":     challenge.EndTime,
-			},
-		)
-	}
+// 	// Check if challenge has ended
+// 	if challenge.EndTime != nil && challenge.EndTime.After(time.Now()) {
+// 		return exception.NewBadRequestException(
+// 			"CHALLENGE_NOT_ENDED",
+// 			map[string]any{
+// 				"challenge_id": challengeID,
+// 				"end_time":     challenge.EndTime,
+// 			},
+// 		)
+// 	}
 
-	// Mark as completed
-	return s.completionRepo.MarkChallengeCompleted(userID, challengeID)
-}
+// 	// Mark as completed
+// 	return s.completionRepo.MarkChallengeCompleted(userID, challengeID)
+// }
 
 func (s *ChallengeCompletionService) GetChallengeCompletionRate(challengeID uint) (float64, error) {
 	return s.completionRepo.GetCompletionRate(challengeID)
