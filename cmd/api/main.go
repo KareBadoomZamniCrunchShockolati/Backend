@@ -7,6 +7,7 @@ import (
 	"challenge-app/pkg/validation"
 	"log"
 	"os"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
@@ -41,38 +42,33 @@ func main() {
 		log.Fatalf("Failed to register custom validator: %v", err)
 	}
 
-	// Initialize application
-	app, err := injector.InitializeApplication()
+	// Initialize application with worker container
+	container, err := injector.InitializeApplicationWithWorker()
 	if err != nil {
 		log.Fatalf("Error initializing dependencies: %v", err)
 	}
 
-	// Set up Gin router
-	r := gin.Default()
+	// Start the background worker
+	container.Worker.Start()
+	defer container.Worker.Stop()
 
-	// Apply CORS middleware globally
+	log.Println("✅ Background worker for challenge completion started")
+
+	// Set up Gin router - use the router from the app
+	r := container.App.Router
+
+	// Apply CORS middleware globally (already applied in router setup, but adding here for safety)
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"}, // Allow requests from localhost:3000
+		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowHeaders:     []string{"Content-Type", "Authorization", "ACCEPT"},
 		AllowCredentials: true,
 	}))
 
-	// Example route for Swagger or health check endpoint
-	r.GET("/api/v1/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status": "API is running",
-		})
-	})
-
-	// Set up routes, inject your application, etc.
-	// Example route:
-	// app.Router.GET("/api/v1/users", getUserHandler)
-
 	log.Printf("Starting server on port %s...", bootstrap.AppPort)
 
-	// Start the server - use 0.0.0.0 for Docker
-	if err := app.Router.Run("0.0.0.0:" + bootstrap.AppPort); err != nil {
+	// Start the server
+	if err := r.Run("0.0.0.0:" + bootstrap.AppPort); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

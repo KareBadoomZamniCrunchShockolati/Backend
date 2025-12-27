@@ -21,6 +21,7 @@ func SetupRouter(
 	challengeHandler handler.ChallengeHandler,
 	userDayHandler handler.UserDayHandler,
 	postHandler handler.PostHandler,
+	challengeCompletionHandler handler.ChallengeCompletionHandler,
 	jwtMiddleware middleware.JWTMiddleware,
 	errorMiddleware middleware.ErrorMiddleware,
 	localizatorMiddleware middleware.LocalizationMiddleware,
@@ -28,10 +29,10 @@ func SetupRouter(
 
 	r := gin.New()
 	r.Use(gin.Logger())
-	r.Use(gin.Recovery()) 
+	r.Use(gin.Recovery())
 	r.Use(localizatorMiddleware.Handle())
 	r.Use(errorMiddleware.PanicRecovery())
-	r.Use(errorMiddleware.ErrorHandler())  
+	r.Use(errorMiddleware.ErrorHandler())
 
 	// CORS configuration
 	r.Use(cors.New(cors.Config{
@@ -164,6 +165,10 @@ func SetupRouter(
 		protected.DELETE("/challenges/:id/days/:date", userDayHandler.DeleteDayData)
 		protected.GET("/challenges/:id/progress", userDayHandler.GetGoalProgressChart)
 		protected.GET("/challenges/:id/feelings", userDayHandler.GetFeelingCounts)
+
+		protected.GET("/challenges/completed", challengeCompletionHandler.GetCompletedChallenges)
+		protected.GET("/challenges/completion-stats", challengeCompletionHandler.GetCompletionStats)
+		protected.GET("/challenges/:id/completion-status", challengeCompletionHandler.CheckChallengeCompletion)
 
 		// Post CRUD operations
 		protected.POST("/posts", postHandler.CreatePost)
