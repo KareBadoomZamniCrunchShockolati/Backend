@@ -24,7 +24,6 @@ import (
 	"challenge-app/internal/presentation/router"
 	"challenge-app/pkg/email"
 	"challenge-app/pkg/security"
-	"challenge-app/pkg/validation"
 	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -74,11 +73,14 @@ func InitializeRouter(db *gorm.DB, v *validator.Validate) (*gin.Engine, error) {
 	tempUploadRepository := redis.NewTempUploadRepository(client)
 	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository, s3Storage, tempUploadRepository)
 	postHandler := handler.NewPostHandler(postService)
+	challengeCompletionRepository := postgres.NewChallengeCompletionRepository(db)
+	challengeCompletionService := service.NewChallengeCompletionService(challengeCompletionRepository, challengeRepository, challengeParticipantRepository, userDayRepository, userRepository, categoryRepository)
+	challengeCompletionHandler := handler.NewChallengeCompletionHandler(challengeCompletionService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	errorMiddleware := middleware.NewErrorMiddleware()
 	translator := ProvideTranslator()
 	localizationMiddleware := middleware.NewLocalizationMiddleware(translator)
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, challengeCompletionHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
 	return engine, nil
 }
 
@@ -125,13 +127,72 @@ func InitializeApplication() (*Application, error) {
 	tempUploadRepository := redis.NewTempUploadRepository(client)
 	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository, s3Storage, tempUploadRepository)
 	postHandler := handler.NewPostHandler(postService)
+	challengeCompletionRepository := postgres.NewChallengeCompletionRepository(db)
+	challengeCompletionService := service.NewChallengeCompletionService(challengeCompletionRepository, challengeRepository, challengeParticipantRepository, userDayRepository, userRepository, categoryRepository)
+	challengeCompletionHandler := handler.NewChallengeCompletionHandler(challengeCompletionService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	errorMiddleware := middleware.NewErrorMiddleware()
 	translator := ProvideTranslator()
 	localizationMiddleware := middleware.NewLocalizationMiddleware(translator)
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, challengeCompletionHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
 	application := NewApplication(db, engine)
 	return application, nil
+}
+
+func InitializeApplicationWithWorker() (*ApplicationContainer, error) {
+	env := ProvideEnv()
+	postgresDSN := ProvideDSN(env)
+	db, err := ProvidePostgresDB(postgresDSN)
+	if err != nil {
+		return nil, err
+	}
+	userRepository := postgres.NewUserRepository(db)
+	client, err := ProvideRedisClient(env)
+	if err != nil {
+		return nil, err
+	}
+	verificationRepository := redis.NewVerificationRepository(client)
+	emailServiceImpl := ProvideEmailService(env)
+	s3Storage, err := ProvideS3Storage(env)
+	if err != nil {
+		return nil, err
+	}
+	userService := service.NewUserService(userRepository, verificationRepository, emailServiceImpl, s3Storage)
+	userHandler := handler.NewUserHandler(userService)
+	jwtServiceImpl := ProvideJWTService(env)
+	passwordServiceImpl := security.NewPasswordService()
+	authService := service.NewAuthService(userRepository, verificationRepository, jwtServiceImpl, emailServiceImpl, passwordServiceImpl)
+	authHandler := handler.NewAuthHandler(authService)
+	followRepository := postgres.NewFollowRepository(db)
+	followService := service.NewFollowService(followRepository, userRepository)
+	followHandlerImpl := handler.NewFollowHandler(followService)
+	challengeRepository := postgres.NewChallengeRepository(db)
+	challengeParticipantRepository := postgres.NewChallengeParticipantRepository(db)
+	commentRepository := postgres.NewCommentRepository(db)
+	challengeParticipationRepository := postgres.NewChallengeParticipationRepository(db)
+	categoryRepository := postgres.NewCategoryRepository(db)
+	likeRepository := postgres.NewLikeRepository(db)
+	challengeService := service.NewChallengeService(challengeRepository, challengeParticipantRepository, commentRepository, challengeParticipationRepository, challengeParticipationRepository, categoryRepository, userRepository, followRepository, likeRepository, s3Storage)
+	challengeHandler := handler.NewChallengeHandler(challengeService)
+	userDayRepository := postgres.NewUserDayRepository(db)
+	userDayService := service.NewUserDayService(userDayRepository)
+	userDayHandler := handler.NewUserDayHandler(userDayService)
+	postRepository := postgres.NewPostRepository(db)
+	tempUploadRepository := redis.NewTempUploadRepository(client)
+	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository, s3Storage, tempUploadRepository)
+	postHandler := handler.NewPostHandler(postService)
+	challengeCompletionRepository := postgres.NewChallengeCompletionRepository(db)
+	challengeCompletionService := service.NewChallengeCompletionService(challengeCompletionRepository, challengeRepository, challengeParticipantRepository, userDayRepository, userRepository, categoryRepository)
+	challengeCompletionHandler := handler.NewChallengeCompletionHandler(challengeCompletionService)
+	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
+	errorMiddleware := middleware.NewErrorMiddleware()
+	translator := ProvideTranslator()
+	localizationMiddleware := middleware.NewLocalizationMiddleware(translator)
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, challengeCompletionHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
+	application := NewApplication(db, engine)
+	challengeCompletionWorker := GetChallengeCompletionWorker(challengeCompletionRepository, challengeRepository, challengeParticipantRepository, userDayRepository, userRepository, categoryRepository)
+	applicationContainer := NewApplicationContainer(application, challengeCompletionWorker)
+	return applicationContainer, nil
 }
 
 // wire.go:
@@ -182,9 +243,7 @@ func ProvideJWTService(cfg *bootstrap.Env) *security.JwtServiceImpl {
 }
 
 func ProvideValidator() *validator.Validate {
-	v := validator.New()
-	v.RegisterValidation("password_policy", validation.PasswordValidationFunc)
-	return v
+	return validator.New()
 }
 
 func ProvideS3Storage(cfg *bootstrap.Env) (*storage.S3Storage, error) {
@@ -200,6 +259,26 @@ func ProvideS3Storage(cfg *bootstrap.Env) (*storage.S3Storage, error) {
 
 func ProvideTranslator() localization.Translator {
 	return localization2.NewTranslationService()
+}
+
+func GetChallengeCompletionWorker(
+	completionRepo repository.ChallengeCompletionRepository,
+	challengeRepo repository.ChallengeRepository,
+	participantRepo repository.ChallengeParticipantRepository,
+	userDayRepo repository.UserDayRepository,
+	userRepo repository.UserRepository,
+	categoryRepo repository.CategoryRepository,
+) *service.ChallengeCompletionWorker {
+
+	return service.NewChallengeCompletionWorker(
+		completionRepo,
+		challengeRepo,
+		participantRepo,
+		userDayRepo,
+		userRepo,
+		categoryRepo,
+		1*time.Minute,
+	)
 }
 
 // Provider Sets
@@ -230,13 +309,17 @@ var StorageProviderSet = wire.NewSet(
 	ProvideS3Storage, wire.Bind(new(storage.ObjectStorage), new(*storage.S3Storage)),
 )
 
-var RepositoryProviderSet = wire.NewSet(postgres.NewUserRepository, postgres.NewChallengeRepository, postgres.NewCategoryRepository, postgres.NewChallengeParticipationRepository, postgres.NewChallengeParticipantRepository, postgres.NewCommentRepository, postgres.NewLikeRepository, postgres.NewUserDayRepository, postgres.NewFollowRepository, postgres.NewPostRepository, wire.Bind(new(repository.LikeRepository), new(*postgres.LikeRepository)), wire.Bind(new(repository.UserDayRepository), new(*postgres.UserDayRepository)), wire.Bind(new(repository.ChallengeInviteRepository), new(*postgres.ChallengeParticipationRepository)), wire.Bind(new(repository.ChallengeJoinRequestRepository), new(*postgres.ChallengeParticipationRepository)), wire.Bind(new(repository.CommentRepository), new(*postgres.CommentRepository)), wire.Bind(new(repository.ChallengeParticipantRepository), new(*postgres.ChallengeParticipantRepository)), wire.Bind(new(repository.UserRepository), new(*postgres.UserRepository)), wire.Bind(new(repository.ChallengeRepository), new(*postgres.ChallengeRepository)), wire.Bind(new(repository.CategoryRepository), new(*postgres.CategoryRepository)), wire.Bind(new(repository.FollowRepository), new(*postgres.FollowRepository)), wire.Bind(new(repository.PostRepository), new(*postgres.PostRepository)))
+var RepositoryProviderSet = wire.NewSet(postgres.NewUserRepository, postgres.NewChallengeRepository, postgres.NewCategoryRepository, postgres.NewChallengeParticipationRepository, postgres.NewChallengeParticipantRepository, postgres.NewCommentRepository, postgres.NewLikeRepository, postgres.NewUserDayRepository, postgres.NewFollowRepository, postgres.NewPostRepository, postgres.NewChallengeCompletionRepository, wire.Bind(new(repository.ChallengeCompletionRepository), new(*postgres.ChallengeCompletionRepository)), wire.Bind(new(repository.LikeRepository), new(*postgres.LikeRepository)), wire.Bind(new(repository.UserDayRepository), new(*postgres.UserDayRepository)), wire.Bind(new(repository.ChallengeInviteRepository), new(*postgres.ChallengeParticipationRepository)), wire.Bind(new(repository.ChallengeJoinRequestRepository), new(*postgres.ChallengeParticipationRepository)), wire.Bind(new(repository.CommentRepository), new(*postgres.CommentRepository)), wire.Bind(new(repository.ChallengeParticipantRepository), new(*postgres.ChallengeParticipantRepository)), wire.Bind(new(repository.UserRepository), new(*postgres.UserRepository)), wire.Bind(new(repository.ChallengeRepository), new(*postgres.ChallengeRepository)), wire.Bind(new(repository.CategoryRepository), new(*postgres.CategoryRepository)), wire.Bind(new(repository.FollowRepository), new(*postgres.FollowRepository)), wire.Bind(new(repository.PostRepository), new(*postgres.PostRepository)))
 
-var ServiceProviderSet = wire.NewSet(service.NewUserService, service.NewAuthService, service.NewChallengeService, service.NewFollowService, service.NewPostService, service.NewUserDayService, service.NewTempUploadCleaner, wire.Bind(new(serviceinterface.ChallengeServicer), new(*service.ChallengeService)), wire.Bind(new(serviceinterface.UserServicer), new(*service.UserService)), wire.Bind(new(serviceinterface.AuthServicer), new(*service.AuthService)), wire.Bind(new(serviceinterface.FollowServicer), new(*service.FollowService)), wire.Bind(new(serviceinterface.PostServicer), new(*service.PostService)), wire.Bind(new(serviceinterface.UserDayServicer), new(*service.UserDayService)))
+var ServiceProviderSet = wire.NewSet(service.NewUserService, service.NewAuthService, service.NewChallengeService, service.NewFollowService, service.NewPostService, service.NewUserDayService, service.NewTempUploadCleaner, service.NewChallengeCompletionService, wire.Bind(new(serviceinterface.ChallengeServicer), new(*service.ChallengeService)), wire.Bind(new(serviceinterface.UserServicer), new(*service.UserService)), wire.Bind(new(serviceinterface.AuthServicer), new(*service.AuthService)), wire.Bind(new(serviceinterface.FollowServicer), new(*service.FollowService)), wire.Bind(new(serviceinterface.PostServicer), new(*service.PostService)), wire.Bind(new(serviceinterface.UserDayServicer), new(*service.UserDayService)), wire.Bind(new(serviceinterface.ChallengeCompletionServicer), new(*service.ChallengeCompletionService)))
 
-var HandlerProviderSet = wire.NewSet(handler.NewUserHandler, handler.NewAuthHandler, handler.NewChallengeHandler, handler.NewFollowHandler, handler.NewPostHandler, handler.NewUserDayHandler, wire.Bind(new(handler2.UserHandler), new(*handler.UserHandler)), wire.Bind(new(handler2.AuthHandler), new(*handler.AuthHandler)), wire.Bind(new(handler2.ChallengeHandler), new(*handler.ChallengeHandler)), wire.Bind(new(handler2.FollowHandler), new(*handler.FollowHandlerImpl)), wire.Bind(new(handler2.PostHandler), new(*handler.PostHandler)), wire.Bind(new(handler2.UserDayHandler), new(*handler.UserDayHandler)))
+var HandlerProviderSet = wire.NewSet(handler.NewUserHandler, handler.NewAuthHandler, handler.NewChallengeHandler, handler.NewFollowHandler, handler.NewPostHandler, handler.NewUserDayHandler, handler.NewChallengeCompletionHandler, wire.Bind(new(handler2.UserHandler), new(*handler.UserHandler)), wire.Bind(new(handler2.AuthHandler), new(*handler.AuthHandler)), wire.Bind(new(handler2.ChallengeHandler), new(*handler.ChallengeHandler)), wire.Bind(new(handler2.FollowHandler), new(*handler.FollowHandlerImpl)), wire.Bind(new(handler2.PostHandler), new(*handler.PostHandler)), wire.Bind(new(handler2.UserDayHandler), new(*handler.UserDayHandler)), wire.Bind(new(handler2.ChallengeCompletionHandler), new(*handler.ChallengeCompletionHandler)))
 
 var MiddlewareProviderSet = wire.NewSet(middleware.NewJWTMiddleware, middleware.NewLocalizationMiddleware, middleware.NewErrorMiddleware, wire.Bind(new(middleware2.ErrorMiddleware), new(*middleware.ErrorMiddleware)), wire.Bind(new(middleware2.JWTMiddleware), new(*middleware.JWTMiddleware)), wire.Bind(new(middleware2.LocalizationMiddleware), new(*middleware.LocalizationMiddleware)))
+
+var WorkerProviderSet = wire.NewSet(
+	GetChallengeCompletionWorker,
+)
 
 // Application
 type Application struct {
@@ -248,5 +331,17 @@ func NewApplication(db *gorm.DB, router2 *gin.Engine) *Application {
 	return &Application{
 		DB:     db,
 		Router: router2,
+	}
+}
+
+type ApplicationContainer struct {
+	App    *Application
+	Worker *service.ChallengeCompletionWorker
+}
+
+func NewApplicationContainer(app *Application, worker *service.ChallengeCompletionWorker) *ApplicationContainer {
+	return &ApplicationContainer{
+		App:    app,
+		Worker: worker,
 	}
 }
