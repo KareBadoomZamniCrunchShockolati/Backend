@@ -9,6 +9,7 @@ package injector
 import (
 	"challenge-app/internal/application/service"
 	"challenge-app/internal/application/service/interface"
+	"challenge-app/internal/application/service/workers"
 	"challenge-app/internal/bootstrap"
 	"challenge-app/internal/domain/localization"
 	"challenge-app/internal/domain/repository"
@@ -268,9 +269,9 @@ func GetChallengeCompletionWorker(
 	userDayRepo repository.UserDayRepository,
 	userRepo repository.UserRepository,
 	categoryRepo repository.CategoryRepository,
-) *service.ChallengeCompletionWorker {
+) *workers.ChallengeCompletionWorker {
 
-	return service.NewChallengeCompletionWorker(
+	return workers.NewChallengeCompletionWorker(
 		completionRepo,
 		challengeRepo,
 		participantRepo,
@@ -336,10 +337,10 @@ func NewApplication(db *gorm.DB, router2 *gin.Engine) *Application {
 
 type ApplicationContainer struct {
 	App    *Application
-	Worker *service.ChallengeCompletionWorker
+	Worker *workers.ChallengeCompletionWorker
 }
 
-func NewApplicationContainer(app *Application, worker *service.ChallengeCompletionWorker) *ApplicationContainer {
+func NewApplicationContainer(app *Application, worker *workers.ChallengeCompletionWorker) *ApplicationContainer {
 	return &ApplicationContainer{
 		App:    app,
 		Worker: worker,

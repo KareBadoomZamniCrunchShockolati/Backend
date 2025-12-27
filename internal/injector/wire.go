@@ -9,6 +9,7 @@ import (
 
 	"challenge-app/internal/application/service"
 	service_interface "challenge-app/internal/application/service/interface"
+	workers "challenge-app/internal/application/service/workers"
 	"challenge-app/internal/bootstrap"
 	domainLoc "challenge-app/internal/domain/localization"
 	repository_interface "challenge-app/internal/domain/repository"
@@ -103,9 +104,9 @@ func GetChallengeCompletionWorker(
 	userDayRepo repository_interface.UserDayRepository,
 	userRepo repository_interface.UserRepository,
 	categoryRepo repository_interface.CategoryRepository,
-) *service.ChallengeCompletionWorker {
+) *workers.ChallengeCompletionWorker {
 	// Run every minute by default
-	return service.NewChallengeCompletionWorker(
+	return workers.NewChallengeCompletionWorker(
 		completionRepo,
 		challengeRepo,
 		participantRepo,
@@ -244,10 +245,10 @@ func NewApplication(db *gorm.DB, router *gin.Engine) *Application {
 
 type ApplicationContainer struct {
 	App    *Application
-	Worker *service.ChallengeCompletionWorker
+	Worker *workers.ChallengeCompletionWorker
 }
 
-func NewApplicationContainer(app *Application, worker *service.ChallengeCompletionWorker) *ApplicationContainer {
+func NewApplicationContainer(app *Application, worker *workers.ChallengeCompletionWorker) *ApplicationContainer {
 	return &ApplicationContainer{
 		App:    app,
 		Worker: worker,

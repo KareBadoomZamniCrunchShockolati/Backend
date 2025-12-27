@@ -1,14 +1,15 @@
-package service
+package workers
 
 import (
 	"log"
 	"time"
 
+	service "challenge-app/internal/application/service"
 	"challenge-app/internal/domain/repository"
 )
 
 type ChallengeCompletionWorker struct {
-	completionService *ChallengeCompletionService
+	completionService *service.ChallengeCompletionService
 	interval          time.Duration
 	stopChan          chan bool
 	isRunning         bool
@@ -23,7 +24,7 @@ func NewChallengeCompletionWorker(
 	categoryRepo repository.CategoryRepository,
 	interval time.Duration,
 ) *ChallengeCompletionWorker {
-	completionService := NewChallengeCompletionService(
+	completionService := service.NewChallengeCompletionService(
 		completionRepo,
 		challengeRepo,
 		participantRepo,
