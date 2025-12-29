@@ -16,6 +16,9 @@ type ChallengeCompletionService struct {
 	userDayRepo     repository.UserDayRepository
 	userRepo        repository.UserRepository
 	categoryRepo    repository.CategoryRepository
+	medalService    interface {
+		OnCategoryCompleted(userID, categoryID uint) error
+	}
 }
 
 func NewChallengeCompletionService(
@@ -25,6 +28,9 @@ func NewChallengeCompletionService(
 	userDayRepo repository.UserDayRepository,
 	userRepo repository.UserRepository,
 	categoryRepo repository.CategoryRepository,
+	medalService interface {
+		OnCategoryCompleted(userID, categoryID uint) error
+	},
 ) *ChallengeCompletionService {
 	return &ChallengeCompletionService{
 		completionRepo:  completionRepo,
@@ -33,6 +39,7 @@ func NewChallengeCompletionService(
 		userDayRepo:     userDayRepo,
 		userRepo:        userRepo,
 		categoryRepo:    categoryRepo,
+		medalService:    medalService,
 	}
 }
 
@@ -81,6 +88,10 @@ func (s *ChallengeCompletionService) ProcessEndedChallenges() (int, error) {
 				err = s.completionRepo.MarkChallengeCompleted(participant.UserID, challenge.ID)
 				if err == nil {
 					completedCount++
+					// update medal progress / award if needed
+					if s.medalService != nil {
+						_ = s.medalService.OnCategoryCompleted(participant.UserID, challenge.CategoryID)
+					}
 				}
 			}
 		}
