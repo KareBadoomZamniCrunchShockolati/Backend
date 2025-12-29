@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"log"
 
 	appsvc "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/domain/model"
@@ -19,10 +20,10 @@ func NewWSNotifier(hub *Hub) appsvc.Notifier {
 type notificationWire struct {
 	ID        uint                   `json:"id"`
 	Type      model.NotificationType `json:"type"`
-	Title     string                 `json:"title"`
-	Body      string                 `json:"body"`
+	TitleKey  string                 `json:"title_key"`
+	BodyKey   string                 `json:"body_key"`
 	Data      map[string]any         `json:"data,omitempty"`
-	CreatedAt string                 `json:"created_at"` // client friendly (RFC3339)
+	CreatedAt string                 `json:"created_at"` 
 	ReadAt    *string                `json:"read_at,omitempty"`
 }
 
@@ -34,17 +35,23 @@ func (n *WSNotifierImpl) Push(ctx context.Context, userID uint, notif model.Noti
 		readAt = &s
 	}
 
+	log.Println("PUSH to user:", userID, "notif id:", notif.ID)
+
 	wire := notificationWire{
 		ID:        notif.ID,
 		Type:      notif.Type,
-		Title:     notif.Title,
-		Body:      notif.Body,
+		TitleKey:  notif.TitleKey,
+		BodyKey:   notif.BodyKey,
 		Data:      notif.Data,
 		CreatedAt: created,
 		ReadAt:    readAt,
 	}
 
-	b, _ := json.Marshal(wire)
+	b, err := json.Marshal(wire)
+	if err != nil {
+		return err
+	}
+
 	n.hub.Send(userID, b)
 	return nil
 }

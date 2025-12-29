@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"strings"
 
@@ -28,8 +29,6 @@ func NewWSNotificationHandler(hub *ws.Hub, jwt security.JWTService) *WSNotificat
 }
 
 func (h *WSNotificationHandlerImpl) Connect(c *gin.Context) {
-	// Mobile can send Authorization header.
-	// Browser native WebSocket can't set headers easily, so we also allow ?token=.
 	var token string
 
 	auth := c.GetHeader("Authorization")
@@ -54,8 +53,11 @@ func (h *WSNotificationHandlerImpl) Connect(c *gin.Context) {
 	}
 
 	userID := claims.UserID
+	log.Println("WS connected user:", userID)
 	wc := ws.NewConn(conn)
 	h.hub.Add(userID, wc)
+
+	wc.Send([]byte(`{"type":"connected","title":"WS Connected","body":"ok"}`))
 
 	wc.ReadLoop(func() {
 		h.hub.Remove(userID, wc)

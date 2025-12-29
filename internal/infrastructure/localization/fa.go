@@ -286,4 +286,51 @@ var Persian = map[string]interface{}{
 		"LIKE_REMOVED":                   "لایک پست لغو شد.",
 		"USER_REGISTERED":                "کاربر با موفقیت ثبت‌نام شد. لطفاً ایمیل خود را برای تأیید چک کنید.",
 	},
+
+	"notifications": map[string]interface{}{
+		"follow": map[string]interface{}{
+			"title": "دنبال‌کننده جدید",
+			"body":  "{username} شما را دنبال کرد.",
+		},
+
+		"join_request_sent": map[string]interface{}{
+			"title": "درخواست عضویت جدید",
+			"body":  "{username} درخواست عضویت در چالش «{challenge}» را ارسال کرد.",
+		},
+
+		"join_request_accepted": map[string]interface{}{
+			"title": "درخواست پذیرفته شد",
+			"body":  "درخواست عضویت شما در چالش «{challenge}» پذیرفته شد.",
+		},
+
+		"invite_sent": map[string]interface{}{
+			"title": "دعوت به چالش",
+			"body":  "شما به چالش «{challenge}» دعوت شده‌اید.",
+		},
+
+		"invite_accepted": map[string]interface{}{
+			"title": "دعوت پذیرفته شد",
+			"body":  "{username} دعوت شما به چالش «{challenge}» را پذیرفت.",
+		},
+
+		"participant_joined": map[string]interface{}{
+			"title": "عضو جدید چالش",
+			"body":  "{username} به چالش «{challenge}» پیوست.",
+		},
+
+		"challenge_reminder": map[string]interface{}{
+			"title": "یادآوری چالش",
+			"body":  "زمان ثبت پیشرفت برای چالش «{challenge}» فرا رسیده است.",
+		},
+
+		"challenge_commented": map[string]interface{}{
+			"title": "نظر جدید",
+			"body":  "{username} در چالش «{challenge}» نظر داد: {comment}",
+		},
+
+		"challenge_liked": map[string]interface{}{
+			"title": "لایک جدید",
+			"body":  "{username} چالش «{challenge}» را لایک کرد.",
+		},
+	},
 }

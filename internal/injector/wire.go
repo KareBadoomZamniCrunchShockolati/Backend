@@ -219,6 +219,8 @@ var HandlerProviderSet = wire.NewSet(
 	handler.NewChallengeCompletionHandler,
 	handler.NewNotificationHandler,
 	handler.NewWSNotificationHandler,
+	handler.NewDebugHandler,
+	wire.Bind(new(handler_interface.DebugHandler), new(*handler.DebugHandlerImpl)),
 	wire.Bind(new(handler_interface.UserHandler), new(*handler.UserHandler)),
 	wire.Bind(new(handler_interface.AuthHandler), new(*handler.AuthHandler)),
 	wire.Bind(new(handler_interface.ChallengeHandler), new(*handler.ChallengeHandler)),

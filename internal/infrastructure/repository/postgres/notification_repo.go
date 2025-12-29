@@ -30,13 +30,15 @@ func (r *NotificationRepoImpl) Create(ctx context.Context, n *model.Notification
 		dataBytes = b
 	}
 
+	now := time.Now().UTC()
+
 	e := entity.NotificationEntity{
 		UserID:    n.UserID,
 		Type:      string(n.Type),
-		Title:     n.Title,
-		Body:      n.Body,
+		TitleKey:  n.TitleKey,
+		BodyKey:   n.BodyKey,
 		Data:      dataBytes,
-		CreatedAt: time.Now().UTC(),
+		CreatedAt: now,
 		ReadAt:    n.ReadAt,
 	}
 
@@ -49,7 +51,14 @@ func (r *NotificationRepoImpl) Create(ctx context.Context, n *model.Notification
 	return nil
 }
 
-func (r *NotificationRepoImpl) ListForUser(ctx context.Context, userID uint, since time.Time, limit int, cursor *time.Time) ([]model.Notification, *time.Time, error) {
+func (r *NotificationRepoImpl) ListForUser(
+	ctx context.Context,
+	userID uint,
+	since time.Time,
+	limit int,
+	cursor *time.Time,
+) ([]model.Notification, *time.Time, error) {
+
 	if limit <= 0 || limit > 50 {
 		limit = 20
 	}
@@ -75,12 +84,13 @@ func (r *NotificationRepoImpl) ListForUser(ctx context.Context, userID uint, sin
 		if len(row.Data) > 0 {
 			_ = json.Unmarshal(row.Data, &data)
 		}
+
 		out = append(out, model.Notification{
 			ID:        row.ID,
 			UserID:    row.UserID,
 			Type:      model.NotificationType(row.Type),
-			Title:     row.Title,
-			Body:      row.Body,
+			TitleKey:  row.TitleKey,
+			BodyKey:   row.BodyKey,
 			Data:      data,
 			CreatedAt: row.CreatedAt,
 			ReadAt:    row.ReadAt,

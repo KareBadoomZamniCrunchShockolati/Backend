@@ -19,9 +19,13 @@ func NewNotificationHandler(svc service.NotificationService) *NotificationHandle
 	return &NotificationHandlerImpl{svc: svc}
 }
 
-// GET /api/v1/notifications?limit=20&cursor=2025-12-27T10:00:00Z
 func (h *NotificationHandlerImpl) List(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	userIDAny, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user id"})
+		return
+	}
+	userID := userIDAny.(uint)
 
 	limit := 20
 	if v := c.Query("limit"); v != "" {
@@ -55,8 +59,8 @@ func (h *NotificationHandlerImpl) List(c *gin.Context) {
 		resp.Items = append(resp.Items, dto.NotificationResponseDTO{
 			ID:        n.ID,
 			Type:      string(n.Type),
-			Title:     n.Title,
-			Body:      n.Body,
+			TitleKey:  n.TitleKey,
+			BodyKey:   n.BodyKey,
 			Data:      n.Data,
 			CreatedAt: n.CreatedAt,
 			ReadAt:    n.ReadAt,
@@ -66,9 +70,13 @@ func (h *NotificationHandlerImpl) List(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// POST /api/v1/notifications/:id/read
 func (h *NotificationHandlerImpl) MarkRead(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	userIDAny, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user id"})
+		return
+	}
+	userID := userIDAny.(uint)
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
@@ -83,9 +91,13 @@ func (h *NotificationHandlerImpl) MarkRead(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// POST /api/v1/notifications/read-all
 func (h *NotificationHandlerImpl) MarkAllRead(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	userIDAny, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user id"})
+		return
+	}
+	userID := userIDAny.(uint)
 
 	if err := h.svc.MarkAllRead(c.Request.Context(), userID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to mark all read"})
@@ -94,9 +106,13 @@ func (h *NotificationHandlerImpl) MarkAllRead(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// GET /api/v1/notifications/unread-count
 func (h *NotificationHandlerImpl) UnreadCount(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	userIDAny, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user id"})
+		return
+	}
+	userID := userIDAny.(uint)
 
 	count, err := h.svc.UnreadCount(c.Request.Context(), userID)
 	if err != nil {

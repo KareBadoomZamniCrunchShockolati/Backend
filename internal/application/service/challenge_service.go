@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"challenge-app/internal/application/dto"
+	serviceinterface "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/domain/enum"
 	"challenge-app/internal/domain/exception"
 	"challenge-app/internal/domain/model"
@@ -25,6 +26,7 @@ type ChallengeService struct {
 	followRepo      repository.FollowRepository
 	likeRepo        repository.LikeRepository
 	objectStorage   storage.ObjectStorage
+	notifSvc        serviceinterface.NotificationService
 }
 
 func NewChallengeService(
@@ -38,6 +40,7 @@ func NewChallengeService(
 	followRepo repository.FollowRepository,
 	likeRepo repository.LikeRepository,
 	objectStorage storage.ObjectStorage,
+	notifSvc serviceinterface.NotificationService,
 ) *ChallengeService {
 	return &ChallengeService{
 		challengeRepo:   challengeRepo,
@@ -50,11 +53,12 @@ func NewChallengeService(
 		followRepo:      followRepo,
 		likeRepo:        likeRepo,
 		objectStorage:   objectStorage,
+		notifSvc:        notifSvc,
 	}
 }
 
 // Validation helpers for map coordinates
-func isValidLatitude(lat float64) bool { return lat >= -90 && lat <= 90 }
+func isValidLatitude(lat float64) bool  { return lat >= -90 && lat <= 90 }
 func isValidLongitude(lng float64) bool { return lng >= -180 && lng <= 180 }
 
 // Challenge CRUD operations
@@ -127,11 +131,11 @@ func (s *ChallengeService) CreateChallenge(input *dto.CreateChallengeDTO) (*mode
 
 		Goal:            goal,
 		Rule:            input.Rule,
-		StartTime:        input.StartTime,
-		EndTime:          &input.EndTime,
-		Timezone:         input.Timezone,
-		IsStopped:        false,
-		CommentsEnabled:  input.CommentsEnabled,
+		StartTime:       input.StartTime,
+		EndTime:         &input.EndTime,
+		Timezone:        input.Timezone,
+		IsStopped:       false,
+		CommentsEnabled: input.CommentsEnabled,
 	}
 
 	// Set location if provided
@@ -569,6 +573,23 @@ func (s *ChallengeService) JoinPrivateChallenge(userID, challengeID uint) error 
 	if err != nil {
 		return exception.NewRepositoryError(err)
 	}
+
+	requester, err1 := s.userRepo.GetUserByID(userID)
+	if err1 == nil && requester != nil {
+		_ = s.notifSvc.CreateAndPush(context.Background(), model.Notification{
+			UserID:   challenge.CreatorID,
+			Type:     model.NotifJoinRequestSent,
+			TitleKey: "notifications.join_request_sent.title",
+			BodyKey:  "notifications.join_request_sent.body",
+			Data: map[string]any{
+				"username":     requester.Username,
+				"challenge":    challenge.Title,
+				"challenge_id": challenge.ID,
+				"user_id":      requester.ID,
+			},
+		})
+	}
+
 	return nil
 }
 
@@ -611,6 +632,22 @@ func (s *ChallengeService) InviteUserToChallenge(inviterID, challengeID, invitee
 	if err != nil {
 		return nil, exception.NewRepositoryError(err)
 	}
+	inviter, err := s.userRepo.GetUserByID(inviterID)
+	if err != nil {
+		return nil, exception.NewRepositoryError(err)
+	}
+	_ = s.notifSvc.CreateAndPush(context.Background(), model.Notification{
+		UserID:   inviteeID,
+		Type:     model.NotifInviteSent,
+		TitleKey: "notifications.invite_sent.title",
+		BodyKey:  "notifications.invite_sent.body",
+		Data: map[string]any{
+			"challenge":    challenge.Title,
+			"challenge_id": challenge.ID,
+			"inviter_id":   inviterID,
+			"username":     inviter.Username,
+		},
+	})
 	return createdInvite, nil
 }
 
@@ -716,6 +753,36 @@ func (s *ChallengeService) AcceptJoinRequest(requestID, currentUserID uint) erro
 	if err != nil {
 		return exception.NewRepositoryError(err)
 	}
+	requester, _ := s.userRepo.GetUserByID(request.RequesterID)
+
+	_ = s.notifSvc.CreateAndPush(context.Background(), model.Notification{
+		UserID:   request.RequesterID,
+		Type:     model.NotifJoinRequestAccepted,
+		TitleKey: "notif.join_request_accepted.title",
+		BodyKey:  "notif.join_request_accepted.body",
+		Data: map[string]any{
+			"challenge_id":    challenge.ID,
+			"challenge_title": challenge.Title,
+			"creator_id":      challenge.CreatorID,
+		},
+	})
+
+	username := ""
+	if requester != nil {
+		username = requester.Username
+	}
+	_ = s.notifSvc.CreateAndPush(context.Background(), model.Notification{
+		UserID:   challenge.CreatorID,
+		Type:     model.NotifChallengeParticipantJoined,
+		TitleKey: "notif.participant_joined.title",
+		BodyKey:  "notif.participant_joined.body",
+		Data: map[string]any{
+			"challenge_id":    challenge.ID,
+			"challenge_title": challenge.Title,
+			"user_id":         request.RequesterID,
+			"username":        username,
+		},
+	})
 	return nil
 }
 
@@ -800,6 +867,39 @@ func (s *ChallengeService) AcceptInvite(inviteID, currentUserID uint) error {
 	if err != nil {
 		return exception.NewRepositoryError(err)
 	}
+
+	invitee, _ := s.userRepo.GetUserByID(currentUserID)
+
+	_ = s.notifSvc.CreateAndPush(context.Background(), model.Notification{
+		UserID:   currentUserID,
+		Type:     model.NotifInviteAccepted,
+		TitleKey: "notif.invite_accepted.title",
+		BodyKey:  "notif.invite_accepted.body",
+		Data: map[string]any{
+			"challenge_id":    challenge.ID,
+			"challenge_title": challenge.Title,
+			"creator_id":      challenge.CreatorID,
+		},
+	})
+
+	username := ""
+	if invitee != nil {
+		username = invitee.Username
+	}
+	_ = s.notifSvc.CreateAndPush(context.Background(), model.Notification{
+		UserID:   challenge.CreatorID,
+		Type:     model.NotifChallengeParticipantJoined,
+		TitleKey: "notif.invite_accepted_creator.title",
+		BodyKey:  "notif.invite_accepted_creator.body",
+		Data: map[string]any{
+			"challenge_id":    challenge.ID,
+			"challenge_title": challenge.Title,
+			"user_id":         currentUserID,
+			"username":        username,
+			"invite_id":       inviteID,
+		},
+	})
+
 	return nil
 }
 
@@ -904,6 +1004,32 @@ func (s *ChallengeService) AddCommentToChallenge(userID uint, input *dto.Comment
 	if err != nil {
 		return nil, exception.NewRepositoryError(err)
 	}
+
+	if challenge.CreatorID != userID {
+		u, uerr := s.userRepo.GetUserByID(userID)
+		if uerr == nil && u != nil {
+			msg := input.Content
+			if len([]rune(msg)) > 80 {
+				msg = string([]rune(msg)[:80]) + "…"
+			}
+
+			_ = s.notifSvc.CreateAndPush(context.Background(), model.Notification{
+				UserID:   challenge.CreatorID,
+				Type:     model.NotifChallengeCommented,
+				TitleKey: "notifications.challenge_commented.title",
+				BodyKey:  "notifications.challenge_commented.body",
+				Data: map[string]any{
+					"username":     u.Username,
+					"challenge":    challenge.Title,
+					"comment":      msg,
+					"challenge_id": challenge.ID,
+					"comment_id":   createdComment.ID,
+					"user_id":      u.ID,
+				},
+			})
+		}
+	}
+
 	return createdComment, nil
 }
 
@@ -1073,6 +1199,25 @@ func (s *ChallengeService) LikeChallenge(userID, challengeID uint) error {
 	err = s.likeRepo.CreateLike(like)
 	if err != nil {
 		return exception.NewRepositoryError(err)
+	}
+
+	ch, err := s.challengeRepo.GetChallengeByID(challengeID, userID)
+	if err == nil && ch != nil && ch.CreatorID != userID {
+		u, uerr := s.userRepo.GetUserByID(userID)
+		if uerr == nil && u != nil {
+			_ = s.notifSvc.CreateAndPush(context.Background(), model.Notification{
+				UserID:   ch.CreatorID,
+				Type:     model.NotifChallengeLiked,
+				TitleKey: "notifications.challenge_liked.title",
+				BodyKey:  "notifications.challenge_liked.body",
+				Data: map[string]any{
+					"username":     u.Username,
+					"challenge":    ch.Title,
+					"challenge_id": ch.ID,
+					"user_id":      u.ID,
+				},
+			})
+		}
 	}
 	return nil
 }
