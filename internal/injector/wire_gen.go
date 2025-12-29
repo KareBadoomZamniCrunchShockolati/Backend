@@ -8,7 +8,7 @@ package injector
 
 import (
 	"challenge-app/internal/application/service"
-	"challenge-app/internal/application/service/interface"
+	serviceinterface "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/application/service/workers"
 	"challenge-app/internal/bootstrap"
 	"challenge-app/internal/domain/localization"
@@ -26,12 +26,13 @@ import (
 	"challenge-app/pkg/email"
 	"challenge-app/pkg/security"
 	"context"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	redis2 "github.com/go-redis/redis/v8"
 	"github.com/google/wire"
 	"gorm.io/gorm"
-	"time"
 )
 
 // Injectors from wire.go:
@@ -75,13 +76,17 @@ func InitializeRouter(db *gorm.DB, v *validator.Validate) (*gin.Engine, error) {
 	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository, s3Storage, tempUploadRepository)
 	postHandler := handler.NewPostHandler(postService)
 	challengeCompletionRepository := postgres.NewChallengeCompletionRepository(db)
-	challengeCompletionService := service.NewChallengeCompletionService(challengeCompletionRepository, challengeRepository, challengeParticipantRepository, userDayRepository, userRepository, categoryRepository)
+	medalRepository := postgres.NewMedalRepository(db)
+	userMedalRepository := postgres.NewUserMedalRepository(db)
+	medalService := service.NewMedalService(medalRepository, userMedalRepository, categoryRepository)
+	challengeCompletionService := service.NewChallengeCompletionService(challengeCompletionRepository, challengeRepository, challengeParticipantRepository, userDayRepository, userRepository, categoryRepository, medalService)
 	challengeCompletionHandler := handler.NewChallengeCompletionHandler(challengeCompletionService)
+	medalHandler := handler.NewMedalHandler(medalService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	errorMiddleware := middleware.NewErrorMiddleware()
 	translator := ProvideTranslator()
 	localizationMiddleware := middleware.NewLocalizationMiddleware(translator)
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, challengeCompletionHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, challengeCompletionHandler, medalHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
 	return engine, nil
 }
 
@@ -129,13 +134,17 @@ func InitializeApplication() (*Application, error) {
 	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository, s3Storage, tempUploadRepository)
 	postHandler := handler.NewPostHandler(postService)
 	challengeCompletionRepository := postgres.NewChallengeCompletionRepository(db)
-	challengeCompletionService := service.NewChallengeCompletionService(challengeCompletionRepository, challengeRepository, challengeParticipantRepository, userDayRepository, userRepository, categoryRepository)
+	medalRepository := postgres.NewMedalRepository(db)
+	userMedalRepository := postgres.NewUserMedalRepository(db)
+	medalService := service.NewMedalService(medalRepository, userMedalRepository, categoryRepository)
+	challengeCompletionService := service.NewChallengeCompletionService(challengeCompletionRepository, challengeRepository, challengeParticipantRepository, userDayRepository, userRepository, categoryRepository, medalService)
 	challengeCompletionHandler := handler.NewChallengeCompletionHandler(challengeCompletionService)
+	medalHandler := handler.NewMedalHandler(medalService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	errorMiddleware := middleware.NewErrorMiddleware()
 	translator := ProvideTranslator()
 	localizationMiddleware := middleware.NewLocalizationMiddleware(translator)
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, challengeCompletionHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, challengeCompletionHandler, medalHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
 	application := NewApplication(db, engine)
 	return application, nil
 }
@@ -183,15 +192,19 @@ func InitializeApplicationWithWorker() (*ApplicationContainer, error) {
 	postService := service.NewPostService(postRepository, commentRepository, likeRepository, userRepository, challengeRepository, s3Storage, tempUploadRepository)
 	postHandler := handler.NewPostHandler(postService)
 	challengeCompletionRepository := postgres.NewChallengeCompletionRepository(db)
-	challengeCompletionService := service.NewChallengeCompletionService(challengeCompletionRepository, challengeRepository, challengeParticipantRepository, userDayRepository, userRepository, categoryRepository)
+	medalRepository := postgres.NewMedalRepository(db)
+	userMedalRepository := postgres.NewUserMedalRepository(db)
+	medalService := service.NewMedalService(medalRepository, userMedalRepository, categoryRepository)
+	challengeCompletionService := service.NewChallengeCompletionService(challengeCompletionRepository, challengeRepository, challengeParticipantRepository, userDayRepository, userRepository, categoryRepository, medalService)
 	challengeCompletionHandler := handler.NewChallengeCompletionHandler(challengeCompletionService)
+	medalHandler := handler.NewMedalHandler(medalService)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtServiceImpl)
 	errorMiddleware := middleware.NewErrorMiddleware()
 	translator := ProvideTranslator()
 	localizationMiddleware := middleware.NewLocalizationMiddleware(translator)
-	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, challengeCompletionHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
+	engine := router.SetupRouter(userHandler, authHandler, followHandlerImpl, challengeHandler, userDayHandler, postHandler, challengeCompletionHandler, medalHandler, jwtMiddleware, errorMiddleware, localizationMiddleware)
 	application := NewApplication(db, engine)
-	challengeCompletionWorker := GetChallengeCompletionWorker(challengeCompletionRepository, challengeRepository, challengeParticipantRepository, userDayRepository, userRepository, categoryRepository)
+	challengeCompletionWorker := GetChallengeCompletionWorker(challengeCompletionRepository, challengeRepository, challengeParticipantRepository, userDayRepository, userRepository, categoryRepository, medalService)
 	applicationContainer := NewApplicationContainer(application, challengeCompletionWorker)
 	return applicationContainer, nil
 }
@@ -269,6 +282,7 @@ func GetChallengeCompletionWorker(
 	userDayRepo repository.UserDayRepository,
 	userRepo repository.UserRepository,
 	categoryRepo repository.CategoryRepository,
+	medalService serviceinterface.MedalServicer,
 ) *workers.ChallengeCompletionWorker {
 
 	return workers.NewChallengeCompletionWorker(
@@ -278,6 +292,7 @@ func GetChallengeCompletionWorker(
 		userDayRepo,
 		userRepo,
 		categoryRepo,
+		medalService,
 		1*time.Minute,
 	)
 }

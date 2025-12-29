@@ -104,6 +104,7 @@ func GetChallengeCompletionWorker(
 	userDayRepo repository_interface.UserDayRepository,
 	userRepo repository_interface.UserRepository,
 	categoryRepo repository_interface.CategoryRepository,
+	medalService service_interface.MedalServicer,
 ) *workers.ChallengeCompletionWorker {
 	// Run every minute by default
 	return workers.NewChallengeCompletionWorker(
@@ -113,6 +114,7 @@ func GetChallengeCompletionWorker(
 		userDayRepo,
 		userRepo,
 		categoryRepo,
+		medalService,
 		1*time.Minute, // Interval
 	)
 }
@@ -168,6 +170,8 @@ var RepositoryProviderSet = wire.NewSet(
 	postgres.NewFollowRepository,
 	postgres.NewPostRepository,
 	postgres.NewChallengeCompletionRepository,
+	postgres.NewMedalRepository,
+	postgres.NewUserMedalRepository,
 	wire.Bind(new(repository_interface.ChallengeCompletionRepository), new(*postgres.ChallengeCompletionRepository)),
 	wire.Bind(new(repository_interface.LikeRepository), new(*postgres.LikeRepository)),
 	wire.Bind(new(repository_interface.UserDayRepository), new(*postgres.UserDayRepository)),
@@ -178,6 +182,8 @@ var RepositoryProviderSet = wire.NewSet(
 	wire.Bind(new(repository_interface.UserRepository), new(*postgres.UserRepository)),
 	wire.Bind(new(repository_interface.ChallengeRepository), new(*postgres.ChallengeRepository)),
 	wire.Bind(new(repository_interface.CategoryRepository), new(*postgres.CategoryRepository)),
+	wire.Bind(new(repository_interface.MedalRepository), new(*postgres.MedalRepository)),
+	wire.Bind(new(repository_interface.UserMedalRepository), new(*postgres.UserMedalRepositoryImpl)),
 	wire.Bind(new(repository_interface.FollowRepository), new(*postgres.FollowRepository)),
 	wire.Bind(new(repository_interface.PostRepository), new(*postgres.PostRepository)),
 )
@@ -190,6 +196,7 @@ var ServiceProviderSet = wire.NewSet(
 	service.NewPostService,
 	service.NewUserDayService,
 	service.NewTempUploadCleaner,
+	service.NewMedalService,
 	service.NewChallengeCompletionService,
 	wire.Bind(new(service_interface.ChallengeServicer), new(*service.ChallengeService)),
 	wire.Bind(new(service_interface.UserServicer), new(*service.UserService)),
@@ -198,6 +205,7 @@ var ServiceProviderSet = wire.NewSet(
 	wire.Bind(new(service_interface.PostServicer), new(*service.PostService)),
 	wire.Bind(new(service_interface.UserDayServicer), new(*service.UserDayService)),
 	wire.Bind(new(service_interface.ChallengeCompletionServicer), new(*service.ChallengeCompletionService)),
+	wire.Bind(new(service_interface.MedalServicer), new(*service.MedalService)),
 )
 
 var HandlerProviderSet = wire.NewSet(
@@ -208,6 +216,7 @@ var HandlerProviderSet = wire.NewSet(
 	handler.NewPostHandler,
 	handler.NewUserDayHandler,
 	handler.NewChallengeCompletionHandler,
+	handler.NewMedalHandler,
 	wire.Bind(new(handler_interface.UserHandler), new(*handler.UserHandler)),
 	wire.Bind(new(handler_interface.AuthHandler), new(*handler.AuthHandler)),
 	wire.Bind(new(handler_interface.ChallengeHandler), new(*handler.ChallengeHandler)),
@@ -215,6 +224,7 @@ var HandlerProviderSet = wire.NewSet(
 	wire.Bind(new(handler_interface.PostHandler), new(*handler.PostHandler)),
 	wire.Bind(new(handler_interface.UserDayHandler), new(*handler.UserDayHandler)),
 	wire.Bind(new(handler_interface.ChallengeCompletionHandler), new(*handler.ChallengeCompletionHandler)),
+	wire.Bind(new(handler_interface.MedalHandler), new(*handler.MedalHandler)),
 )
 
 var MiddlewareProviderSet = wire.NewSet(

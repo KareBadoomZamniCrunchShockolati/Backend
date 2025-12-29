@@ -22,6 +22,7 @@ func SetupRouter(
 	userDayHandler handler.UserDayHandler,
 	postHandler handler.PostHandler,
 	challengeCompletionHandler handler.ChallengeCompletionHandler,
+	medalHandler handler.MedalHandler,
 	jwtMiddleware middleware.JWTMiddleware,
 	errorMiddleware middleware.ErrorMiddleware,
 	localizatorMiddleware middleware.LocalizationMiddleware,
@@ -169,6 +170,12 @@ func SetupRouter(
 		protected.GET("/challenges/completed", challengeCompletionHandler.GetCompletedChallenges)
 		protected.GET("/challenges/completion-stats", challengeCompletionHandler.GetCompletionStats)
 		protected.GET("/challenges/:id/completion-status", challengeCompletionHandler.CheckChallengeCompletion)
+
+		// Medal routes
+		protected.GET("/users/medals", medalHandler.GetUserMedals)
+		protected.GET("/users/medals/selected", medalHandler.GetSelectedMedals)
+		protected.POST("/users/medals/select", medalHandler.SelectMedals)
+		protected.DELETE("/users/medals/select", medalHandler.DeleteSelectedMedals)
 
 		// Post CRUD operations
 		protected.POST("/posts", postHandler.CreatePost)

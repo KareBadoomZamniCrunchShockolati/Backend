@@ -43,6 +43,10 @@ func InitPostgresDB(dsn string) (*gorm.DB, error) {
 		&entity.UserDailyNoteEntity{},
 		&entity.PostEntity{},
 		&entity.ChallengeCompletionEntity{},
+		&entity.MedalEntity{},
+		&entity.UserMedalEntity{},
+		&entity.UserCategoryProgressEntity{},
+		&entity.UserSelectedMedalsEntity{},
 	); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 		return nil, err
@@ -83,6 +87,22 @@ func CreateUniqueConstraints(db *gorm.DB) error {
 		ON challenge_participants (challenge_id, user_id)
 	`).Error; err != nil {
 		return fmt.Errorf("failed to create challenge participants unique index: %w", err)
+	}
+
+	// Prevent duplicate user medals (user + category + type)
+	if err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_user_medals_unique
+		ON user_medal_entities (user_id, category_id, type)
+	`).Error; err != nil {
+		return fmt.Errorf("failed to create user medals unique index: %w", err)
+	}
+
+	// Ensure unique user/category progress row
+	if err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_user_category_progress_unique
+		ON user_category_progress_entities (user_id, category_id)
+	`).Error; err != nil {
+		return fmt.Errorf("failed to create user category progress unique index: %w", err)
 	}
 
 	fmt.Println("✅ All unique constraints created successfully")
