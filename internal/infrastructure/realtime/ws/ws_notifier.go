@@ -3,18 +3,17 @@ package ws
 import (
 	"context"
 	"encoding/json"
-	"time"
 
-	serviceinterface "challenge-app/internal/application/service/interface"
+	appsvc "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/domain/model"
 )
 
-type WSNotifier struct {
+type WSNotifierImpl struct {
 	hub *Hub
 }
 
-func NewWSNotifier(hub *Hub) serviceinterface.Notifier {
-	return &WSNotifier{hub: hub}
+func NewWSNotifier(hub *Hub) appsvc.Notifier {
+	return &WSNotifierImpl{hub: hub}
 }
 
 type notificationWire struct {
@@ -23,20 +22,28 @@ type notificationWire struct {
 	Title     string                 `json:"title"`
 	Body      string                 `json:"body"`
 	Data      map[string]any         `json:"data,omitempty"`
-	CreatedAt time.Time              `json:"created_at"`
-	ReadAt    *time.Time             `json:"read_at,omitempty"`
+	CreatedAt string                 `json:"created_at"` // client friendly (RFC3339)
+	ReadAt    *string                `json:"read_at,omitempty"`
 }
 
-func (n *WSNotifier) Push(ctx context.Context, userID uint, notif model.Notification) error {
+func (n *WSNotifierImpl) Push(ctx context.Context, userID uint, notif model.Notification) error {
+	created := notif.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+	var readAt *string
+	if notif.ReadAt != nil {
+		s := notif.ReadAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+		readAt = &s
+	}
+
 	wire := notificationWire{
 		ID:        notif.ID,
 		Type:      notif.Type,
 		Title:     notif.Title,
 		Body:      notif.Body,
 		Data:      notif.Data,
-		CreatedAt: notif.CreatedAt,
-		ReadAt:    notif.ReadAt,
+		CreatedAt: created,
+		ReadAt:    readAt,
 	}
+
 	b, _ := json.Marshal(wire)
 	n.hub.Send(userID, b)
 	return nil

@@ -1,25 +1,26 @@
 package postgres
 
 import (
-	"challenge-app/internal/domain/model"
-	"challenge-app/internal/domain/repository"
-	"challenge-app/internal/infrastructure/repository/postgres/entity"
 	"context"
 	"encoding/json"
 	"time"
 
+	"challenge-app/internal/domain/model"
+	"challenge-app/internal/domain/repository"
+	"challenge-app/internal/infrastructure/repository/postgres/entity"
+
 	"gorm.io/gorm"
 )
 
-type NotificationRepo struct {
+type NotificationRepoImpl struct {
 	db *gorm.DB
 }
 
 func NewNotificationRepo(db *gorm.DB) repository.NotificationRepository {
-	return &NotificationRepo{db: db}
+	return &NotificationRepoImpl{db: db}
 }
 
-func (r *NotificationRepo) Create(ctx context.Context, n *model.Notification) error {
+func (r *NotificationRepoImpl) Create(ctx context.Context, n *model.Notification) error {
 	var dataBytes []byte
 	if n.Data != nil {
 		b, err := json.Marshal(n.Data)
@@ -48,7 +49,7 @@ func (r *NotificationRepo) Create(ctx context.Context, n *model.Notification) er
 	return nil
 }
 
-func (r *NotificationRepo) ListForUser(ctx context.Context, userID uint, since time.Time, limit int, cursor *time.Time) ([]model.Notification, *time.Time, error) {
+func (r *NotificationRepoImpl) ListForUser(ctx context.Context, userID uint, since time.Time, limit int, cursor *time.Time) ([]model.Notification, *time.Time, error) {
 	if limit <= 0 || limit > 50 {
 		limit = 20
 	}
@@ -72,7 +73,7 @@ func (r *NotificationRepo) ListForUser(ctx context.Context, userID uint, since t
 	for _, row := range rows {
 		var data map[string]any
 		if len(row.Data) > 0 {
-			_ = json.Unmarshal(row.Data, &data) // best-effort
+			_ = json.Unmarshal(row.Data, &data)
 		}
 		out = append(out, model.Notification{
 			ID:        row.ID,
@@ -95,27 +96,23 @@ func (r *NotificationRepo) ListForUser(ctx context.Context, userID uint, since t
 	return out, nextCursor, nil
 }
 
-func (r *NotificationRepo) MarkRead(ctx context.Context, userID uint, notificationID uint) error {
+func (r *NotificationRepoImpl) MarkRead(ctx context.Context, userID uint, notificationID uint) error {
 	now := time.Now().UTC()
-	res := r.db.WithContext(ctx).
+	return r.db.WithContext(ctx).
 		Model(&entity.NotificationEntity{}).
 		Where("id = ? AND user_id = ? AND read_at IS NULL", notificationID, userID).
-		Update("read_at", &now)
-
-	return res.Error
+		Update("read_at", &now).Error
 }
 
-func (r *NotificationRepo) MarkAllRead(ctx context.Context, userID uint) error {
+func (r *NotificationRepoImpl) MarkAllRead(ctx context.Context, userID uint) error {
 	now := time.Now().UTC()
-	res := r.db.WithContext(ctx).
+	return r.db.WithContext(ctx).
 		Model(&entity.NotificationEntity{}).
 		Where("user_id = ? AND read_at IS NULL", userID).
-		Update("read_at", &now)
-
-	return res.Error
+		Update("read_at", &now).Error
 }
 
-func (r *NotificationRepo) UnreadCount(ctx context.Context, userID uint, since time.Time) (int64, error) {
+func (r *NotificationRepoImpl) UnreadCount(ctx context.Context, userID uint, since time.Time) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&entity.NotificationEntity{}).
@@ -124,7 +121,7 @@ func (r *NotificationRepo) UnreadCount(ctx context.Context, userID uint, since t
 	return count, err
 }
 
-func (r *NotificationRepo) DeleteOlderThan(ctx context.Context, t time.Time) (int64, error) {
+func (r *NotificationRepoImpl) DeleteOlderThan(ctx context.Context, t time.Time) (int64, error) {
 	res := r.db.WithContext(ctx).
 		Where("created_at < ?", t).
 		Delete(&entity.NotificationEntity{})

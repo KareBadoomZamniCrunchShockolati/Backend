@@ -14,6 +14,7 @@ import (
 	domainLoc "challenge-app/internal/domain/localization"
 	repository_interface "challenge-app/internal/domain/repository"
 	"challenge-app/internal/infrastructure/localization"
+	"challenge-app/internal/infrastructure/realtime/ws"
 	"challenge-app/internal/infrastructure/repository/postgres"
 	"challenge-app/internal/infrastructure/repository/postgres/driver"
 	redisRepo "challenge-app/internal/infrastructure/repository/redis"
@@ -126,6 +127,11 @@ var LocalizationProviderSet = wire.NewSet(
 	ProvideTranslator,
 )
 
+var RealtimeProviderSet = wire.NewSet(
+	ws.NewHub,
+	ws.NewWSNotifier,
+)
+
 var SecurityProviderSet = wire.NewSet(
 	security.NewPasswordService,
 	ProvideJWTService,
@@ -168,6 +174,7 @@ var RepositoryProviderSet = wire.NewSet(
 	postgres.NewFollowRepository,
 	postgres.NewPostRepository,
 	postgres.NewChallengeCompletionRepository,
+	postgres.NewNotificationRepo,
 	wire.Bind(new(repository_interface.ChallengeCompletionRepository), new(*postgres.ChallengeCompletionRepository)),
 	wire.Bind(new(repository_interface.LikeRepository), new(*postgres.LikeRepository)),
 	wire.Bind(new(repository_interface.UserDayRepository), new(*postgres.UserDayRepository)),
@@ -191,6 +198,7 @@ var ServiceProviderSet = wire.NewSet(
 	service.NewUserDayService,
 	service.NewTempUploadCleaner,
 	service.NewChallengeCompletionService,
+	service.NewNotificationService,
 	wire.Bind(new(service_interface.ChallengeServicer), new(*service.ChallengeService)),
 	wire.Bind(new(service_interface.UserServicer), new(*service.UserService)),
 	wire.Bind(new(service_interface.AuthServicer), new(*service.AuthService)),
@@ -198,6 +206,7 @@ var ServiceProviderSet = wire.NewSet(
 	wire.Bind(new(service_interface.PostServicer), new(*service.PostService)),
 	wire.Bind(new(service_interface.UserDayServicer), new(*service.UserDayService)),
 	wire.Bind(new(service_interface.ChallengeCompletionServicer), new(*service.ChallengeCompletionService)),
+	wire.Bind(new(service_interface.NotificationService), new(*service.NotificationServiceImpl)),
 )
 
 var HandlerProviderSet = wire.NewSet(
@@ -208,6 +217,8 @@ var HandlerProviderSet = wire.NewSet(
 	handler.NewPostHandler,
 	handler.NewUserDayHandler,
 	handler.NewChallengeCompletionHandler,
+	handler.NewNotificationHandler,
+	handler.NewWSNotificationHandler,
 	wire.Bind(new(handler_interface.UserHandler), new(*handler.UserHandler)),
 	wire.Bind(new(handler_interface.AuthHandler), new(*handler.AuthHandler)),
 	wire.Bind(new(handler_interface.ChallengeHandler), new(*handler.ChallengeHandler)),
@@ -215,6 +226,8 @@ var HandlerProviderSet = wire.NewSet(
 	wire.Bind(new(handler_interface.PostHandler), new(*handler.PostHandler)),
 	wire.Bind(new(handler_interface.UserDayHandler), new(*handler.UserDayHandler)),
 	wire.Bind(new(handler_interface.ChallengeCompletionHandler), new(*handler.ChallengeCompletionHandler)),
+	wire.Bind(new(handler_interface.NotificationHandler), new(*handler.NotificationHandlerImpl)),
+	wire.Bind(new(handler_interface.WSNotificationHandler), new(*handler.WSNotificationHandlerImpl)),
 )
 
 var MiddlewareProviderSet = wire.NewSet(
@@ -263,6 +276,7 @@ func InitializeRouter(db *gorm.DB, v *validator.Validate) (*gin.Engine, error) {
 		StorageProviderSet,
 		SecurityProviderSet,
 		RepositoryProviderSet,
+		RealtimeProviderSet,
 		RedisProviderSet,
 		EmailProviderSet,
 		ServiceProviderSet,
@@ -284,6 +298,7 @@ func InitializeApplication() (*Application, error) {
 		RepositoryProviderSet,
 		RedisProviderSet,
 		EmailProviderSet,
+		RealtimeProviderSet,
 		ServiceProviderSet,
 		HandlerProviderSet,
 		MiddlewareProviderSet,
@@ -303,6 +318,7 @@ func InitializeApplicationWithWorker() (*ApplicationContainer, error) {
 		RepositoryProviderSet,
 		RedisProviderSet,
 		EmailProviderSet,
+		RealtimeProviderSet,
 		ServiceProviderSet,
 		HandlerProviderSet,
 		MiddlewareProviderSet,

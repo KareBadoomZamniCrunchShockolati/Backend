@@ -1,6 +1,7 @@
 package router
 
 import (
+	"challenge-app/internal/domain/model"
 	handler "challenge-app/internal/presentation/handler/interface"
 	middleware "challenge-app/internal/presentation/middleware/interface"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/gin-contrib/cors"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	notificationService "challenge-app/internal/application/service/interface"
 
 	_ "challenge-app/docs"
 )
@@ -25,6 +27,9 @@ func SetupRouter(
 	jwtMiddleware middleware.JWTMiddleware,
 	errorMiddleware middleware.ErrorMiddleware,
 	localizatorMiddleware middleware.LocalizationMiddleware,
+	notificationHandler handler.NotificationHandler,
+	wsNotificationHandler handler.WSNotificationHandler,
+	notificationSvc notificationService.NotificationService,
 ) *gin.Engine {
 
 	r := gin.New()
@@ -85,6 +90,8 @@ func SetupRouter(
 		v1.GET("/users/:id/followers", followHandler.GetFollowers)
 		v1.GET("/users/:id/following", followHandler.GetFollowing)
 		v1.GET("/users/:id/follow-stats", followHandler.GetFollowStats)
+		v1.GET("/ws/notifications", wsNotificationHandler.Connect)
+
 	}
 
 	// Protected routes
@@ -188,6 +195,24 @@ func SetupRouter(
 		// Post like routes
 		protected.POST("/posts/:id/like", postHandler.LikePost)
 		protected.DELETE("/posts/:id/like", postHandler.UnlikePost)
+
+		protected.GET("/notifications", notificationHandler.List)
+		protected.POST("/notifications/:id/read", notificationHandler.MarkRead)
+		protected.POST("/notifications/read-all", notificationHandler.MarkAllRead)
+		protected.GET("/notifications/unread-count", notificationHandler.UnreadCount)
+
+		protected.POST("/debug/notify-me", func(c *gin.Context) {
+			userID := c.GetUint("user_id")
+			_ = notificationSvc.CreateAndPush(c.Request.Context(), model.Notification{
+				UserID: userID,
+				Type:   model.NotificationType("debug"),
+				Title:  "Debug",
+				Body:   "This is a test notification",
+				Data:   map[string]any{"ok": true},
+			})
+			c.Status(204)
+		})
+
 	}
 
 	return r

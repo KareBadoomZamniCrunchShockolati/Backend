@@ -4,7 +4,7 @@ import "time"
 
 const (
 	EnvFilePath = "../../.env"
-	AppPort     = "8080"
+	AppPort     = "8081"
 	RedisPort   = "6379"
 )
 

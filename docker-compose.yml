@@ -59,7 +59,7 @@ services:
       # App
       APP_MODE: ${APP_MODE}
     ports:
-      - "8080:8080"
+      - "8081:8081"
     depends_on:
       postgres:
         condition: service_healthy
