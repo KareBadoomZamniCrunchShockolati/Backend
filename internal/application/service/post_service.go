@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"mime/multipart"
 	"path"
 	"strings"
 	"time"
@@ -612,4 +613,80 @@ func (s *PostService) CommitPostImages(ctx context.Context, userID uint, postID 
 	}
 
 	return publicURLs, nil
+}
+
+func (s *PostService) UploadPostImages(ctx context.Context, userID uint, files []*multipart.FileHeader) (*dto.UploadPostImagesResponse, error) {
+	if len(files) == 0 {
+		return &dto.UploadPostImagesResponse{Uploads: []dto.PresignedUploadDTO{}}, nil
+	}
+	if len(files) > bootstrap.MaxPostImages {
+		return nil, exception.NewBadRequestException("POST_TOO_MANY_IMAGES", map[string]any{
+			"max":   bootstrap.MaxPostImages,
+			"value": len(files),
+		})
+	}
+
+	out := make([]dto.PresignedUploadDTO, 0, len(files))
+
+	for _, fh := range files {
+		if fh == nil {
+			continue
+		}
+		ct := strings.ToLower(strings.TrimSpace(fh.Header.Get("Content-Type")))
+		ext := strings.ToLower(path.Ext(fh.Filename))
+
+		if ct == "" {
+			if ext == ".png" {
+				ct = "image/png"
+			} else {
+				ct = "image/jpeg"
+			}
+		}
+
+		if ct != "image/jpeg" && ct != "image/png" {
+			return nil, exception.NewBadRequestException("INVALID_CONTENT_TYPE", map[string]any{
+				"allowed": []string{"image/jpeg", "image/png"},
+				"got":     ct,
+			})
+		}
+
+		file, err := fh.Open()
+		if err != nil {
+			return nil, exception.NewBadRequestException("INVALID_REQUEST_BODY", map[string]any{
+				"reason": "file_open_failed",
+			})
+		}
+
+		func() {
+			defer file.Close()
+		}()
+
+		uploadExt := ".jpg"
+		if ct == "image/png" {
+			uploadExt = ".png"
+		}
+
+		key := fmt.Sprintf("tmp/posts/%d/%s%s", userID, uuid.NewString(), uploadExt)
+
+		publicURL, err := s.objectStorage.Upload(ctx, key, ct, file)
+		if err != nil {
+			return nil, exception.NewInternalServerException("S3_UPLOAD_FAILED", map[string]any{
+				"reason": "upload_failed",
+				"key":    key,
+			}, err)
+		}
+
+		expiresAt := time.Now().Add(bootstrap.PostImagesTTL).UTC()
+		if s.tempUploadRepo != nil {
+			_ = s.tempUploadRepo.Track(ctx, key, userID, expiresAt)
+		}
+
+		out = append(out, dto.PresignedUploadDTO{
+			Key:           key,
+			TempPublicURL: publicURL,
+			ExpiresAt:     expiresAt.Format(time.RFC3339),
+		})
+	}
+
+	return &dto.UploadPostImagesResponse{Uploads: out}, nil
 }

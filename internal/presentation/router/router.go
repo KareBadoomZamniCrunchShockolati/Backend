@@ -179,6 +179,7 @@ func SetupRouter(
 		protected.GET("/posts/feed", postHandler.GetFeedPosts)
 		protected.GET("/posts/user/:user_id", postHandler.GetUserPosts)
 		protected.GET("/posts/challenge/:challenge_id", postHandler.GetPostsByChallenge)
+		protected.POST("/posts/images/upload", postHandler.UploadPostImages)
 
 		// Post comment routes
 		protected.POST("/posts/:id/comments", postHandler.AddPostComment)

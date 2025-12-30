@@ -3,7 +3,7 @@ package dto
 import "time"
 
 type PostImageDTO struct {
-	TempKey string `json:"temp_key,omitempty"`
+	TempKey string `json:"temp_key" validate:"required"`
 	URL     string `json:"url,omitempty"`
 }
 
