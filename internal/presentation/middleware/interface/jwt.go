@@ -6,4 +6,5 @@ import (
 
 type JWTMiddleware interface {
 	Handler() gin.HandlerFunc
+	OptionalHandler() gin.HandlerFunc
 }
