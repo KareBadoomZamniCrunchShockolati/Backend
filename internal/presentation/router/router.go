@@ -79,8 +79,8 @@ func SetupRouter(
 		v1.GET("/challenges/categories", challengeHandler.GetAllCategories)
 
 		// Public post routes
-		v1.GET("/posts/:id", postHandler.GetPost)
-		v1.GET("/posts/:id/comments", postHandler.GetPostComments)
+		v1.GET("/posts/:id", jwtMiddleware.OptionalHandler(), postHandler.GetPost)
+		v1.GET("/posts/:id/comments", jwtMiddleware.OptionalHandler(), postHandler.GetPostComments)
 
 		// Public follow routes
 		v1.GET("/users/:id/followers", followHandler.GetFollowers)
