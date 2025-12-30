@@ -238,3 +238,32 @@ func mustParseUintParam(c *gin.Context, paramName string, code string) uint {
 	}
 	return uint(v)
 }
+
+func (h *PostHandler) UploadPostImages(c *gin.Context) {
+	uID, ok := c.Get("userID")
+	if !ok {
+		panic(exception.NewMissingUserIDException())
+	}
+
+	form, err := c.MultipartForm()
+	if err != nil || form == nil {
+		panic(exception.NewBadRequestException("INVALID_REQUEST_BODY", map[string]any{
+			"reason": "invalid_multipart_form",
+		}))
+	}
+
+	files := form.File["files"]
+	if len(files) == 0 {
+		panic(exception.NewBadRequestException("INVALID_REQUEST_BODY", map[string]any{
+			"reason": "no_files",
+			"hint":   "use multipart form-data with key=files",
+		}))
+	}
+
+	resp, err := h.postService.UploadPostImages(c.Request.Context(), uID.(uint), files)
+	if err != nil {
+		panic(err)
+	}
+
+	Response(c, http.StatusOK, "", resp)
+}
