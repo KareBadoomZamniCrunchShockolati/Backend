@@ -14,6 +14,7 @@ import (
 	domainLoc "challenge-app/internal/domain/localization"
 	repository_interface "challenge-app/internal/domain/repository"
 	"challenge-app/internal/infrastructure/localization"
+	"challenge-app/internal/infrastructure/realtime/ws"
 	"challenge-app/internal/infrastructure/repository/postgres"
 	"challenge-app/internal/infrastructure/repository/postgres/driver"
 	redisRepo "challenge-app/internal/infrastructure/repository/redis"
@@ -128,6 +129,11 @@ var LocalizationProviderSet = wire.NewSet(
 	ProvideTranslator,
 )
 
+var RealtimeProviderSet = wire.NewSet(
+	ws.NewHub,
+	ws.NewWSNotifier,
+)
+
 var SecurityProviderSet = wire.NewSet(
 	security.NewPasswordService,
 	ProvideJWTService,
@@ -170,6 +176,7 @@ var RepositoryProviderSet = wire.NewSet(
 	postgres.NewFollowRepository,
 	postgres.NewPostRepository,
 	postgres.NewChallengeCompletionRepository,
+	postgres.NewNotificationRepo,
 	postgres.NewMedalRepository,
 	postgres.NewUserMedalRepository,
 	wire.Bind(new(repository_interface.ChallengeCompletionRepository), new(*postgres.ChallengeCompletionRepository)),
@@ -198,6 +205,7 @@ var ServiceProviderSet = wire.NewSet(
 	service.NewTempUploadCleaner,
 	service.NewMedalService,
 	service.NewChallengeCompletionService,
+	service.NewNotificationService,
 	wire.Bind(new(service_interface.ChallengeServicer), new(*service.ChallengeService)),
 	wire.Bind(new(service_interface.UserServicer), new(*service.UserService)),
 	wire.Bind(new(service_interface.AuthServicer), new(*service.AuthService)),
@@ -205,6 +213,7 @@ var ServiceProviderSet = wire.NewSet(
 	wire.Bind(new(service_interface.PostServicer), new(*service.PostService)),
 	wire.Bind(new(service_interface.UserDayServicer), new(*service.UserDayService)),
 	wire.Bind(new(service_interface.ChallengeCompletionServicer), new(*service.ChallengeCompletionService)),
+	wire.Bind(new(service_interface.NotificationService), new(*service.NotificationServiceImpl)),
 	wire.Bind(new(service_interface.MedalServicer), new(*service.MedalService)),
 )
 
@@ -216,6 +225,10 @@ var HandlerProviderSet = wire.NewSet(
 	handler.NewPostHandler,
 	handler.NewUserDayHandler,
 	handler.NewChallengeCompletionHandler,
+	handler.NewNotificationHandler,
+	handler.NewWSNotificationHandler,
+	handler.NewDebugHandler,
+	wire.Bind(new(handler_interface.DebugHandler), new(*handler.DebugHandlerImpl)),
 	handler.NewMedalHandler,
 	wire.Bind(new(handler_interface.UserHandler), new(*handler.UserHandler)),
 	wire.Bind(new(handler_interface.AuthHandler), new(*handler.AuthHandler)),
@@ -273,6 +286,7 @@ func InitializeRouter(db *gorm.DB, v *validator.Validate) (*gin.Engine, error) {
 		StorageProviderSet,
 		SecurityProviderSet,
 		RepositoryProviderSet,
+		RealtimeProviderSet,
 		RedisProviderSet,
 		EmailProviderSet,
 		ServiceProviderSet,
@@ -294,6 +308,7 @@ func InitializeApplication() (*Application, error) {
 		RepositoryProviderSet,
 		RedisProviderSet,
 		EmailProviderSet,
+		RealtimeProviderSet,
 		ServiceProviderSet,
 		HandlerProviderSet,
 		MiddlewareProviderSet,
@@ -313,6 +328,7 @@ func InitializeApplicationWithWorker() (*ApplicationContainer, error) {
 		RepositoryProviderSet,
 		RedisProviderSet,
 		EmailProviderSet,
+		RealtimeProviderSet,
 		ServiceProviderSet,
 		HandlerProviderSet,
 		MiddlewareProviderSet,

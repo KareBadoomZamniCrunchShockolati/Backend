@@ -286,4 +286,51 @@ var English = map[string]interface{}{
 		"LIKE_REMOVED":                   "Like removed.",
 		"USER_REGISTERED":                "User registered successfully. Please check your email for verification.",
 	},
+
+	"notifications": map[string]interface{}{
+		"follow": map[string]interface{}{
+			"title": "New follower",
+			"body":  "{username} started following you.",
+		},
+
+		"join_request_sent": map[string]interface{}{
+			"title": "New join request",
+			"body":  "{username} requested to join \"{challenge}\".",
+		},
+
+		"join_request_accepted": map[string]interface{}{
+			"title": "Request accepted",
+			"body":  "Your request to join \"{challenge}\" was accepted.",
+		},
+
+		"invite_sent": map[string]interface{}{
+			"title": "Challenge invite",
+			"body":  "You were invited to join \"{challenge}\".",
+		},
+
+		"invite_accepted": map[string]interface{}{
+			"title": "Invite accepted",
+			"body":  "{username} accepted your invite to \"{challenge}\".",
+		},
+
+		"participant_joined": map[string]interface{}{
+			"title": "New participant",
+			"body":  "{username} joined your challenge \"{challenge}\".",
+		},
+
+		"challenge_reminder": map[string]interface{}{
+			"title": "Challenge reminder",
+			"body":  "It's time to log your progress for \"{challenge}\".",
+		},
+
+		"challenge_commented": map[string]interface{}{
+			"title": "New comment",
+			"body":  "{username} commented on \"{challenge}\": {comment}",
+		},
+
+		"challenge_liked": map[string]interface{}{
+			"title": "New like",
+			"body":  "{username} liked your challenge \"{challenge}\".",
+		},
+	},
 }

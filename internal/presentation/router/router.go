@@ -6,6 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	notificationService "challenge-app/internal/application/service/interface"
+
 	"github.com/gin-contrib/cors"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -26,6 +28,10 @@ func SetupRouter(
 	jwtMiddleware middleware.JWTMiddleware,
 	errorMiddleware middleware.ErrorMiddleware,
 	localizatorMiddleware middleware.LocalizationMiddleware,
+	notificationHandler handler.NotificationHandler,
+	wsNotificationHandler handler.WSNotificationHandler,
+	notificationSvc notificationService.NotificationService,
+	debugHandler handler.DebugHandler,
 ) *gin.Engine {
 
 	r := gin.New()
@@ -86,6 +92,8 @@ func SetupRouter(
 		v1.GET("/users/:id/followers", followHandler.GetFollowers)
 		v1.GET("/users/:id/following", followHandler.GetFollowing)
 		v1.GET("/users/:id/follow-stats", followHandler.GetFollowStats)
+		v1.GET("/ws/notifications", wsNotificationHandler.Connect)
+
 	}
 
 	// Protected routes
@@ -196,6 +204,13 @@ func SetupRouter(
 		// Post like routes
 		protected.POST("/posts/:id/like", postHandler.LikePost)
 		protected.DELETE("/posts/:id/like", postHandler.UnlikePost)
+
+		protected.GET("/notifications", notificationHandler.List)
+		protected.POST("/notifications/:id/read", notificationHandler.MarkRead)
+		protected.POST("/notifications/read-all", notificationHandler.MarkAllRead)
+		protected.GET("/notifications/unread-count", notificationHandler.UnreadCount)
+		protected.POST("/debug/notify", debugHandler.SendTestNotification)
+
 	}
 
 	return r

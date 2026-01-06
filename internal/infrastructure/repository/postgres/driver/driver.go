@@ -42,6 +42,7 @@ func InitPostgresDB(dsn string) (*gorm.DB, error) {
 		&entity.UserDailyGoalProgressEntity{},
 		&entity.UserDailyNoteEntity{},
 		&entity.PostEntity{},
+		&entity.NotificationEntity{},
 		&entity.ChallengeCompletionEntity{},
 		&entity.MedalEntity{},
 		&entity.UserMedalEntity{},

@@ -16,8 +16,8 @@ func ValidateProfileImage(file *multipart.FileHeader) ([]byte, string, error) {
 	if file == nil {
 		return nil, "", fmt.Errorf("file is required")
 	}
-	if file.Size > bootstrap.MaxProfileSize {
-		return nil, "", fmt.Errorf("profile image too large (max 5MB)")
+	if file.Size > bootstrap.MaxImageSize {
+		return nil, "", fmt.Errorf("profile image too large (max 10MB)")
 	}
 
 	return validateMultipartImage(file, bootstrap.ProfileMinWidth, bootstrap.ProfileMinHeight)
@@ -27,7 +27,7 @@ func ValidateChallengeCover(file *multipart.FileHeader) ([]byte, string, error) 
 	if file == nil {
 		return nil, "", fmt.Errorf("file is required")
 	}
-	if file.Size > bootstrap.MaxCoverSize {
+	if file.Size > bootstrap.MaxImageSize {
 		return nil, "", fmt.Errorf("cover image too large (max 10MB)")
 	}
 
@@ -38,7 +38,7 @@ func ValidatePostImage(file *multipart.FileHeader) ([]byte, string, error) {
 	if file == nil {
 		return nil, "", fmt.Errorf("file is required")
 	}
-	if file.Size > bootstrap.MaxPostImageSize {
+	if file.Size > bootstrap.MaxImageSize {
 		return nil, "", fmt.Errorf("post image too large (max 10MB)")
 	}
 

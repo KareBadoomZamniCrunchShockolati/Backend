@@ -4,29 +4,58 @@ import (
 	serviceinterface "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/domain/model"
 	"challenge-app/internal/domain/repository"
+	"context"
 	"fmt"
 )
 
 type FollowService struct {
 	FollowRepo repository.FollowRepository
 	UserRepo   repository.UserRepository
+	notifSvc   serviceinterface.NotificationService
 }
 
-func NewFollowService(followRepo repository.FollowRepository, userRepo repository.UserRepository) *FollowService {
+func NewFollowService(followRepo repository.FollowRepository, userRepo repository.UserRepository, notifSvc serviceinterface.NotificationService) *FollowService {
 	return &FollowService{
 		FollowRepo: followRepo,
 		UserRepo:   userRepo,
+		notifSvc:   notifSvc,
 	}
 }
 
 func (s *FollowService) Follow(followerID, followingID uint) error {
-	// Check if target user exists
 	_, err := s.UserRepo.GetUserByID(followingID)
 	if err != nil {
 		return fmt.Errorf("user not found")
 	}
+	if followerID == followingID {
+		return fmt.Errorf("cannot follow yourself")
+	}
+	isFollowing, err := s.FollowRepo.IsFollowing(followerID, followingID)
+	if err != nil {
+		return err
+	}
+	if isFollowing {
+		return fmt.Errorf("already following this user")
+	}
+	if err := s.FollowRepo.Follow(followerID, followingID); err != nil {
+		return err
+	}
+	follower, err := s.UserRepo.GetUserByID(followerID)
+	if err != nil {
+		return nil
+	}
+	_ = s.notifSvc.CreateAndPush(context.Background(), model.Notification{
+		UserID:   followingID,
+		Type:     model.NotifFollowed,
+		TitleKey: "notif.follow.title",
+		BodyKey:  "notif.follow.body",
+		Data: map[string]any{
+			"username":    follower.Username, 
+			"follower_id": followerID,
+		},
+	})
 
-	return s.FollowRepo.Follow(followerID, followingID)
+	return nil
 }
 
 func (s *FollowService) Unfollow(followerID, followingID uint) error {
