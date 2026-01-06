@@ -13,6 +13,7 @@ type PostHandler interface {
 	UnlikePost(c *gin.Context)
 	PresignPostImages(c *gin.Context)
 	GetPostsByChallenge(c *gin.Context)
+	UploadPostImages(c *gin.Context)
 
 	// Post-specific comment methods
 	AddPostComment(c *gin.Context)

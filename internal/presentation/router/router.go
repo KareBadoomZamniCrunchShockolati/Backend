@@ -24,6 +24,7 @@ func SetupRouter(
 	userDayHandler handler.UserDayHandler,
 	postHandler handler.PostHandler,
 	challengeCompletionHandler handler.ChallengeCompletionHandler,
+	medalHandler handler.MedalHandler,
 	jwtMiddleware middleware.JWTMiddleware,
 	errorMiddleware middleware.ErrorMiddleware,
 	localizatorMiddleware middleware.LocalizationMiddleware,
@@ -84,8 +85,8 @@ func SetupRouter(
 		v1.GET("/challenges/categories", challengeHandler.GetAllCategories)
 
 		// Public post routes
-		v1.GET("/posts/:id", postHandler.GetPost)
-		v1.GET("/posts/:id/comments", postHandler.GetPostComments)
+		v1.GET("/posts/:id", jwtMiddleware.OptionalHandler(), postHandler.GetPost)
+		v1.GET("/posts/:id/comments", jwtMiddleware.OptionalHandler(), postHandler.GetPostComments)
 
 		// Public follow routes
 		v1.GET("/users/:id/followers", followHandler.GetFollowers)
@@ -178,6 +179,12 @@ func SetupRouter(
 		protected.GET("/challenges/completion-stats", challengeCompletionHandler.GetCompletionStats)
 		protected.GET("/challenges/:id/completion-status", challengeCompletionHandler.CheckChallengeCompletion)
 
+		// Medal routes
+		protected.GET("/users/medals", medalHandler.GetUserMedals)
+		protected.GET("/users/medals/selected", medalHandler.GetSelectedMedals)
+		protected.POST("/users/medals/select", medalHandler.SelectMedals)
+		protected.DELETE("/users/medals/select", medalHandler.DeleteSelectedMedals)
+
 		// Post CRUD operations
 		protected.POST("/posts", postHandler.CreatePost)
 		protected.PUT("/posts/:id", postHandler.UpdatePost)
@@ -187,6 +194,7 @@ func SetupRouter(
 		protected.GET("/posts/feed", postHandler.GetFeedPosts)
 		protected.GET("/posts/user/:user_id", postHandler.GetUserPosts)
 		protected.GET("/posts/challenge/:challenge_id", postHandler.GetPostsByChallenge)
+		protected.POST("/posts/images/upload", postHandler.UploadPostImages)
 
 		// Post comment routes
 		protected.POST("/posts/:id/comments", postHandler.AddPostComment)

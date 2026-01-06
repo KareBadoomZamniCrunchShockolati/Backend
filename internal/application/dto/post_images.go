@@ -16,3 +16,8 @@ type PresignedUploadDTO struct {
 	TempPublicURL string           `json:"temp_public_url"`
 	ExpiresAt    string            `json:"expires_at"`
 }
+
+
+type UploadPostImagesResponse struct {
+	Uploads []PresignedUploadDTO `json:"uploads"`
+}

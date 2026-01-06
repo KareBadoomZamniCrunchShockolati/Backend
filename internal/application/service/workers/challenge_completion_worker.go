@@ -5,6 +5,7 @@ import (
 	"time"
 
 	service "challenge-app/internal/application/service"
+	serviceinterface "challenge-app/internal/application/service/interface"
 	"challenge-app/internal/domain/repository"
 )
 
@@ -22,6 +23,7 @@ func NewChallengeCompletionWorker(
 	userDayRepo repository.UserDayRepository,
 	userRepo repository.UserRepository,
 	categoryRepo repository.CategoryRepository,
+	medalService serviceinterface.MedalServicer,
 	interval time.Duration,
 ) *ChallengeCompletionWorker {
 	completionService := service.NewChallengeCompletionService(
@@ -31,6 +33,7 @@ func NewChallengeCompletionWorker(
 		userDayRepo,
 		userRepo,
 		categoryRepo,
+		medalService,
 	)
 
 	return &ChallengeCompletionWorker{

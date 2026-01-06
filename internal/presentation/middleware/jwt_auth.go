@@ -67,3 +67,33 @@ func (m *JWTMiddleware) Handler() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+func (m *JWTMiddleware) OptionalHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if strings.TrimSpace(authHeader) == "" {
+			c.Next()
+			return
+		}
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			c.Next()
+			return
+		}
+
+		tokenStr := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+		if tokenStr == "" {
+			c.Next()
+			return
+		}
+
+		claims, err := m.JWTService.ValidateToken(tokenStr)
+		if err != nil || claims.UserID == 0 {
+			// Invalid or expired token; treat as unauthenticated
+			c.Next()
+			return
+		}
+
+		c.Set("userID", claims.UserID)
+		c.Next()
+	}
+}

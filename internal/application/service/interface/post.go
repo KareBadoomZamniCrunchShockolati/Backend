@@ -4,10 +4,11 @@ import (
 	"challenge-app/internal/application/dto"
 	"challenge-app/internal/domain/model"
 	"context"
+	"mime/multipart"
 )
 
 type PostServicer interface {
-	CreatePost(ctx context.Context, userID uint, input *dto.CreatePostDTO) (*model.Post, error) 
+	CreatePost(ctx context.Context, userID uint, input *dto.CreatePostDTO) (*model.Post, error)
 	GetPost(postID, userID uint) (*dto.PostResponseDTO, error)
 	UpdatePost(postID, userID uint, input *dto.UpdatePostDTO) (*model.Post, error)
 	DeletePost(postID, userID uint) error
@@ -22,4 +23,5 @@ type PostServicer interface {
 	UnlikeEntity(userID uint, input *dto.LikeRequestDTO) error
 	PresignPostImages(ctx context.Context, userID uint, req dto.PresignPostImagesRequest) (*dto.PresignPostImagesResponse, error)
 	CommitPostImages(ctx context.Context, userID uint, postID uint, tempKeys []string) ([]string, error)
+	UploadPostImages(ctx context.Context, userID uint, files []*multipart.FileHeader) (*dto.UploadPostImagesResponse, error)
 }

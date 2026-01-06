@@ -698,7 +698,7 @@ func (h *ChallengeHandler) AddComment(ctx *gin.Context) {
 		EntityType: "challenge",
 		EntityID:   params.ID,
 		Content:    params.Content,
-		ParentID:   nil,
+		ParentID:   params.ParentID,
 	}
 	comment, err := h.challengeService.AddComment(userID.(uint), addCommentDTO)
 	if err != nil {
